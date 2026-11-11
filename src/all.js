@@ -4,6 +4,7 @@ const AUTO=/[?&]auto=1/.test(location.search);       // テスト用：全員CPU
 let SPD=AUTO?60:1;                                     // 演出スピード倍率
 const sleep=ms=>new Promise(r=>setTimeout(r,Math.max(0,ms/SPD)));
 const fmt=n=>(n<0?'−':'')+Math.abs(Math.round(n)).toLocaleString('en-US');
+const TestMode={on:false,roll:0};                  // テストモード（ホストが待機ルームでオンにしたときだけ有効）
 const rnd=n=>Math.floor(Math.random()*n);
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
 const yen=s=>String(s).replace(/(\d{1,3}(?:,\d{3})+)(?![\d,]|円)/g,'$1円');   // 文章中の金額に「円」を付ける
@@ -1577,7 +1578,7 @@ V.roulette=async(p,purpose)=>{
   await V.waitSpin(p,purpose,'start');
   await V.rouletteStart(purpose);
   await V.waitSpin(p,purpose,'stop');
-  const r=1+rnd(10);
+  const r=TestMode.on&&TestMode.roll?TestMode.roll:1+rnd(10);TestMode.roll=0;   // テスト：出目の固定（1回だけ）
   await V.rouletteStop(r);
   return r;
 };
@@ -2059,6 +2060,7 @@ function enterGameUI(){
   $('#titleScr').classList.add('hidden');
   ['#tools','#left','#hudR','#actions','#hand'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
+  if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;
@@ -2201,8 +2203,9 @@ function uniqueAv(av,i){                                   // 車の色が他の
 }
 function renderLobby(slots,me,isHost){
   const joined=slots.filter(s=>s.kind!=='open'),ready=joined.filter(s=>s.ready).length;
-  const allOk=joined.length>=2&&ready===joined.length;
+  const need=NET.test?1:2,allOk=joined.length>=need&&ready===joined.length;
   $ol('lbCode').textContent=NET.code;
+  $ol('lbTestWrap').classList.toggle('hidden',!isHost);
   $ol('lbMembers').innerHTML=slots.map((s,i)=>s.kind==='open'?'':
     `<div class="mem ${i===me?'me':''}"><img src="${avThumb(s.av)}" width="64" height="45" alt=""><div><b>${esc(s.name)}</b><small>${s.kind==='host'?'ホスト':'参加者'}${i===me?'（あなた）':''}</small></div><span class="st ${s.ready?'ok':''}">${s.ready?'OK ✅':'待機中'}</span></div>`).join('');
   const mine=slots[me]||{};
@@ -2210,7 +2213,7 @@ function renderLobby(slots,me,isHost){
   const st=$ol('lbStart');
   if(isHost){
     st.classList.remove('hidden');st.disabled=!allOk;
-    st.textContent=joined.length<2?'2人以上で始められます':allOk?'🚀 スタート！':`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
+    st.textContent=joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
     $ol('lbMsg').textContent=`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
   }else{
     st.classList.add('hidden');
@@ -2258,7 +2261,8 @@ async function hostRoom(){
 }
 function hostStart(){
   const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
-  if(humans.length<2||!humans.every(o=>o.s.ready))return;
+  if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
+  TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
   const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
@@ -2337,6 +2341,8 @@ window.addEventListener('load',()=>{
   $ol('lbCopyCode').onclick=e=>copyText(NET.code,e.target);
   $ol('lbCopyLink').onclick=e=>copyText(inviteLink(),e.target);
   $ol('lbStart').onclick=hostStart;
+  $ol('lbTest').onchange=e=>{NET.test=e.target.checked;lobbyUpdate()};
+  if(/[?&]test=1/.test(location.search)){NET.test=true;$ol('lbTest').checked=true}
   $ol('lbReady').onclick=()=>{
     if(NET.isHost){const s=NET.slots[0];s.ready=!s.ready;lobbyUpdate()}
     else if(NET.lobby){NET.send({t:'ready',v:!(NET.lobby.slots[NET.lobby.me]||{}).ready})}
@@ -2348,3 +2354,49 @@ window.addEventListener('load',()=>{
   const m=location.search.match(/[?&]room=(\d{6})/);      // 招待リンク：コードを入力済みにする
   if(m){$ol('olCode').value=m[1];olMsg('招待リンクのコードを入れました。アバターを確認して「ルームに参加する」を押してね');}
 });
+// ===== テストモード：確認用パネル（ホストが待機ルームでオンにしたときだけ・ホスト自身のプレイヤーだけに作用） =====
+let testBusy=false;
+const TEST_JUMPS=[['15','🐾 ペット'],['102','🐾 ペット赤ちゃん'],['31','💗 恋人'],['51','💍 結婚'],['54','👶 出産'],['61','👶 双子'],['70','🏠 家を買う'],
+  ['20','🎓 進路(分岐)'],['U12','🎓 卒業→合流'],['W1','💼 就職'],['80','🚀 生き方(分岐)'],['R1','🚀 起業'],['34','📈 株'],['5','🎁 アイテム'],['41','🔄 転職'],
+  ['110','🏖 早期退職'],['123','🌍 世界一周'],['136','🌴 退職'],['145','🎰 賭け'],['149','📸 記念写真'],['150','🏁 ゴール']];
+const myTestPlayer=()=>G.players[NET.myPid];
+function initTestPanel(){
+  $('#btnTest').classList.remove('hidden');
+  const P=$('#testPanel');
+  P.innerHTML=`<div class="th"><span>🧪 テストパネル（ホストだけ）</span><button id="tpClose" class="alt">×</button></div>
+   <div class="tn">ジャンプ・職業・アイテムは「自分の番のルーレット前」に使えます</div>
+   <div class="tsec">マスへジャンプ（そのマスの内容をすぐ実行）</div><div id="tpJump" class="tgrid"></div>
+   <div class="trow" style="margin-top:4px"><input id="tpKey" type="text" placeholder="マス番号 例: 95 / U3 / R5"><button id="tpGo" class="gold">行く</button></div>
+   <div class="tsec">ルーレットの出目を固定（次の1回だけ）</div><div id="tpRoll" class="tgrid"></div>
+   <div class="tsec">お金</div><div id="tpMoney" class="tgrid"></div>
+   <div class="tsec">職業</div><div class="trow"><select id="tpJob"></select><button id="tpJobBtn" class="gold">変更</button></div>
+   <div class="tsec">アイテム</div><div class="trow"><select id="tpItem"></select><button id="tpItemBtn" class="gold">追加</button></div>
+   <div class="tgrid" style="margin-top:4px"><button id="tpAllCol" class="green">お宝を全部</button><button id="tpAllIns" class="green">保険を全部</button><button id="tpAllUse" class="green">使い切りを全部</button></div>`;
+  $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
+  $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testJump(b.dataset.k));
+  $('#tpGo').onclick=()=>testJump($('#tpKey').value.trim().toUpperCase());
+  $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
+  $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
+  $('#tpMoney').innerHTML=[[100000,'+10万円'],[1000000,'+100万円'],[-100000,'−10万円']].map(m=>`<button data-m="${m[0]}">${m[1]}</button>`).join('')+'<button data-m="reset" class="alt">財布を空に</button>';
+  $('#tpMoney').querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=myTestPlayer();p.cash=b.dataset.m==='reset'?0:Math.max(0,p.cash+(+b.dataset.m));V.hud()});
+  $('#tpJob').innerHTML='<option value="">（なし＝学生）</option>'+JOBS.map(j=>`<option value="${j.n}">${j.n}（${j.deck==='s'?'専門':'一般'}）</option>`).join('');
+  $('#tpJobBtn').onclick=()=>{const p=myTestPlayer(),n=$('#tpJob').value;returnJob(p.job);p.job=n?{...JOBS.find(j=>j.n===n)}:null;p.retired=false;V.hud();V.pins(p)};
+  $('#tpItem').innerHTML=ITEMS.map(i=>`<option value="${i.c}">${i.n}</option>`).join('');
+  $('#tpItemBtn').onclick=()=>{const p=myTestPlayer();p.items.push({...ITEM_BY_CODE[$('#tpItem').value]});V.hud()};
+  const all=ty=>()=>{const p=myTestPlayer();ITEMS.filter(i=>i.ty===ty).forEach(i=>{if(!has(p,i.c))p.items.push({...i})});V.hud()};
+  $('#tpAllCol').onclick=all('col');$('#tpAllIns').onclick=all('ins');$('#tpAllUse').onclick=all('use');
+  $('#tpClose').onclick=()=>P.classList.add('hidden');
+  $('#btnTest').onclick=()=>P.classList.toggle('hidden');
+}
+async function testJump(key){
+  const p=myTestPlayer();
+  if(!SQ[key]){V.toast(`マス「${key}」はありません`);return}
+  if(G.awaiting!==p){V.toast('自分の番のルーレット前に使ってください');return}
+  if(testBusy)return;testBusy=true;
+  try{
+    const s=SQ[key];
+    if(s.r==='U'||s.r==='W')p.route=s.r;else if(s.r==='S'||s.r==='R')p.route2=s.r;
+    p.route=p.route||'U';p.route2=p.route2||'S';
+    p.pos=key;await V.step(p,key);await land(p);V.hud();
+  }finally{testBusy=false}
+}

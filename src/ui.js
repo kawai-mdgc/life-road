@@ -221,6 +221,7 @@ function enterGameUI(){
   $('#titleScr').classList.add('hidden');
   ['#tools','#left','#hudR','#actions','#hand'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
+  if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;

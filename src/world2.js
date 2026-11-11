@@ -449,7 +449,7 @@ V.roulette=async(p,purpose)=>{
   await V.waitSpin(p,purpose,'start');
   await V.rouletteStart(purpose);
   await V.waitSpin(p,purpose,'stop');
-  const r=1+rnd(10);
+  const r=TestMode.on&&TestMode.roll?TestMode.roll:1+rnd(10);TestMode.roll=0;   // テスト：出目の固定（1回だけ）
   await V.rouletteStop(r);
   return r;
 };

@@ -117,8 +117,9 @@ function uniqueAv(av,i){                                   // 車の色が他の
 }
 function renderLobby(slots,me,isHost){
   const joined=slots.filter(s=>s.kind!=='open'),ready=joined.filter(s=>s.ready).length;
-  const allOk=joined.length>=2&&ready===joined.length;
+  const need=NET.test?1:2,allOk=joined.length>=need&&ready===joined.length;
   $ol('lbCode').textContent=NET.code;
+  $ol('lbTestWrap').classList.toggle('hidden',!isHost);
   $ol('lbMembers').innerHTML=slots.map((s,i)=>s.kind==='open'?'':
     `<div class="mem ${i===me?'me':''}"><img src="${avThumb(s.av)}" width="64" height="45" alt=""><div><b>${esc(s.name)}</b><small>${s.kind==='host'?'ホスト':'参加者'}${i===me?'（あなた）':''}</small></div><span class="st ${s.ready?'ok':''}">${s.ready?'OK ✅':'待機中'}</span></div>`).join('');
   const mine=slots[me]||{};
@@ -126,7 +127,7 @@ function renderLobby(slots,me,isHost){
   const st=$ol('lbStart');
   if(isHost){
     st.classList.remove('hidden');st.disabled=!allOk;
-    st.textContent=joined.length<2?'2人以上で始められます':allOk?'🚀 スタート！':`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
+    st.textContent=joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
     $ol('lbMsg').textContent=`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
   }else{
     st.classList.add('hidden');
@@ -174,7 +175,8 @@ async function hostRoom(){
 }
 function hostStart(){
   const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
-  if(humans.length<2||!humans.every(o=>o.s.ready))return;
+  if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
+  TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
   const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
@@ -253,6 +255,8 @@ window.addEventListener('load',()=>{
   $ol('lbCopyCode').onclick=e=>copyText(NET.code,e.target);
   $ol('lbCopyLink').onclick=e=>copyText(inviteLink(),e.target);
   $ol('lbStart').onclick=hostStart;
+  $ol('lbTest').onchange=e=>{NET.test=e.target.checked;lobbyUpdate()};
+  if(/[?&]test=1/.test(location.search)){NET.test=true;$ol('lbTest').checked=true}
   $ol('lbReady').onclick=()=>{
     if(NET.isHost){const s=NET.slots[0];s.ready=!s.ready;lobbyUpdate()}
     else if(NET.lobby){NET.send({t:'ready',v:!(NET.lobby.slots[NET.lobby.me]||{}).ready})}

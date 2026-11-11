@@ -1,5 +1,5 @@
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
-const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
@@ -14,6 +14,7 @@ function initWorld(){
   sun=new THREE.DirectionalLight(0xffffff,.5);sun.position.set(60,120,40);scene.add(sun);
   scene.add(new THREE.AmbientLight(0xffffff,.18));
   buildPath();buildTiles();buildScenery();buildCenter();scene.add(worldG);
+  worldG.updateMatrixWorld(true);occ.forEach(o=>{o.box=new THREE.Box3().setFromObject(o.g).expandByScalar(.5);o.hid=false});
   fitOrtho();
   addEventListener('resize',onResize);
   bindInput(renderer.domElement);
@@ -77,6 +78,7 @@ function update(){
     if(f.life>1.8||f.m.position.y<0){scene.remove(f.m);confetti.splice(i,1)}
   }
   updateCamera(dt,cur);
+  updateOcclusion();
 }
 let sTgt=new V3(),sAz=.6,sEl=.95,sDist=130;
 function updateCamera(dt,cur){
@@ -89,6 +91,7 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=c?c.g.position.clone():new V3();
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
+    if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;
   camP.position.set(sTgt.x+Math.sin(sAz)*Math.cos(sEl)*sDist,sTgt.y+Math.sin(sEl)*sDist,sTgt.z+Math.cos(sAz)*Math.cos(sEl)*sDist);
@@ -100,3 +103,17 @@ function updateCamera(dt,cur){
 }
 V.focus=p=>{Cam.focus=p};
 V.setCamDefault=()=>{Cam.title=false;Cam.userDist=24;Cam.userEl=.95;sDist=130};
+
+/* ---------- 山・ビル・木などが手前にあって見えないときは、その物体だけ非表示にして貫通して見せる ---------- */
+const occRay=new THREE.Ray(),occHit=new V3(),occDir=new V3();
+function updateOcclusion(){
+  const on=!Cam.title&&!Cam.is2D&&G.players.length>0;
+  const from=camP.position,to=sTgt;
+  occDir.subVectors(to,from);const len=occDir.length();occDir.normalize();occRay.set(from,occDir);
+  for(const o of occ){
+    if(!o.box)continue;
+    let hit=false;
+    if(on&&occRay.intersectBox(o.box,occHit)){hit=from.distanceTo(occHit)<len-.8}
+    if(hit!==o.hid){o.hid=hit;o.g.visible=!hit}
+  }
+}

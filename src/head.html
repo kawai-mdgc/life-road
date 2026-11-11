@@ -131,6 +131,22 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .slotrow{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:10px;background:#faf6ee;margin:3px 0;text-align:left}
 .slotrow .dot{width:18px;height:18px;border-radius:50%;flex:none}
 .slotrow .tag{margin-left:auto;font-size:.75rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#ddd}
+#card.wide{width:min(540px,96vw)}
+#card.wide #cardBody{padding:8px 12px 0}
+#card.wide #cardTitle{font-size:1.05rem;margin-bottom:2px}
+#card.wide #cardText{font-size:.78rem}
+#card.wide #cardBtns{padding:6px 10px 12px}
+#cardBtns{max-height:68vh;overflow:auto}
+#cardBtns button.prof{display:flex;gap:10px;align-items:center;text-align:left;background:#fff7f0;color:#3b2f4a;border:3px solid #ffd0e0;box-shadow:0 3px 0 #0002;font-weight:700;font-size:.76rem;line-height:1.4;padding:6px 8px;gap:8px}
+#cardBtns button.prof:hover{background:#ffeaf2;border-color:#ff6fa5}
+.pimg{width:70px;height:62px;object-fit:cover;border-radius:10px;background:#eaf6ff;flex:none}
+.pi{flex:1;min-width:0;word-break:keep-all;overflow-wrap:anywhere}.pi small{font-weight:800}.pi .stars{font-size:.7rem;color:#c98a00;letter-spacing:-.02em}
+.zoomprof{display:flex;gap:10px;align-items:center;text-align:left;font-size:.85rem;line-height:1.5}
+.hc.mate{background:#ffe4ef}
+#turnBanner{position:fixed;left:0;right:0;top:30%;z-index:26;display:flex;justify-content:center;align-items:center;gap:10px;pointer-events:none;animation:tb 1.9s ease-out forwards}
+#turnBanner .tb-n{color:#fff;font-weight:900;font-size:clamp(26px,7vw,52px);padding:6px 22px;border-radius:40px;border:5px solid #fff;box-shadow:0 8px 0 #0003;text-shadow:0 3px 0 #0003}
+#turnBanner .tb-t{color:#fff;font-weight:900;font-size:clamp(28px,8vw,60px);text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;letter-spacing:.05em}
+@keyframes tb{0%{opacity:0;transform:translateX(-70vw) scale(.8)}18%{opacity:1;transform:translateX(0) scale(1.08)}28%{transform:scale(1)}80%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(60vw)}}
 #banner{position:fixed;left:0;right:0;top:34%;z-index:25;text-align:center;font-size:clamp(26px,7vw,54px);font-weight:900;color:#fff;
  text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;pointer-events:none;animation:ban 2.4s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
@@ -220,6 +236,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
  <div id="cardBtns"></div>
 </div></div>
 <div id="banner" class="hidden"></div>
+<div id="turnBanner" class="hidden"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>

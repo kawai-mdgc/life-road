@@ -131,6 +131,22 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .slotrow{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:10px;background:#faf6ee;margin:3px 0;text-align:left}
 .slotrow .dot{width:18px;height:18px;border-radius:50%;flex:none}
 .slotrow .tag{margin-left:auto;font-size:.75rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#ddd}
+#card.wide{width:min(540px,96vw)}
+#card.wide #cardBody{padding:8px 12px 0}
+#card.wide #cardTitle{font-size:1.05rem;margin-bottom:2px}
+#card.wide #cardText{font-size:.78rem}
+#card.wide #cardBtns{padding:6px 10px 12px}
+#cardBtns{max-height:68vh;overflow:auto}
+#cardBtns button.prof{display:flex;gap:10px;align-items:center;text-align:left;background:#fff7f0;color:#3b2f4a;border:3px solid #ffd0e0;box-shadow:0 3px 0 #0002;font-weight:700;font-size:.76rem;line-height:1.4;padding:6px 8px;gap:8px}
+#cardBtns button.prof:hover{background:#ffeaf2;border-color:#ff6fa5}
+.pimg{width:70px;height:62px;object-fit:cover;border-radius:10px;background:#eaf6ff;flex:none}
+.pi{flex:1;min-width:0;word-break:keep-all;overflow-wrap:anywhere}.pi small{font-weight:800}.pi .stars{font-size:.7rem;color:#c98a00;letter-spacing:-.02em}
+.zoomprof{display:flex;gap:10px;align-items:center;text-align:left;font-size:.85rem;line-height:1.5}
+.hc.mate{background:#ffe4ef}
+#turnBanner{position:fixed;left:0;right:0;top:30%;z-index:26;display:flex;justify-content:center;align-items:center;gap:10px;pointer-events:none;animation:tb 1.9s ease-out forwards}
+#turnBanner .tb-n{color:#fff;font-weight:900;font-size:clamp(26px,7vw,52px);padding:6px 22px;border-radius:40px;border:5px solid #fff;box-shadow:0 8px 0 #0003;text-shadow:0 3px 0 #0003}
+#turnBanner .tb-t{color:#fff;font-weight:900;font-size:clamp(28px,8vw,60px);text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;letter-spacing:.05em}
+@keyframes tb{0%{opacity:0;transform:translateX(-70vw) scale(.8)}18%{opacity:1;transform:translateX(0) scale(1.08)}28%{transform:scale(1)}80%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(60vw)}}
 #banner{position:fixed;left:0;right:0;top:34%;z-index:25;text-align:center;font-size:clamp(26px,7vw,54px);font-weight:900;color:#fff;
  text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;pointer-events:none;animation:ban 2.4s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
@@ -220,6 +236,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
  <div id="cardBtns"></div>
 </div></div>
 <div id="banner" class="hidden"></div>
+<div id="turnBanner" class="hidden"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
@@ -531,6 +548,7 @@ const STOCKS=[1,2,3,4,5,6,7,8,9,10].map(n=>({n,face:10000,div:5000}));
 // ===== ルールエンジン：マスの効果・職業能力・お金・手形・株・ゴール精算 =====
 const V={};                         // 表示層（world.js / ui.js が中身を差し込む）
 const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
+SQ['15'].t='ペットをむかえる。犬か猫を選べる（ペットピンが車に乗る）';SQ['102'].t='ペットに赤ちゃんが生まれる。犬か猫を選んでペットピン追加';
 JOBS.forEach(j=>j.abt=yen(j.abt));ITEMS.forEach(i=>{i.eff=yen(i.eff);i.v=yen(i.v)});HOUSES.forEach(h=>h.sellt=yen(h.sellt));   // 通貨は円
 const NUM_JOB={};JOBS.forEach(j=>NUM_JOB[j.n]=j);
 const ITEM_BY_CODE={};ITEMS.forEach(i=>ITEM_BY_CODE[i.c]=i);
@@ -589,7 +607,7 @@ function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[]};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -644,6 +662,7 @@ async function payday(p,key,passing){
     if(a==='farm'&&r%2===0){s+=3000;note='（偶数ボーナス+3,000）'}
   }
   if(key==='R10'&&p.president){s*=2;note='（社長マーカーで2倍）'}
+  if(p.spouseInfo&&!p.retired&&p.spouseInfo.bonus){s+=p.spouseInfo.bonus;note+=`（${p.spouseInfo.name}さんの共働き+${fmt(p.spouseInfo.bonus)}円）`}
   if(a==='astro'&&!p.astroUsed){p.astroUsed=true;s+=50000;note='（宇宙旅行ボーナス+50,000）'}
   if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
@@ -794,6 +813,59 @@ async function betSquare(p,max,winMsg){
 }
 
 /* ---------- マスごとの特殊効果（青マス・STOPなど） ---------- */
+/* ---------- 結婚相手・ペットのプロフィールカード ---------- */
+const pickOf=a=>a[rnd(a.length)];
+const GN={m:'男性',f:'女性',n:'どちらでも'};
+const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カイト','リョウ','ダイスケ'],f:['ミサキ','ユイ','サクラ','アヤカ','ナナ','ヒナタ','リコ','マイ'],n:['アキ','ユウ','ミナト','ハル','ソラ','リン']};
+const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社員','先生','農家','カメラマン','消防士','薬剤師','公務員','美容師','エンジニア','パティシエ'];
+const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
+const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
+const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
+function genSpouse(g,p){
+  const inc=1+rnd(3),base=ageOfKey(p.pos);
+  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,20,60),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],bonus:[0,1000,3000,5000][inc]};
+}
+function spouseHtml(c){
+  return `<img class="pimg" src="${portraitBust(c)}" alt=""><div class="pi"><b>${esc(c.name)}</b> ${c.age}歳・${GN[c.gender]}<br>💼${esc(c.job)} 🎯${esc(c.hobby)}<br>💬${esc(c.trait)}<br><span class="stars">収入${stars(c.inc)} 家事${stars(c.hk)} 愛情${stars(c.lv)}</span><br><small class="plus">共働き：給料日ごとに+${fmt(c.bonus)}円</small></div>`;
+}
+async function chooseSpouse(p){
+  const gi=await ask(p,{head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',title:'どんな人と結婚する？',text:'まず、相手の性別を選んでください',btns:['👨 男性','👩 女性','🧑 どちらでもない'],pick:rnd(3),col:true});
+  const g=['m','f','n'][gi];
+  const cand=[0,1,2].map(()=>genSpouse(g,p));
+  let best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i});
+  const ci=await ask(p,{head:'💍 プロフィールカード',color:'#ff6fa5',title:'3人の中から、結婚相手を選ぼう',text:'<small>タップして決定</small>',btns:cand.map(spouseHtml),pick:best,col:true,profile:true,wide:true});
+  p.spouseInfo=cand[ci];
+  say(p,`${p.name} は ${cand[ci].name} さんと結婚！`);
+}
+const PET_DEF={
+  dog:{label:'犬',names:['ポチ','コロ','マロン','ムギ','ハチ','レオ','モカ'],breeds:[['柴犬',0xd89a52],['トイプードル',0xf3e6d0],['ゴールデン',0xe8b45a],['ダックス',0x8a4b2a],['ハスキー',0xb9c4d0],['黒ラブ',0x2f2a2a]]},
+  cat:{label:'猫',names:['タマ','ミケ','ルナ','ソラ','チャチャ','ココ','ミルク'],breeds:[['三毛猫',0xf0d9b5],['黒猫',0x2b2b33],['白猫',0xfafafa],['トラ猫',0xb98550],['アメショ',0xb7b7bd],['茶トラ',0xe99b4a]]}
+};
+const PET_TRAIT=['元気いっぱい','おとなしい','食いしん坊','甘えん坊','いたずら好き','かしこい'];
+function genPets(species,baby){
+  const d=PET_DEF[species],used=new Set(),out=[];
+  while(out.length<3){
+    const nm=pickOf(d.names);if(used.has(nm))continue;used.add(nm);
+    const b=pickOf(d.breeds);out.push({species,name:nm,breed:b[0],col:b[1],age:baby?0:rnd(4),trait:pickOf(PET_TRAIT)});
+  }
+  return out;
+}
+function petHtml(pt){
+  return `<img class="pimg" src="${portraitPet(pt)}" alt=""><div class="pi"><b>${esc(pt.name)}</b> ${pt.age}歳・${PET_DEF[pt.species].label}<br>🐾${esc(pt.breed)}<br>💬${esc(pt.trait)}</div>`;
+}
+async function choosePet(p,baby){
+  const si=await ask(p,{head:baby?'🐾 ペットに赤ちゃん！':'🐾 ペットをむかえよう',color:'#ff9a3d',title:baby?'生まれたのは、犬？ 猫？':'犬と猫、どっちにする？',text:'まず種類を選んでください',btns:['🐶 犬','🐱 猫'],pick:rnd(2),col:true});
+  const cand=genPets(si===0?'dog':'cat',baby);
+  const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
+  p.petList.push(cand[ci]);p.pets++;V.pins(p);
+  say(p,`${p.name} の家に ${cand[ci].name}（${cand[ci].breed}）がやってきた！`);
+}
+async function stepAndLand(p){                 // 分岐を選んだら、すぐ最初のマスの支払い・収入を実行する
+  const nk=nextKey(p);if(!nk)return;
+  p.pos=nk;await V.step(p,nk);await land(p);
+}
+
 const SP={};
 const famBonus=async(p,id)=>{                // 家族イベントの職業能力
   const a=jobAb(p);
@@ -813,13 +885,14 @@ SP['7']=async p=>{
 };
 SP['9']=async p=>{const r=await duelRoll(p,x=>x%2===0);if(r%2===0){say(p,'1位！ +5,000');await income(p,5000)}else say(p,'残念、1位になれなかった')};
 SP['12']=async p=>{for(const q of others(p))await pay(p,1000,{to:q,discount:false})};
-SP['15']=async p=>{p.pets++;V.pins(p);say(p,'子犬をゲット！ ペットピンが車に乗った');await famBonus(p,'15')};
+SP['15']=async p=>{await choosePet(p,false);await famBonus(p,'15')};
 SP['16']=async p=>{const r=await duelRoll(p,x=>x>=8);if(r>=8){say(p,'優勝！ +10,000');await income(p,10000)}else say(p,'惜しくも入賞ならず')};
 SP['19']=async p=>{p.again=true;say(p,'もう一度ルーレットを回せます！')};
 SP['20']=async p=>{
   const cpuU=p.cash>=20000||Math.random()<.5;
   const i=await ask(p,{head:'マス20　進路決定',color:'#c98a00',title:'どちらの道に進む？',text:'大学ルート：学費がかかるが専門職に就ける<br>就職ルート：早く稼ぎ始める（一般職）',btns:['🎓 大学ルート','💼 就職ルート'],pick:cpuU?0:1,col:true,branch:'20'});
   p.route=i===0?'U':'W';say(p,`${p.name}は${i===0?'大学':'就職'}ルートへ`);
+  await stepAndLand(p);
 };
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
 SP['31']=async p=>{p.lover=true;V.pins(p);say(p,'恋人ができた！ 助手席に乗った');await famBonus(p,'31')};
@@ -847,7 +920,9 @@ SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
 SP['21']=async p=>{await payday(p,'21',false)};
 SP['51']=async p=>{
-  const had=p.lover;p.spouse=true;p.lover=false;V.pins(p);Sound.good();
+  const had=p.lover;
+  await chooseSpouse(p);
+  p.spouse=true;p.lover=false;V.pins(p);Sound.good();
   say(p,'結婚！ パートナーのピンが車に乗った');
   await gifts(p,5000,'結婚');
   if(had){say(p,'恋人からの祝い金+10,000');await income(p,10000,{celebrate:true})}
@@ -879,6 +954,7 @@ SP['80']=async p=>{
   const lead=G.players.every(q=>q===p||assetsOf(q)<=assetsOf(p));
   const i=await ask(p,{head:'マス80　生き方の分岐',color:'#c98a00',title:'どちらの生き方を選ぶ？',text:'安定ルート：リスク小、手堅い収入<br>挑戦ルート：起業・投資。大当たりか大損',btns:['🏠 安定ルート','🚀 挑戦ルート'],pick:lead?0:(Math.random()<.5?1:0),col:true,branch:'80'});
   p.route2=i===0?'S':'R';say(p,`${p.name}は${i===0?'安定':'挑戦'}ルートへ`);
+  await stepAndLand(p);
 };
 SP['81']=async p=>{say(p,'人生の後半戦スタート！')};
 SP['87']=async p=>{p.skip=1;say(p,'町内会長に選ばれた。次は1回休み');await income(p,10000)};
@@ -890,7 +966,7 @@ SP['89']=async p=>{
 SP['94']=async p=>{await pay(p,20000);p.carLevel++;V.upgradeCar(p);say(p,'車が1ランクアップ！')};
 SP['96']=async p=>{p.redShield++;say(p,'次に止まる赤マスを1回無効にします')};
 SP['100']=async p=>{const list=active();const w=await rankSpin(list);say(w,`${w.name}が折り返し記念で+20,000`);await income(w,20000)};
-SP['102']=async p=>{p.pets++;V.pins(p);say(p,'ペットに赤ちゃん！ ペットピンが増えた');await famBonus(p,'102')};
+SP['102']=async p=>{await choosePet(p,true);await famBonus(p,'102')};
 SP['106']=async p=>{
   await travelBonus(p,'106');
   const r=await duelRoll(p,x=>x%2===1);
@@ -965,6 +1041,11 @@ async function land(p){
   await showSq(p,sq);
   V.bubbleOff();
   if(sq.id!=='1')await landEffect(p,sq);
+  // STOPマスの次もSTOPマスなら、また止まらずにそのまま続けて実行（例：卒業U12 → 合流21）
+  if(!p.finished&&sq.id!=='150'&&p.pos===sq.id&&isStop(sq)){
+    const nk=nextKey(p);
+    if(nk&&isStop(SQ[nk])){p.pos=nk;await V.step(p,nk);await land(p);return}
+  }
   await sleep(250);
 }
 
@@ -1098,7 +1179,7 @@ async function cpuItems(p){
 
 /* ---------- 1ターン ---------- */
 async function takeTurn(p){
-  V.focus(p);V.hud();V.toast(`${p.name} の番です`);
+  V.focus(p);V.hud();await V.turnIntro(p);
   if(p.skip>0){
     if(has(p,'nap')){
       const i=await ask(p,{head:'1回休み',color:'#e8454c',title:'おやすみ免除券を使う？',text:'使うと休まずに進めます',btns:['使う','休む'],pick:0});
@@ -1291,6 +1372,7 @@ function buildTiles(){
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
 const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
 const Roul={free:false,speed:0,max:8,last:-1};
+const occ=[];
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
 let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
@@ -1316,7 +1398,7 @@ function tree(x,z,kind,s=1){
     for(let i=0;i<6;i++){const l=mesh(G_('leaf',()=>{const lg=new THREE.ConeGeometry(.32,2,5);lg.translate(0,1,0);return lg}),mat(0x2fbf6a,50),0,3.7,0,g);l.rotation.z=1.35;l.rotation.y=i*Math.PI/3}
   }
   else{sph(1.2,2.3,0x59c46a);sph(.9,3.0,0x6ed17f,.4,.2)}
-  g.userData.ph=Math.random()*6;sway.push(g);worldG.add(g);return g;
+  g.userData.ph=Math.random()*6;sway.push(g);worldG.add(g);occ.push({g});return g;
 }
 function houseSmall(x,z,wall,roof,s=1,rot=0){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;g.scale.setScalar(s);
@@ -1325,7 +1407,7 @@ function houseSmall(x,z,wall,roof,s=1,rot=0){
   mesh(G_('hd',()=>new THREE.BoxGeometry(.6,1.1,.1)),mat(0x7a4a2a),0,.55,1.32,g);
   mesh(G_('hwi',()=>new THREE.BoxGeometry(.6,.6,.1)),mat(0xbfe6ff,100),-.9,1.2,1.32,g);
   mesh(G_('hwi',()=>new THREE.BoxGeometry(.6,.6,.1)),mat(0xbfe6ff,100),.9,1.2,1.32,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function building(x,z,w,h,d,col){
   const m=new THREE.MeshPhongMaterial({color:0xffffff,map:winTex(col).clone(),shininess:60,specular:0x555555});
@@ -1333,13 +1415,13 @@ function building(x,z,w,h,d,col){
   const g=new THREE.Group();g.position.set(x,0,z);
   mesh(new THREE.BoxGeometry(w,h,d),m,0,h/2,0,g);
   mesh(new THREE.BoxGeometry(w+.3,.4,d+.3),mat(0xdfe6ef),0,h+.2,0,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function mountain(x,z,r,h){
   const g=new THREE.Group();g.position.set(x,0,z);
   mesh(new THREE.ConeGeometry(r,h,7),mat(0x7e9c86,20),0,h/2,0,g);
   mesh(new THREE.ConeGeometry(r*.38,h*.3,7),mat(0xffffff,40),0,h*.85,0,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function cloud(x,y,z,s){
   const g=new THREE.Group();g.position.set(x,y,z);
@@ -1357,7 +1439,7 @@ function school(x,z,rot){
   mesh(new THREE.BoxGeometry(1,1.6,.1),mat(0x7a4a2a),0,.8,1.85,g);
   mesh(new THREE.CylinderGeometry(.05,.05,4,6),mat(0xffffff),5,2,2.5,g);
   mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMaterial({color:0xff4d5a,side:THREE.DoubleSide}),5.6,3.7,2.5,g);
-  worldG.add(g);
+  worldG.add(g);occ.push({g});
 }
 function swings(x,z,rot){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;
@@ -1559,13 +1641,23 @@ function makeDoll(o){
   });
   g.scale.setScalar(o.scale||1);return g;
 }
-function makePet(scale=1,col=0xb5763a){
+function makePet(scale=1,col=0xb5763a,species='dog'){
   const g=new THREE.Group();
   mesh(new THREE.SphereGeometry(.13,10,8),mat(col,60),0,.13,0,g).scale.set(1.3,.9,.9);
   mesh(new THREE.SphereGeometry(.09,10,8),mat(col,60),.16,.24,0,g);
-  [-.05,.05].forEach(z=>mesh(new THREE.ConeGeometry(.035,.08,6),mat(0x6a3a1a),.15,.33,z,g));
-  mesh(new THREE.SphereGeometry(.02,6,6),mat(0x111111),.24,.26,0,g);
-  mesh(new THREE.CylinderGeometry(.015,.015,.14,5),mat(col,60),-.17,.22,0,g).rotation.z=.9;
+  const dark=0x2a2a2a;
+  if(species==='cat'){
+    [-.055,.055].forEach(z=>{const e=mesh(new THREE.ConeGeometry(.04,.1,4),mat(col,60),.15,.34,z,g);e.rotation.x=z>0?-.2:.2});
+    [-.05,.05].forEach(z=>mesh(new THREE.SphereGeometry(.014,6,6),mat(0x58c46a),.235,.26,z*.7,g));
+    mesh(new THREE.SphereGeometry(.012,6,6),mat(0xff8aa0),.25,.235,0,g);
+    const t=mesh(new THREE.CylinderGeometry(.014,.014,.26,5),mat(col,60),-.2,.3,0,g);t.rotation.z=.35;      // 長いしっぽ
+  }else{
+    [-.07,.07].forEach(z=>{const e=mesh(new THREE.SphereGeometry(.04,8,6),mat(col,60),.13,.27,z,g);e.scale.set(.6,1.3,.6)});   // たれ耳
+    mesh(new THREE.SphereGeometry(.045,8,6),mat(0xf6efe0,60),.23,.22,0,g);
+    mesh(new THREE.SphereGeometry(.015,6,6),mat(dark),.27,.23,0,g);
+    [-.04,.04].forEach(z=>mesh(new THREE.SphereGeometry(.013,6,6),mat(dark),.24,.27,z,g));
+    mesh(new THREE.CylinderGeometry(.015,.015,.14,5),mat(col,60),-.17,.22,0,g).rotation.z=.9;
+  }
   g.scale.setScalar(scale);return g;
 }
 const SEATS=[[.25,-.17],[.25,.17],[-.1,-.17],[-.1,.17],[-.45,-.17],[-.45,.17]];
@@ -1599,7 +1691,7 @@ function makeCar(p){
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
@@ -1607,15 +1699,15 @@ function refreshCar(p){
   if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
   for(let i=0;i<p.kids;i++)list.push({k:'kid',i});
   for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
-  for(let i=0;i<p.pets;i++)list.push({k:'pet'});
+  for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
   list.slice(0,PIN_MAX).forEach((e,i)=>{
     let d;
     if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
-    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
+    else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
     else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
     else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
     else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
-    else d=makePet(.9);
+    else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
     d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
   if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
@@ -1815,9 +1907,7 @@ function portrait(job,p){
   const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
   const k=(job?job.n:'-')+'|'+cloth+'|'+gender;if(portCache[k])return portCache[k];
   try{
-    if(!portR){portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
-      portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
-      portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0)}
+    if(!portR)portraitInit();
     const d=makeDoll({color:cloth,gender,job:job?job.n:null,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
@@ -1842,8 +1932,35 @@ function renderAvatar(av){
     return prevR.domElement.toDataURL('image/png');
   }catch(e){return ''}
 }
+
+function portraitPet(pt){
+  const k='pet|'+pt.species+'|'+pt.col;if(portCache[k])return portCache[k];
+  try{
+    if(!portR){portraitInit()}
+    const d=makePet(2.7,pt.col,pt.species);d.rotation.y=-.7;d.position.set(-.1,-.02,0);portScene.add(d);
+    portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
+    return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+function portraitInit(){
+  portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
+  portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
+  portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0);
+  portCam2=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam2.position.set(.75,.62,1.25);portCam2.lookAt(0,.4,0);   // 顔・上半身の寄り
+}
+let portCam2=null;
+
+function portraitBust(c){                       // プロフィール用：顔が大きく写る写真
+  const k='bust|'+c.cloth+'|'+c.gender;if(portCache[k])return portCache[k];
+  try{
+    if(!portR)portraitInit();
+    const d=makeDoll({color:c.cloth,gender:c.gender,scale:1});d.rotation.y=-.5;portScene.add(d);
+    portR.setClearColor(0x000000,0);portR.render(portScene,portCam2);portScene.remove(d);
+    return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
-const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
@@ -1858,6 +1975,7 @@ function initWorld(){
   sun=new THREE.DirectionalLight(0xffffff,.5);sun.position.set(60,120,40);scene.add(sun);
   scene.add(new THREE.AmbientLight(0xffffff,.18));
   buildPath();buildTiles();buildScenery();buildCenter();scene.add(worldG);
+  worldG.updateMatrixWorld(true);occ.forEach(o=>{o.box=new THREE.Box3().setFromObject(o.g).expandByScalar(.5);o.hid=false});
   fitOrtho();
   addEventListener('resize',onResize);
   bindInput(renderer.domElement);
@@ -1921,6 +2039,7 @@ function update(){
     if(f.life>1.8||f.m.position.y<0){scene.remove(f.m);confetti.splice(i,1)}
   }
   updateCamera(dt,cur);
+  updateOcclusion();
 }
 let sTgt=new V3(),sAz=.6,sEl=.95,sDist=130;
 function updateCamera(dt,cur){
@@ -1933,6 +2052,7 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=c?c.g.position.clone():new V3();
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
+    if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;
   camP.position.set(sTgt.x+Math.sin(sAz)*Math.cos(sEl)*sDist,sTgt.y+Math.sin(sEl)*sDist,sTgt.z+Math.cos(sAz)*Math.cos(sEl)*sDist);
@@ -1944,6 +2064,20 @@ function updateCamera(dt,cur){
 }
 V.focus=p=>{Cam.focus=p};
 V.setCamDefault=()=>{Cam.title=false;Cam.userDist=24;Cam.userEl=.95;sDist=130};
+
+/* ---------- 山・ビル・木などが手前にあって見えないときは、その物体だけ非表示にして貫通して見せる ---------- */
+const occRay=new THREE.Ray(),occHit=new V3(),occDir=new V3();
+function updateOcclusion(){
+  const on=!Cam.title&&!Cam.is2D&&G.players.length>0;
+  const from=camP.position,to=sTgt;
+  occDir.subVectors(to,from);const len=occDir.length();occDir.normalize();occRay.set(from,occDir);
+  for(const o of occ){
+    if(!o.box)continue;
+    let hit=false;
+    if(on&&occRay.intersectBox(o.box,occHit)){hit=from.distanceTo(occHit)<len-.8}
+    if(hit!==o.hid){o.hid=hit;o.g.visible=!hit}
+  }
+}
 // ===== UI：カード表示・HUD・手持ちカード・タイトル・結果 =====
 const CAR_COLS=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5,0xff7a1a,0x17c3d4,0x8ac926,0x2b2b3a];
 const CLOTH_COLS=[0xff5a5f,0x3f8cff,0x37c486,0xffc933,0x8e6bff,0xff8fc0,0xff9a3d,0x4dd0e1,0xb6e04a,0x3b2f4a,0xffffff,0x8b5a2b];
@@ -1977,7 +2111,7 @@ function cardLocal(o,p){
     wrap.classList.remove('hidden');
     if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
     (o.btns||['OK']).forEach((b,i)=>{
-      const e=document.createElement('button');e.innerHTML=b;if(i>0)e.className='alt';e.onclick=()=>done(i);bx.appendChild(e);
+      const e=document.createElement('button');e.innerHTML=b;e.className=o.profile?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
     addEventListener('keydown',key);
     if(o.cpu){setTimeout(()=>{
@@ -1999,6 +2133,17 @@ V.bigNum=r=>{
 };
 V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden');b.style.animation='none';void b.offsetWidth;b.style.animation='';setTimeout(()=>b.classList.add('hidden'),2500)};
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
+
+/* ---------- ターン開始（マリオパーティ風：なまえ ターン！ ＋ その人にズーム） ---------- */
+V.turnIntro=async p=>{
+  Cam.introUntil=performance.now()+1900/SPD;
+  const b=$('#turnBanner');
+  b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">ターン！</span>`;
+  b.classList.remove('hidden');b.style.animation='none';void b.offsetWidth;b.style.animation='';
+  Sound.coin();
+  await sleep(1900);
+  b.classList.add('hidden');
+};
 
 /* ---------- ルーレットボタン ---------- */
 V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
@@ -2060,6 +2205,10 @@ function renderHand(p){
   // 💼 職業カード
   group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,fn:()=>zoom(p,'job')}
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
+  // 💍 配偶者
+  if(p.spouseInfo){const c=p.spouseInfo;group('💍 配偶者',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'spouse')}])}
+  // 🐾 ペット
+  if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
   const cols=p.items.filter(i=>i.ty==='col');
   if(cols.length)group('💎 お宝',cols.map(it=>({cls:'col',html:`<div class="ic">${ITEM_ICON[it.c]||'💎'}</div><div class="tt">${esc(it.n)}</div>`,fn:()=>zoom(p,'item',it)})));
@@ -2082,6 +2231,8 @@ async function zoom(p,type,x){
     const bd=breakdown(p.cash);
     o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)}円`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}円</td><td>×${n}</td><td>${fmt(d*n)}円</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))}円</b></div>`};
   }
+  else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
+  else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){
@@ -2198,7 +2349,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -2342,7 +2493,7 @@ async function hostRoom(){
   NET.slots=[{kind:'host',name:NET.name,av:cleanAv(AV[0],0),ready:false}];
   peer.on('connection',conn=>{
     const c={conn,slot:0,pid:undefined};NET.conns.push(c);
-    conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',()=>hostLeft(c));
+    conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',e=>console.warn('conn error',e));
   });
   peer.on('error',e=>olMsg('通信エラー：'+(e.type||e.message)));
   showLobby();lobbyUpdate();
@@ -2367,7 +2518,7 @@ async function joinRoom(){
   olMsg('ルームに接続しています…');
   let peer;try{peer=await openPeer()}catch(e){olMsg('サーバーに接続できませんでした：'+(e.type||e.message));return}
   NET.peer=peer;NET.isHost=false;
-  const conn=peer.connect('liferoad-'+code,{reliable:true,serialization:'json'});
+  const conn=peer.connect('liferoad-'+code,{reliable:true});   // 既定のbinary方式：大きなメッセージ（写真つきカードなど）も自動で分割して送れる
   NET.hostConn=conn;let opened=false;
   const to=setTimeout(()=>{if(!opened){olMsg('ルームが見つかりません（コードの確認、またはホストの回線を確認）');try{conn.close()}catch(e){}}},12000);
   peer.on('error',e=>{if(e.type==='peer-unavailable'){clearTimeout(to);olMsg('そのコードのルームはありません')}else olMsg('通信エラー：'+(e.type||e.message))});
@@ -2401,6 +2552,7 @@ function clientRecv(m){
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
+        case 'turnIntro':V.turnIntro(G.players[a[0]]);break;
         case 'confetti':if(a[0])V.confetti(a[0]);break;
         default:if(V[m.n])V[m.n](...a);
       }

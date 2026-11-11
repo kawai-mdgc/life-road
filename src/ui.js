@@ -31,7 +31,7 @@ function cardLocal(o,p){
     wrap.classList.remove('hidden');
     if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
     (o.btns||['OK']).forEach((b,i)=>{
-      const e=document.createElement('button');e.innerHTML=b;if(i>0)e.className='alt';e.onclick=()=>done(i);bx.appendChild(e);
+      const e=document.createElement('button');e.innerHTML=b;e.className=o.profile?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
     addEventListener('keydown',key);
     if(o.cpu){setTimeout(()=>{
@@ -53,6 +53,17 @@ V.bigNum=r=>{
 };
 V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden');b.style.animation='none';void b.offsetWidth;b.style.animation='';setTimeout(()=>b.classList.add('hidden'),2500)};
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
+
+/* ---------- ターン開始（マリオパーティ風：なまえ ターン！ ＋ その人にズーム） ---------- */
+V.turnIntro=async p=>{
+  Cam.introUntil=performance.now()+1900/SPD;
+  const b=$('#turnBanner');
+  b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">ターン！</span>`;
+  b.classList.remove('hidden');b.style.animation='none';void b.offsetWidth;b.style.animation='';
+  Sound.coin();
+  await sleep(1900);
+  b.classList.add('hidden');
+};
 
 /* ---------- ルーレットボタン ---------- */
 V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
@@ -114,6 +125,10 @@ function renderHand(p){
   // 💼 職業カード
   group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,fn:()=>zoom(p,'job')}
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
+  // 💍 配偶者
+  if(p.spouseInfo){const c=p.spouseInfo;group('💍 配偶者',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'spouse')}])}
+  // 🐾 ペット
+  if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
   const cols=p.items.filter(i=>i.ty==='col');
   if(cols.length)group('💎 お宝',cols.map(it=>({cls:'col',html:`<div class="ic">${ITEM_ICON[it.c]||'💎'}</div><div class="tt">${esc(it.n)}</div>`,fn:()=>zoom(p,'item',it)})));
@@ -136,6 +151,8 @@ async function zoom(p,type,x){
     const bd=breakdown(p.cash);
     o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)}円`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}円</td><td>×${n}</td><td>${fmt(d*n)}円</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))}円</b></div>`};
   }
+  else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
+  else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){

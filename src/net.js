@@ -23,7 +23,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -167,7 +167,7 @@ async function hostRoom(){
   NET.slots=[{kind:'host',name:NET.name,av:cleanAv(AV[0],0),ready:false}];
   peer.on('connection',conn=>{
     const c={conn,slot:0,pid:undefined};NET.conns.push(c);
-    conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',()=>hostLeft(c));
+    conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',e=>console.warn('conn error',e));
   });
   peer.on('error',e=>olMsg('通信エラー：'+(e.type||e.message)));
   showLobby();lobbyUpdate();
@@ -192,7 +192,7 @@ async function joinRoom(){
   olMsg('ルームに接続しています…');
   let peer;try{peer=await openPeer()}catch(e){olMsg('サーバーに接続できませんでした：'+(e.type||e.message));return}
   NET.peer=peer;NET.isHost=false;
-  const conn=peer.connect('liferoad-'+code,{reliable:true,serialization:'json'});
+  const conn=peer.connect('liferoad-'+code,{reliable:true});   // 既定のbinary方式：大きなメッセージ（写真つきカードなど）も自動で分割して送れる
   NET.hostConn=conn;let opened=false;
   const to=setTimeout(()=>{if(!opened){olMsg('ルームが見つかりません（コードの確認、またはホストの回線を確認）');try{conn.close()}catch(e){}}},12000);
   peer.on('error',e=>{if(e.type==='peer-unavailable'){clearTimeout(to);olMsg('そのコードのルームはありません')}else olMsg('通信エラー：'+(e.type||e.message))});
@@ -226,6 +226,7 @@ function clientRecv(m){
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
+        case 'turnIntro':V.turnIntro(G.players[a[0]]);break;
         case 'confetti':if(a[0])V.confetti(a[0]);break;
         default:if(V[m.n])V[m.n](...a);
       }

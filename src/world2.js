@@ -2,6 +2,7 @@
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
 const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
 const Roul={free:false,speed:0,max:8,last:-1};
+const occ=[];
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
 let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
@@ -27,7 +28,7 @@ function tree(x,z,kind,s=1){
     for(let i=0;i<6;i++){const l=mesh(G_('leaf',()=>{const lg=new THREE.ConeGeometry(.32,2,5);lg.translate(0,1,0);return lg}),mat(0x2fbf6a,50),0,3.7,0,g);l.rotation.z=1.35;l.rotation.y=i*Math.PI/3}
   }
   else{sph(1.2,2.3,0x59c46a);sph(.9,3.0,0x6ed17f,.4,.2)}
-  g.userData.ph=Math.random()*6;sway.push(g);worldG.add(g);return g;
+  g.userData.ph=Math.random()*6;sway.push(g);worldG.add(g);occ.push({g});return g;
 }
 function houseSmall(x,z,wall,roof,s=1,rot=0){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;g.scale.setScalar(s);
@@ -36,7 +37,7 @@ function houseSmall(x,z,wall,roof,s=1,rot=0){
   mesh(G_('hd',()=>new THREE.BoxGeometry(.6,1.1,.1)),mat(0x7a4a2a),0,.55,1.32,g);
   mesh(G_('hwi',()=>new THREE.BoxGeometry(.6,.6,.1)),mat(0xbfe6ff,100),-.9,1.2,1.32,g);
   mesh(G_('hwi',()=>new THREE.BoxGeometry(.6,.6,.1)),mat(0xbfe6ff,100),.9,1.2,1.32,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function building(x,z,w,h,d,col){
   const m=new THREE.MeshPhongMaterial({color:0xffffff,map:winTex(col).clone(),shininess:60,specular:0x555555});
@@ -44,13 +45,13 @@ function building(x,z,w,h,d,col){
   const g=new THREE.Group();g.position.set(x,0,z);
   mesh(new THREE.BoxGeometry(w,h,d),m,0,h/2,0,g);
   mesh(new THREE.BoxGeometry(w+.3,.4,d+.3),mat(0xdfe6ef),0,h+.2,0,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function mountain(x,z,r,h){
   const g=new THREE.Group();g.position.set(x,0,z);
   mesh(new THREE.ConeGeometry(r,h,7),mat(0x7e9c86,20),0,h/2,0,g);
   mesh(new THREE.ConeGeometry(r*.38,h*.3,7),mat(0xffffff,40),0,h*.85,0,g);
-  worldG.add(g);return g;
+  worldG.add(g);occ.push({g});return g;
 }
 function cloud(x,y,z,s){
   const g=new THREE.Group();g.position.set(x,y,z);
@@ -68,7 +69,7 @@ function school(x,z,rot){
   mesh(new THREE.BoxGeometry(1,1.6,.1),mat(0x7a4a2a),0,.8,1.85,g);
   mesh(new THREE.CylinderGeometry(.05,.05,4,6),mat(0xffffff),5,2,2.5,g);
   mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMaterial({color:0xff4d5a,side:THREE.DoubleSide}),5.6,3.7,2.5,g);
-  worldG.add(g);
+  worldG.add(g);occ.push({g});
 }
 function swings(x,z,rot){
   const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;
@@ -270,13 +271,23 @@ function makeDoll(o){
   });
   g.scale.setScalar(o.scale||1);return g;
 }
-function makePet(scale=1,col=0xb5763a){
+function makePet(scale=1,col=0xb5763a,species='dog'){
   const g=new THREE.Group();
   mesh(new THREE.SphereGeometry(.13,10,8),mat(col,60),0,.13,0,g).scale.set(1.3,.9,.9);
   mesh(new THREE.SphereGeometry(.09,10,8),mat(col,60),.16,.24,0,g);
-  [-.05,.05].forEach(z=>mesh(new THREE.ConeGeometry(.035,.08,6),mat(0x6a3a1a),.15,.33,z,g));
-  mesh(new THREE.SphereGeometry(.02,6,6),mat(0x111111),.24,.26,0,g);
-  mesh(new THREE.CylinderGeometry(.015,.015,.14,5),mat(col,60),-.17,.22,0,g).rotation.z=.9;
+  const dark=0x2a2a2a;
+  if(species==='cat'){
+    [-.055,.055].forEach(z=>{const e=mesh(new THREE.ConeGeometry(.04,.1,4),mat(col,60),.15,.34,z,g);e.rotation.x=z>0?-.2:.2});
+    [-.05,.05].forEach(z=>mesh(new THREE.SphereGeometry(.014,6,6),mat(0x58c46a),.235,.26,z*.7,g));
+    mesh(new THREE.SphereGeometry(.012,6,6),mat(0xff8aa0),.25,.235,0,g);
+    const t=mesh(new THREE.CylinderGeometry(.014,.014,.26,5),mat(col,60),-.2,.3,0,g);t.rotation.z=.35;      // 長いしっぽ
+  }else{
+    [-.07,.07].forEach(z=>{const e=mesh(new THREE.SphereGeometry(.04,8,6),mat(col,60),.13,.27,z,g);e.scale.set(.6,1.3,.6)});   // たれ耳
+    mesh(new THREE.SphereGeometry(.045,8,6),mat(0xf6efe0,60),.23,.22,0,g);
+    mesh(new THREE.SphereGeometry(.015,6,6),mat(dark),.27,.23,0,g);
+    [-.04,.04].forEach(z=>mesh(new THREE.SphereGeometry(.013,6,6),mat(dark),.24,.27,z,g));
+    mesh(new THREE.CylinderGeometry(.015,.015,.14,5),mat(col,60),-.17,.22,0,g).rotation.z=.9;
+  }
   g.scale.setScalar(scale);return g;
 }
 const SEATS=[[.25,-.17],[.25,.17],[-.1,-.17],[-.1,.17],[-.45,-.17],[-.45,.17]];
@@ -310,7 +321,7 @@ function makeCar(p){
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
@@ -318,15 +329,15 @@ function refreshCar(p){
   if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
   for(let i=0;i<p.kids;i++)list.push({k:'kid',i});
   for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
-  for(let i=0;i<p.pets;i++)list.push({k:'pet'});
+  for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
   list.slice(0,PIN_MAX).forEach((e,i)=>{
     let d;
     if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
-    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
+    else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
     else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
     else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
     else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
-    else d=makePet(.9);
+    else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
     d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
   if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
@@ -526,9 +537,7 @@ function portrait(job,p){
   const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
   const k=(job?job.n:'-')+'|'+cloth+'|'+gender;if(portCache[k])return portCache[k];
   try{
-    if(!portR){portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
-      portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
-      portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0)}
+    if(!portR)portraitInit();
     const d=makeDoll({color:cloth,gender,job:job?job.n:null,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
@@ -551,5 +560,32 @@ function renderAvatar(av){
     g.rotation.y=-.35;prevScene.add(g);
     prevR.setClearColor(0x000000,0);prevR.render(prevScene,prevCam);prevScene.remove(g);
     return prevR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+
+function portraitPet(pt){
+  const k='pet|'+pt.species+'|'+pt.col;if(portCache[k])return portCache[k];
+  try{
+    if(!portR){portraitInit()}
+    const d=makePet(2.7,pt.col,pt.species);d.rotation.y=-.7;d.position.set(-.1,-.02,0);portScene.add(d);
+    portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
+    return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+function portraitInit(){
+  portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
+  portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
+  portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0);
+  portCam2=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam2.position.set(.75,.62,1.25);portCam2.lookAt(0,.4,0);   // 顔・上半身の寄り
+}
+let portCam2=null;
+
+function portraitBust(c){                       // プロフィール用：顔が大きく写る写真
+  const k='bust|'+c.cloth+'|'+c.gender;if(portCache[k])return portCache[k];
+  try{
+    if(!portR)portraitInit();
+    const d=makeDoll({color:c.cloth,gender:c.gender,scale:1});d.rotation.y=-.5;portScene.add(d);
+    portR.setClearColor(0x000000,0);portR.render(portScene,portCam2);portScene.remove(d);
+    return portCache[k]=portR.domElement.toDataURL('image/png');
   }catch(e){return ''}
 }

@@ -23,7 +23,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',p=>[p.id]);ev('policeLeave',p=>[p.id]);ev('policeTake',p=>[p.id]);ev('release',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -44,7 +44,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
     });
   };
   ev('rouletteStart');ev('rouletteStop');
-  const results=V.results;V.results=async()=>{sendSnap();bc({t:'results'});await results()};
+  const results=V.results;V.results=async()=>{sendSnap();bc({t:'results',hist:G.hist});await results()};
   // カード：本人にだけボタンを出し、他の人は観戦表示
   const clean=(o)=>{const c={...o};delete c.sq;delete c.cpu;delete c.pick;return c};
   V.card=(o,p)=>{
@@ -228,7 +228,11 @@ function clientRecv(m){
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
-        case 'turnIntro':V.turnIntro(G.players[a[0]]);break;
+        case 'turnIntro':V.turnIntro(G.players[a[0]],a[1]);break;
+        case 'policeDispatch':V.policeDispatch(G.players[a[0]]);break;
+        case 'policeLeave':V.policeLeave(G.players[a[0]]);break;
+        case 'policeTake':V.policeTake(G.players[a[0]]);break;
+        case 'release':V.release(G.players[a[0]]);break;
         case 'confetti':if(a[0])V.confetti(a[0]);break;
         default:if(V[m.n])V[m.n](...a);
       }
@@ -242,7 +246,7 @@ function clientRecv(m){
     case 'cardClose':if(cardCloseFn)cardCloseFn();break;
     case 'spinWait':{
       const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
-    case 'results':V.results();break;
+    case 'results':G.hist=m.hist||{};V.results();break;
   }
 }
 

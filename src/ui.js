@@ -55,10 +55,10 @@ V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
 
 /* ---------- ターン開始（マリオパーティ風：なまえ ターン！ ＋ その人にズーム） ---------- */
-V.turnIntro=async p=>{
+V.turnIntro=async(p,label='ターン！')=>{
   Cam.introUntil=performance.now()+1900/SPD;
   const b=$('#turnBanner');
-  b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">ターン！</span>`;
+  b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">${label}</span>`;
   b.classList.remove('hidden');b.style.animation='none';void b.offsetWidth;b.style.animation='';
   Sound.coin();
   await sleep(1900);
@@ -69,7 +69,7 @@ V.turnIntro=async p=>{
 V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
   if(p.cpu||AUTO){setTimeout(res,(phase==='stop'?400+rnd(900):650)/SPD);return}
   const b=$('#spinBtn');
-  if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
+  if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:purpose==='bonus'?`🎁 ${p.name}：ボーナスルーレット！`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
   else{b.textContent='✋ ストップ！';b.className='stop';V.toast('好きなタイミングでストップを押そう！')}
   const go=()=>{b.classList.add('hidden');b.onclick=null;removeEventListener('keydown',key);Sound.resume();res()};
   const key=e=>{if((e.code==='Space'||e.code==='Enter')&&!cardOpen){e.preventDefault();go()}};
@@ -87,7 +87,7 @@ V.hud=()=>{
   $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
-  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳 ${{stroller:'🍼',bike:'🚲',car:'🚗',chair:'🧑‍🦽'}[cur.vstage]||''}</span>`;
+  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳 ${{stroller:'🍼',bike:'🚲',car:'🚗',chair:'🧑‍🦽',echair:'🦼',scooter:'🛵'}[cur.vstage]||''}</span> <span class="hp">😊${happinessOf(cur)}</span>`;
   m.textContent=fmt(cur.cash)+'円';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
@@ -112,13 +112,10 @@ function renderHand(p){
     const g=document.createElement('div');g.className='hg';g.innerHTML=`<div class="hl">${label}${cards.length>1?` <span class="gc">×${cards.length}</span>`:''}</div><div class="hrow"></div>`;
     const row=g.querySelector('.hrow');h.appendChild(g);
     if(cards.length===1){const d=mk(cards[0]);d.onclick=cards[0].fn;row.appendChild(d);return}
-    const st=document.createElement('div');st.className='stack'+(wide?' wide':'');st.style.setProperty('--n',cards.length);
-    cards.forEach((c,i)=>{
-      const d=mk(c);d.style.setProperty('--i',i);
-      d.onclick=e=>{e.stopPropagation();if(st.classList.contains('open'))c.fn();else{closeStacks();st.classList.add('open')}};
-      st.appendChild(d);
-    });
-    const top=st.lastChild;const b=document.createElement('span');b.className='cnt';b.textContent='×'+cards.length;top.appendChild(b);
+    const st=document.createElement('div');st.className='stack'+(wide?' wide':'');st.style.setProperty('--n',Math.min(cards.length,4));
+    cards.slice(-4).forEach((c,i)=>{const d=mk(c);d.style.setProperty('--i',i);st.appendChild(d)});    // 少しずらして重ね、枚数がわかるようにする
+    const top=st.lastChild;const bd2=document.createElement('span');bd2.className='cnt';bd2.textContent='×'+cards.length;top.appendChild(bd2);
+    st.onclick=()=>openGroupPopup(label,cards);                                                          // タップでポップアップに全部表示
     row.appendChild(st);
   };
   // 💰 財布：お札の枚数（高額順）
@@ -149,8 +146,13 @@ function renderHand(p){
   // 📜 約束手形
   if(p.notes)group('📜 手形',[{cls:'note',html:`<div class="big">×${p.notes}</div><div class="tt">返済 ${fmt(p.notes*NOTE_BACK)}円</div>`,fn:()=>zoom(p,'note')}]);
 }
-function closeStacks(){document.querySelectorAll('.stack.open').forEach(e=>e.classList.remove('open'))}
-document.addEventListener('click',e=>{if(!e.target.closest('.stack'))closeStacks()});
+function openGroupPopup(label,cards){            // 同じ種類のカードを、ポップアップで全部見せる
+  const grid=$('#gpGrid');grid.innerHTML='';$('#gpTitle').textContent=`${label}（${cards.length}枚）`;
+  cards.forEach(c=>{const d=document.createElement('div');d.className='hc '+c.cls;d.innerHTML=c.html;d.onclick=()=>{closeGroupPopup();c.fn()};grid.appendChild(d)});
+  $('#groupPop').classList.remove('hidden');
+}
+function closeGroupPopup(){$('#groupPop').classList.add('hidden')}
+$('#gpClose').onclick=closeGroupPopup;$('#groupPop').onclick=e=>{if(e.target.id==='groupPop')closeGroupPopup()};
 async function zoom(p,type,x){
   if(cardOpen)return;
   let o;
@@ -178,17 +180,48 @@ async function zoom(p,type,x){
 }
 
 /* ---------- 結果 ---------- */
+function drawChart(cv,players,key,yMin,yMax,fmtY){
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,L=46,R=10,T=10,B=24;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#fffdf7';ctx.fillRect(0,0,W,H);
+  const maxAge=Math.max(80,...players.map(p=>Math.max(0,...(G.hist[p.id]||[]).map(x=>x.a))));
+  const X=a=>L+(W-L-R)*a/maxAge,Y=v=>T+(H-T-B)*(1-(v-yMin)/(yMax-yMin||1));
+  ctx.font='11px sans-serif';ctx.textBaseline='middle';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const v=yMin+(yMax-yMin)*i/4,y=Y(v);ctx.strokeStyle='#e8e2d4';ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(W-R,y);ctx.stroke();ctx.fillStyle='#887';ctx.textAlign='right';ctx.fillText(fmtY(v),L-4,y)}
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(let a=0;a<=maxAge;a+=20){ctx.fillStyle='#887';ctx.fillText(a+'歳',X(a),H-B+5);ctx.strokeStyle='#eee';ctx.beginPath();ctx.moveTo(X(a),T);ctx.lineTo(X(a),H-B);ctx.stroke()}
+  players.forEach(p=>{
+    const hs=G.hist[p.id]||[];if(!hs.length)return;
+    ctx.strokeStyle=hex(p.color);ctx.fillStyle=hex(p.color);ctx.lineWidth=2.6;ctx.lineJoin='round';ctx.beginPath();
+    hs.forEach((x,i)=>{const px=X(x.a),py=Y(x[key]);i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.stroke();
+    const e=hs[hs.length-1];ctx.beginPath();ctx.arc(X(e.a),Y(e[key]),4,0,7);ctx.fill();
+  });
+}
 V.results=async()=>{
   Cam.rouletteView=false;
   const r=[...G.players].sort((a,b)=>b.final-a.final);
   Sound.fanfare();
   const medal=['🥇','🥈','🥉'];
-  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}${p.left?'（退出）':''}</td><td>${fmt(p.final)}</td></tr>`).join('');
-  const det=r.map(p=>`<details style="text-align:left;font-size:.8rem"><summary>${esc(p.name)} の内訳</summary><table class="tbl">${p.report.map(x=>`<tr><td>${esc(x[0])}</td><td class="${x[1]<0?'minus':''}">${fmt(x[1])}</td></tr>`).join('')}</table></details>`).join('');
+  const lastH=p=>{const h=G.hist&&G.hist[p.id];return h&&h.length?h[h.length-1].h:0};
+  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}${p.left?'（退出）':''}</td><td>${fmt(p.final)}円</td><td>😊${lastH(p)}</td></tr>`).join('');
+  const happy=[...G.players].sort((a,b)=>lastH(b)-lastH(a))[0];
+  const legend=G.players.map(p=>`<span style="color:${hex(p.color)};font-weight:800">● ${esc(p.name)}</span>`).join('　');
+  const det=r.map(p=>`<details style="text-align:left;font-size:.8rem"><summary>${esc(p.name)} の内訳</summary><table class="tbl">${p.report.map(x=>`<tr><td>${esc(x[0])}</td><td class="${x[1]<0?'minus':''}">${fmt(x[1])}円</td></tr>`).join('')}${p.bonusTotal?`<tr><td>ボーナスルーレット合計（上がった後）</td><td>${fmt(p.bonusTotal)}円</td></tr>`:''}</table></details>`).join('');
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
   if(AUTO)return;
-  await cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産(円)</th></tr>${rows}</table>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
+  const pr=cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',wide:true,title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産</th><th>幸福度</th></tr>${rows}</table>
+    <div style="margin:6px 0 2px">😊 いちばん幸せだったのは <b>${esc(happy.name)}</b>（${lastH(happy)}）</div>
+    <div class="chartwrap"><b>😊 幸福度の推移</b><canvas id="chH" width="520" height="220"></canvas></div>
+    <div class="chartwrap"><b>💰 総資産の推移</b><canvas id="chW" width="520" height="220"></canvas></div>
+    <div style="font-size:.78rem;margin:4px 0">${legend}</div>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
+  setTimeout(()=>{
+    const cvH=$('#chH'),cvW=$('#chW');if(!cvH||!cvW)return;
+    drawChart(cvH,G.players,'h',0,100,v=>Math.round(v));
+    const mx=Math.max(100000,...G.players.map(p=>Math.max(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+    const mn=Math.min(0,...G.players.map(p=>Math.min(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+    drawChart(cvW,G.players,'w',mn,mx,v=>Math.round(v/10000)+'万');
+  },60);
+  await pr;
   location.reload();
 };
 

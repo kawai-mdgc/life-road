@@ -1,5 +1,7 @@
 // ===== 3D ワールド（後半）：背景・ルーレット・銀行・車・人形・お札・カメラ =====
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
+const POLICE_POS=new V3(34,0,-6),JAIL_POS=new V3(34,0,6),PATROL_HOME=new V3(26,.3,-6),JAIL_GATE=new V3(27,.3,6);
+let patrol=null;
 const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
 const Roul={free:false,speed:0,max:8,last:-1};
 const occ=[];
@@ -107,7 +109,7 @@ function freeSpot(ch,minPath,r,rad0=5,rad1=22,tries=80){
   for(let t=0;t<tries;t++){
     const b=chSquares[ch][rnd(chSquares[ch].length)],a=Math.random()*Math.PI*2,d=rad0+Math.random()*(rad1-rad0);
     const x=b.x+Math.cos(a)*d,z=b.z+Math.sin(a)*d;
-    if(Math.hypot(x,z)<14||Math.hypot(x-BANK_POS.x,z-BANK_POS.z)<10)continue;
+    if(Math.hypot(x,z)<14||Math.hypot(x-BANK_POS.x,z-BANK_POS.z)<10||Math.hypot(x-POLICE_POS.x,z-0)<17)continue;
     if(Math.abs(x)>150||Math.abs(z)>85)continue;
     if(allPts.some(q=>(q.x-x)**2+(q.z-z)**2<minPath*minPath))continue;
     if(placed.some(q=>(q.x-x)**2+(q.z-z)**2<(q.r+r)**2))continue;
@@ -206,6 +208,89 @@ function buildCenter(){
   bankCoin=mesh(new THREE.CylinderGeometry(1,1,.25,24),mat(0xffd23f,120),0,8.2,-.2,b);bankCoin.rotation.x=Math.PI/2;
   mesh(new THREE.PlaneGeometry(6,1.1),new THREE.MeshBasicMaterial({map:canvasTex(256,48,(c,w,h)=>{c.fillStyle='#2a63c8';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 28px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('LIFE ROAD BANK',w/2,h/2+1)})}),0,5.2,3.4,b);
   worldG.add(b);
+  buildPolice();
+}
+
+/* ---------- 警察署・留置所の檻・パトカー ---------- */
+function buildPolice(){
+  const g=new THREE.Group();g.position.copy(POLICE_POS);g.rotation.y=-Math.PI/2;       // 入口は中央（ルーレット）側
+  mesh(new THREE.BoxGeometry(9,.4,6.4),mat(0xdfe3ea),0,.2,0,g);
+  mesh(new THREE.BoxGeometry(8,4.4,5.4),mat(0xe8eefc,70),0,2.6,-.2,g);
+  mesh(new THREE.BoxGeometry(8.6,.5,6),mat(0x2a4a9a,70),0,5,-.2,g);
+  [-2.6,0,2.6].forEach(x=>mesh(new THREE.BoxGeometry(1.2,1.2,.1),mat(0xbfe6ff,120),x,3.2,2.52,g));
+  mesh(new THREE.BoxGeometry(1.6,2.4,.12),mat(0x2a4a9a,60),0,1.6,2.52,g);                  // ドア
+  mesh(new THREE.PlaneGeometry(5.2,1.1),new THREE.MeshBasicMaterial({map:canvasTex(256,56,(c,w,h)=>{c.fillStyle='#2a4a9a';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 30px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('🚓 警察署 POLICE',w/2,h/2+2)})}),0,4.15,2.6,g);
+  // 屋根のサイレン灯
+  const l1=mesh(new THREE.CylinderGeometry(.35,.35,.5,12),new THREE.MeshBasicMaterial({color:0xff2b2b}),-.5,5.5,-.2,g);
+  const l2=mesh(new THREE.CylinderGeometry(.35,.35,.5,12),new THREE.MeshBasicMaterial({color:0x2b6bff}),.5,5.5,-.2,g);
+  worldG.add(g);
+  // 留置所の檻
+  const j=new THREE.Group();j.position.copy(JAIL_POS);
+  mesh(new THREE.BoxGeometry(8.4,.3,6.4),mat(0x9a9aa8,40),0,.15,0,j);
+  const bar=(x,z)=>mesh(new THREE.CylinderGeometry(.09,.09,3.6,8),mat(0x45455a,80),x,2.1,z,j);
+  for(let x=-4;x<=4.01;x+=.8){bar(x,-3);bar(x,3)}
+  for(let z=-3;z<=3.01;z+=.8){bar(-4.1,z);bar(4.1,z)}
+  [[0,3.9,-3],[0,3.9,3]].forEach(a=>mesh(new THREE.BoxGeometry(8.4,.14,.14),mat(0x45455a,80),a[0],a[1],a[2],j));
+  [[-4.1,3.9,0],[4.1,3.9,0]].forEach(a=>mesh(new THREE.BoxGeometry(.14,.14,6.4),mat(0x45455a,80),a[0],a[1],a[2],j));
+  for(let x=-3.2;x<=3.3;x+=1.6)mesh(new THREE.BoxGeometry(.1,.1,6.4),mat(0x45455a,80),x,3.9,0,j);
+  mesh(new THREE.PlaneGeometry(3.4,.9),new THREE.MeshBasicMaterial({map:canvasTex(200,52,(c,w,h)=>{c.fillStyle='#3a3a4a';rr(c,0,0,w,h,8);c.fill();c.fillStyle='#ffe27a';c.font=`900 26px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('留置所',w/2,h/2+2)}),side:THREE.DoubleSide}),0,4.5,-3.1,j);
+  worldG.add(j);
+  // パトカー（警官つき）
+  const pg=new THREE.Group();pg.position.copy(PATROL_HOME);pg.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(0xffffff,100),0,.32,0,pg);
+  mesh(new THREE.BoxGeometry(1.52,.12,.82),mat(0x1a1a22,100),0,.26,0,pg);
+  mesh(new THREE.BoxGeometry(.7,.26,.74),mat(0xffffff,100),-.1,.58,0,pg);
+  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,pg);
+  const pl1=mesh(new THREE.BoxGeometry(.2,.1,.3),new THREE.MeshBasicMaterial({color:0xff2b2b}),-.1,.78,-.16,pg);
+  const pl2=mesh(new THREE.BoxGeometry(.2,.1,.3),new THREE.MeshBasicMaterial({color:0x2b6bff}),-.1,.78,.16,pg);
+  [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>addWheel(pg,a[0],.17,a[1],.17,.14));
+  const off=makeDoll({color:0x2a4a9a,job:'警察官',gender:'m',scale:.9});off.position.set(.1,.46,-.14);pg.add(off);
+  patrol={g:pg,l1:pl1,l2:pl2,sl1:l1,sl2:l2,off,siren:false,t:0};
+  worldG.add(pg);
+}
+const JAIL_OFF=[[-1.6,-1.1],[0,-1.1],[1.6,-1.1],[-1.6,1.1],[0,1.1],[1.6,1.1]];
+async function moveObj(g,a,b,ms){                        // 一定の速さでなめらかに走らせる
+  const d=b.clone().sub(a);if(d.lengthSq()>.0001)g.rotation.y=Math.atan2(-d.z,d.x);
+  await anim(ms,k=>{g.position.lerpVectors(a,b,ease(k));if(g.wheels)g.wheels.forEach(w=>w.rotation.z-=.4)});
+}
+V.policeDispatch=async p=>{                              // 警察署 → 逮捕されるプレイヤーのマスまで
+  const c=cars[p.id];if(!c||!patrol)return;
+  patrol.siren=true;Sound.siren();
+  const target=c.g.position.clone().add(new V3(2.1,0,1.4)).setY(.3);
+  Cam.followObj=patrol.g;
+  await moveObj(patrol.g,patrol.g.position.clone(),target,2300);
+  await anim(600,k=>{patrol.off.position.y=.46+Math.abs(Math.sin(k*Math.PI*2))*.25});          // 警官：逮捕だ！
+  Cam.followObj=null;
+};
+V.policeLeave=async p=>{                                 // 保釈金：そのまま払って終わり。パトカーは署へ戻る
+  if(!patrol)return;
+  await moveObj(patrol.g,patrol.g.position.clone(),PATROL_HOME.clone(),1800);
+  patrol.siren=false;
+};
+V.policeTake=async p=>{                                  // 連行：パトカーに乗せ、署の隣の檻へ
+  const c=cars[p.id];if(!c||!patrol)return;
+  p.inJail=true;c.anim=true;Cam.followObj=patrol.g;
+  const a=c.g.position.clone(),pp=patrol.g.position.clone();
+  await anim(500,k=>c.g.position.lerpVectors(a,pp,ease(k)));
+  c.g.visible=false;                                      // パトカーの中
+  await moveObj(patrol.g,pp,JAIL_GATE.clone(),2400);
+  layoutAll();c.g.position.copy(JAIL_GATE);c.g.visible=true;c.g.rotation.y=0;
+  const to=c.target.clone();
+  await anim(900,k=>c.g.position.lerpVectors(JAIL_GATE,to,ease(k)));                         // 檻の中へ
+  c.anim=false;Cam.followObj=null;
+  await moveObj(patrol.g,JAIL_GATE.clone(),PATROL_HOME.clone(),1300);
+  patrol.siren=false;
+};
+V.release=async p=>{                                     // 釈放：檻から自分のマスへ戻る
+  const c=cars[p.id];if(!c)return;
+  p.inJail=false;c.anim=true;const a=c.g.position.clone();layoutAll();const b=c.target.clone();
+  await anim(1400,k=>c.g.position.lerpVectors(a,b,ease(k)));c.anim=false;
+};
+function updatePolice(dt){
+  if(!patrol)return;
+  patrol.t+=dt;const on=Math.floor(patrol.t*4)%2===0;
+  if(patrol.siren){patrol.l1.visible=on;patrol.l2.visible=!on;patrol.sl1.visible=on;patrol.sl2.visible=!on}
+  else{patrol.l1.visible=patrol.l2.visible=false;patrol.sl1.visible=patrol.sl2.visible=true}
 }
 
 /* ---------- 人形（ピン） ---------- */
@@ -349,9 +434,39 @@ function buildChair(color){                   // 車椅子（70歳〜・免許�
   [-.2,.2].forEach(z=>addWheel(v,.3,.1,z,.08,.05));
   return v;
 }
+function buildEChair(color){                  // 電動車椅子：バッテリーとジョイスティックつき
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.05,.8),mat(0x8d8d99,40),0,.04,0,v);
+  mesh(new THREE.BoxGeometry(.56,.2,.46),mat(0x333344,60),0,.22,0,v);                 // バッテリー
+  mesh(new THREE.BoxGeometry(.54,.08,.5),mat(color,90),0,.4,0,v);
+  mesh(new THREE.BoxGeometry(.08,.5,.5),mat(color,90),-.26,.66,0,v);
+  [-.28,.28].forEach(z=>mesh(new THREE.BoxGeometry(.44,.05,.06),mat(0x333344,60),0,.56,z,v));
+  mesh(new THREE.CylinderGeometry(.025,.025,.14,6),mat(0x222222,60),.2,.62,.28,v);mesh(new THREE.SphereGeometry(.04,8,6),mat(0xff4d5a,90),.2,.7,.28,v);   // ジョイスティック
+  mesh(new THREE.BoxGeometry(.2,.04,.4),mat(0x333344,60),.38,.22,0,v);
+  [-.3,.3].forEach(z=>addWheel(v,-.1,.22,z,.22,.08));
+  [-.22,.22].forEach(z=>addWheel(v,.32,.12,z,.12,.06));
+  return v;
+}
+function buildScooter(color){                 // シニアカー：ハンドル・かご・屋根つきの4輪
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.05,.8),mat(0x8d8d99,40),0,.04,0,v);
+  mesh(new THREE.BoxGeometry(.9,.1,.5),mat(color,100),0,.2,0,v);                      // 床
+  mesh(new THREE.BoxGeometry(.36,.2,.46),mat(0x333344,60),-.36,.3,0,v);               // 後ろのバッテリー
+  mesh(new THREE.CylinderGeometry(.04,.04,.3,8),mat(0xdddddd,90),0,.4,0,v);           // シートの支柱
+  mesh(new THREE.BoxGeometry(.42,.08,.42),mat(0xf4efe0,60),-.02,.56,0,v);              // シート
+  mesh(new THREE.BoxGeometry(.08,.46,.42),mat(0xf4efe0,60),-.24,.8,0,v);               // 背もたれ
+  mesh(new THREE.CylinderGeometry(.04,.04,.6,8),mat(0xdddddd,90),.32,.5,0,v);         // ハンドルの柱
+  const hb=mesh(new THREE.CylinderGeometry(.03,.03,.5,8),mat(0x222222,60),.28,.82,0,v);hb.rotation.x=Math.PI/2;
+  mesh(new THREE.BoxGeometry(.26,.16,.34),mat(0xb98550,40),.46,.4,0,v);                // かご
+  [[.34,.12,.24],[.34,.12,-.24],[-.34,.12,.26],[-.34,.12,-.26]].forEach(a=>addWheel(v,a[0],a[1],a[2],.12,.07));
+  return v;
+}
+const buildOldVeh=(t,color)=>t==='scooter'?buildScooter(color):t==='echair'?buildEChair(color):buildChair(color);
+const OLD_SEAT_Y={chair:.4,echair:.44,scooter:.6};
 function makeCar(p){
   const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0,vehicles:{}};
-  car.vehicles.car=buildCarModel(p.color);car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);
+  car.vehicles.car=buildCarModel(p.color);car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);car.vehicles.echair=buildEChair(p.color);car.vehicles.scooter=buildScooter(p.color);
+  car.mateG=new THREE.Group();car.mateG.position.z=1.05;g.add(car.mateG);      // 老後：配偶者が乗る、となりの乗り物
   Object.values(car.vehicles).forEach(v=>{v.visible=false;g.add(v)});
   car.seatG=new THREE.Group();car.seatG.position.y=.49;g.add(car.seatG);
   car.styleG=new THREE.Group();g.add(car.styleG);
@@ -369,16 +484,21 @@ const SEAT_SETS={
   car:{y:.49,slots:SEATS.map(s=>[s[0],s[1],0])},
   stroller:{y:.43,slots:[[.0,0,0]]},
   bike:{y:.72,slots:[[-.24,0,0],[.62,0,-.2]]},
-  chair:{y:.4,slots:[[-.02,0,0],[-.5,-.18,-.34],[-.5,.18,-.34],[.4,-.28,-.34],[.4,.28,-.34],[.1,-.34,-.34]]}
+  chair:{y:.4,slots:[[-.02,0,0],[-.5,-.18,-.34],[-.5,.18,-.34],[.4,-.28,-.34],[.4,.28,-.34],[.1,-.34,-.34]]},
+  echair:{y:.44,slots:[[-.02,0,0],[-.5,-.18,-.38],[-.5,.18,-.38],[.4,-.28,-.38],[.4,.28,-.38],[.1,-.34,-.38]]},
+  scooter:{y:.6,slots:[[-.02,0,0],[-.5,-.18,-.56],[-.5,.18,-.56],[.45,-.28,-.56],[.45,.28,-.56],[.1,-.34,-.56]]}
 };
+const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
-  const sig=[st,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const sig=[st,p.oldVeh,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
-  car.wheels=car.vehicles[st].wheels;
+  car.wheels=car.vehicles[st].wheels.slice();
+  while(car.mateG.children.length)car.mateG.remove(car.mateG.children[0]);
+  const mateRides=isOldStage(st)&&p.spouse;       // 老後は、配偶者が別の車椅子／シニアカーに乗ってとなりを走る
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
   const set=SEAT_SETS[st];car.seatG.position.y=set.y;
@@ -386,7 +506,7 @@ function refreshCar(p){
   if(st==='stroller'){/* 赤ちゃんだけ */}
   else if(st==='bike'){for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]})}
   else{
-    if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
+    if(p.spouse&&!mateRides)list.push({k:'spouse'});else if(!p.spouse&&p.lover)list.push({k:'lover'});
     for(let i=0;i<p.kids;i++)list.push({k:'kid',i,kid:p.kidList[i]});
     for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
     for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
@@ -401,6 +521,12 @@ function refreshCar(p){
     else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
     const sl=set.slots[i];d.position.set(sl[0],sl[2],sl[1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
+  if(mateRides){
+    const sp=p.spouseInfo,inc=sp?sp.inc:2,mt=inc>=3?'scooter':inc===2?'echair':'chair';
+    const mv=buildOldVeh(mt,sp?sp.cloth:0xff8fb5);mv.scale.setScalar(.9);car.mateG.add(mv);
+    const d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:'f',scale:.9});d.position.set(-.02,OLD_SEAT_Y[mt]*.9,0);d.userData.ph=1;car.mateG.add(d);
+    car.wheels=car.wheels.concat(mv.wheels);
+  }
   if(st==='car'){
     if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
     if(p.carLevel>=2)mesh(new THREE.BoxGeometry(.1,.02,.7),mat(0x222222,100),-.74,.62,0,car.styleG);
@@ -413,7 +539,8 @@ function refreshCar(p){
 function cheer(p){const c=cars[p.id];if(!c)return;anim(700,k=>c.seatG.children.forEach((d,i)=>{d.position.y=Math.abs(Math.sin(k*Math.PI*2+i*.4))*.28*(1-k*.4)}))}   // ジャンプして喜ぶ
 function sad(p){const c=cars[p.id];if(!c)return;anim(800,k=>c.seatG.children.forEach(d=>{d.rotation.y=Math.sin(k*Math.PI*5)*.6*(1-k)}))}                  // 首を振ってがっかり
 function layoutAll(){
-  const by={};G.players.forEach(p=>{(by[p.pos]=by[p.pos]||[]).push(p)});
+  const by={};G.players.filter(p=>!p.inJail).forEach(p=>{(by[p.pos]=by[p.pos]||[]).push(p)});
+  G.players.filter(p=>p.inJail).forEach((p,i)=>{const c=cars[p.id];if(!c)return;const o=JAIL_OFF[i%6];c.target.set(JAIL_POS.x+o[0],.3,JAIL_POS.z+o[1]);c.heading=0});
   for(const k in by){
     const arr=by[k],n=arr.length;
     arr.forEach((p,i)=>{

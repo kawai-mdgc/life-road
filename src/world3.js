@@ -1,5 +1,5 @@
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
-const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
@@ -70,7 +70,7 @@ function update(){
   sway.forEach(g=>{g.rotation.z=Math.sin(tAcc*1.2+g.userData.ph)*.03});
   clouds.forEach(c=>{c.visible=!Cam.is2D;c.position.x+=c.userData.sp*dt;if(c.position.x>190)c.position.x=-190});
   if(bankCoin)bankCoin.rotation.z+=dt*1.5;
-  updateRoulette(dt);
+  updateRoulette(dt);updatePolice(dt);
   if(bankDoor)bankDoor.position.y=performance.now()<bankOpenT?4.4:1.9;
   for(const id in TILE){const f=TILE[id];if(f.sq.c==='gold'){const fl=f.g.children.find(o=>o.userData.flag);if(fl)fl.rotation.y=Math.sin(tAcc*3)*.3}}
   for(let i=confetti.length-1;i>=0;i--){
@@ -89,7 +89,7 @@ function updateCamera(dt,cur){
     camO.position.set(Cam.pan.x,300,Cam.pan.z);camO.up.set(0,0,-1);camO.lookAt(Cam.pan.x,0,Cam.pan.z);return;
   }else if(Cam.rouletteView){tgt=new V3(0,6.2,1.0);az=0;el=1.42;dist=Math.max(15.5,14/aspect())}   // 真上から見て、針と止まる目がはっきり見える
   else{
-    const c=cur&&cars[cur.id];tgt=c?c.g.position.clone():new V3();
+    const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
     if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }

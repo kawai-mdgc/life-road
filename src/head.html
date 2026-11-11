@@ -100,12 +100,9 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .hc.wallet .wb{display:flex;gap:3px}
 .hc.wallet .wi{flex:1;text-align:center}.hc.wallet .wi img{width:100%;display:block;height:auto;border-radius:3px;box-shadow:0 1px 2px #0004}
 .hc.wallet .wi b{font-size:.68rem;color:#3b2f4a}.hc.wallet .wi.zero{opacity:.28}
-.stack{--w:76px;--off:16px;--n:2;position:relative;height:92px;width:calc(var(--w) + (var(--n) - 1) * var(--off));transition:width .25s}
+.stack{cursor:pointer;--w:76px;--off:16px;--n:2;position:relative;height:92px;width:calc(var(--w) + (var(--n) - 1) * var(--off));transition:width .25s}
 .stack.wide{--w:104px}
-.stack:hover{--off:30px}
-.stack.open{--off:calc(var(--w) + 6px)}
 .stack .hc{position:absolute;top:0;left:calc(var(--i) * var(--off));transition:left .25s,transform .15s}
-.stack:not(.open) .hc:hover{transform:translateY(-6px)}
 .hc .cnt{position:absolute;top:2px;right:2px;background:#3b2f4a;color:#fff;border-radius:10px;padding:0 6px;font-size:.62rem;font-weight:900;z-index:2}
 .gc{background:#fff;color:#3b2f4a;border-radius:8px;padding:0 5px;font-size:.6rem}
 .hc.empty{background:#e8e4f0;cursor:default}.hc.note{background:#ffd6d6;border-color:#e8454c}
@@ -124,7 +121,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #cardBtns button{flex:1 1 40%;min-width:110px}
 #cardBtns.col button{flex:1 1 100%}
 #cardImg{display:block;margin:4px auto;max-width:100%;border-radius:10px}
-.tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
+.tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
 #cardWrap.spec #cardBtns{display:none}
@@ -155,6 +152,15 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #testPanel .tgrid{display:flex;flex-wrap:wrap;gap:4px}
 #testPanel .tgrid button,#testPanel .trow button{padding:5px 8px;font-size:.72rem;border-radius:9px}
 #testPanel .trow{display:flex;gap:4px}#testPanel select,#testPanel input[type=text]{flex:1;min-width:0;font:inherit;padding:4px;border-radius:8px;border:2px solid #ddd}
+#groupPop{position:fixed;inset:0;z-index:36;background:#0006;display:flex;align-items:center;justify-content:center;padding:12px}
+#groupPop .gp{width:min(560px,96vw);max-height:80vh;overflow:auto;border:3px solid #fff}
+#groupPop .gph{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1rem}
+#groupPop .gph button{padding:6px 14px}
+#gpGrid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#gpGrid .hc{position:relative;width:96px;height:112px;flex:none}
+#gpGrid .hc.house{width:120px}#gpGrid .hc img{height:76px}
+.chartwrap{margin:8px 0;text-align:left}.chartwrap canvas{width:100%;height:auto;border-radius:10px;border:2px solid #eee;display:block;margin-top:2px}
+.hp{font-size:.8rem;font-weight:800;color:#c4571f;margin-left:3px;white-space:nowrap}
 #banner{position:fixed;left:0;right:0;top:34%;z-index:25;text-align:center;font-size:clamp(26px,7vw,54px);font-weight:900;color:#fff;
  text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;pointer-events:none;animation:ban 2.4s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
@@ -248,6 +254,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 <div id="banner" class="hidden"></div>
 <div id="turnBanner" class="hidden"></div>
 <div id="testPanel" class="panel hidden"></div>
+<div id="groupPop" class="hidden"><div class="panel gp"><div class="gph"><b id="gpTitle"></b><button id="gpClose" class="alt">とじる</button></div><div id="gpGrid"></div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>

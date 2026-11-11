@@ -57,12 +57,39 @@ function ageOfKey(key){
   return 80;
 }
 
+/* ---------- 幸福度と履歴（最後にグラフで見られる） ---------- */
+function happinessOf(p){
+  let h=40;
+  h+=p.spouse?14:p.lover?6:0;
+  h+=Math.min(15,p.kids*6)+Math.min(6,p.pets*3)+Math.min(4,p.grand*2);
+  h+=p.houses.length?8:0;
+  h+=p.job&&!p.retired?3:0;
+  if(p.affairInfo)h-=6;
+  if(p.jobless>0)h-=10;
+  if(p.spouseJobless>0)h-=4;
+  if(p.inJail)h-=12;
+  h-=Math.min(12,p.notes*4);
+  h+=Math.min(18,Math.round(Math.log10(1+Math.max(0,assetsOf(p))/10000)*6));   // お金は多いほど少し幸せ（頭打ち）
+  return clamp(Math.round(h),0,100);
+}
+function recordHist(p){
+  if(!G.hist)G.hist={};
+  (G.hist[p.id]||(G.hist[p.id]=[])).push({a:ageOfKey(p.pos),w:assetsOf(p),h:happinessOf(p)});
+}
+
 /* ---------- 乗り物：ベビーカー → 自転車 → 車（免許）→ 車椅子（免許返納） ---------- */
-const VORDER={stroller:0,bike:1,car:2,chair:3};
-const vehicleOfAge=a=>a<5?'stroller':a<18?'bike':a<70?'car':'chair';
-const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業して、自転車に乗れるように！'],car:['🚗 免許を取って車に！','18歳！ 免許を取って、車に乗りかえ！'],chair:['🧓 老年期に突入… 免許を返納','免許を返納して、車椅子に乗りかえました']};
+const VORDER={stroller:0,bike:1,car:2,chair:3,echair:3,scooter:3};
+const OLD_LIMITS=[1200000,1700000];            // 70歳時点の総資産：未満→手動車椅子／未満→電動車椅子／それ以上→シニアカー
+const oldVehicleOf=p=>{const a=assetsOf(p);return a<OLD_LIMITS[0]?'chair':a<OLD_LIMITS[1]?'echair':'scooter'};
+const vehicleOfAge=(a,p)=>a<5?'stroller':a<18?'bike':a<70?'car':(p.oldVeh||'chair');
+const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業して、自転車に乗れるように！'],car:['🚗 免許を取って車に！','18歳！ 免許を取って、車に乗りかえ！'],
+  chair:['🧓 免許返納… 手動車椅子に','老年期に突入。免許を返納して、手動車椅子に（収入が多くなかったので）'],
+  echair:['🧓 免許返納… 電動車椅子に','老年期に突入。免許を返納して、電動車椅子に（まずまずの収入）'],
+  scooter:['🧓 免許返納… シニアカーに！','老年期に突入。免許を返納して、シニアカーに（ゆとりのある老後）']};
 async function checkVehicle(p){
-  const v=vehicleOfAge(ageOfKey(p.pos));
+  const age=ageOfKey(p.pos);
+  if(age>=70&&!p.oldVeh)p.oldVeh=oldVehicleOf(p);          // 70歳になった時点の収入で決まる
+  const v=vehicleOfAge(age,p);
   if(v===p.vstage)return;
   const up=VORDER[v]>VORDER[p.vstage];p.vstage=v;
   if(up&&VEH_MSG[v]){V.banner(VEH_MSG[v][0]);say(p,`${p.name}：${VEH_MSG[v][1]}`);Sound.good();await sleep(900)}
@@ -74,7 +101,7 @@ function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller'};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -525,7 +552,26 @@ SP['57']=async p=>{await income(p,5000,{celebrate:true})};
 
 /* ---------- リアルな人生のできごと（失業・浮気・愛人・離婚・子どもがぐれる…） ---------- */
 function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(p)}
+const ARRESTS=[
+  {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
+  {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
+async function arrest(p,force){
+  const r=force||pickOf(ARRESTS);
+  V.banner('🚨 警察が来た！');
+  await V.policeDispatch(p);                            // 警察署から、警官の乗ったパトカーがそのマスまで来る
+  Sound.bad();
+  const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`パトカーに乗せられる前に、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、パトカーで警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
+  if(i===0){
+    say(p,`${p.name} は「${r.why}」で逮捕… 保釈金 ${fmt(r.bail)}円を払って釈放`);
+    await pay(p,r.bail,{discount:false});await V.policeLeave(p);
+  }else{
+    say(p,`${p.name} は「${r.why}」で逮捕… パトカーで留置所へ（${r.rest}回休み）`);
+    p.skip=Math.max(p.skip,r.rest);p.inJail=true;
+    await V.policeTake(p);
+  }
+}
 const LIFE={
+  arrest:{ok:p=>ageOfKey(p.pos)>=18&&!p.inJail,w:2,run:async p=>{await arrest(p)}},
   jobless:{ok:p=>p.job&&!p.retired,w:2,run:async p=>{
     await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:'会社が倒産…！ 失業しました',text:'次の2回の給料日は、<b>失業手当（給料の30%）</b>だけになります',btns:['OK'],pick:0});
     p.jobless=2;say(p,`${p.name} が失業… 次の2回の給料日は30%`)}},
@@ -624,7 +670,7 @@ async function goalSettle(p){
   const bonus=[50000,30000,20000][p.rank-1]||10000;
   add(`到着順ボーナス（${p.rank}位）`,bonus);
   p.cash+=total;p.final=p.cash;p.notes=0;p.houses=[];p.stocks=[];p.items=[];
-  V.hud();Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
+  V.hud();recordHist(p);Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
   const rows=rep.map(r=>`<tr><td>${r[0]}</td><td class="${r[1]<0?'minus':''}">${fmt(r[1])}</td></tr>`).join('');
   await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} の最終決算`,text:`<table class="tbl">${rows}<tr><th>総資産</th><th>${fmt(p.final)}円</th></tr></table>`,btns:['OK'],pick:0});
 }
@@ -699,12 +745,14 @@ async function useItem(p,c){
   if(c==='back'){
     const L=others(p);
     const lead=L.reduce((a,b)=>assetsOf(b)>assetsOf(a)?b:a,L[0]);
-    const i=await ask(p,{head:'バックギア',color:'#8e6bff',title:'誰を3マス戻す？',text:'STOPマスは越えません',btns:L.map(q=>q.name),pick:L.indexOf(lead),col:true});
+    const i=await ask(p,{head:'バックギア',color:'#8e6bff',title:'誰を3マス戻す？',text:'STOPマスは越えません',btns:[...L.map(q=>q.name),'やめる'],pick:L.indexOf(lead),col:true});
+    if(i>=L.length){say(p,'バックギアの使用をやめた');return}
     takeItem(p,'back');const t=L[i];say(p,`${t.name}を3マス戻した！`);await backward(t,3);
   }else if(c==='swap'){
     const L=others(p).filter(q=>q.job);
     const best=L.reduce((a,b)=>b.job.sal>a.job.sal?b:a,L[0]);
-    const i=await ask(p,{head:'職業交換チケット',color:'#8e6bff',title:'誰と職業を交換する？',text:`あなたの職業：${p.job.n}`,btns:L.map(q=>`${q.name}（${q.job.n}）`),pick:L.indexOf(best),col:true});
+    const i=await ask(p,{head:'職業交換チケット',color:'#8e6bff',title:'誰と職業を交換する？',text:`あなたの職業：${p.job.n}`,btns:[...L.map(q=>`${q.name}（${q.job.n}）`),'やめる'],pick:L.indexOf(best),col:true});
+    if(i>=L.length){say(p,'職業交換チケットの使用をやめた');return}
     takeItem(p,'swap');const t=L[i];[p.job,t.job]=[t.job,p.job];say(p,`${p.name}と${t.name}が職業を交換！`);V.hud();V.pins(p);V.pins(t);
   }else if(c==='map'){
     takeItem(p,'map');const r=await spin(p,'duel');
@@ -734,9 +782,13 @@ async function takeTurn(p){
   if(p.skip>0){
     if(has(p,'nap')){
       const i=await ask(p,{head:'1回休み',color:'#e8454c',title:'おやすみ免除券を使う？',text:'使うと休まずに進めます',btns:['使う','休む'],pick:0});
-      if(i===0){takeItem(p,'nap');p.skip=0;say(p,'おやすみ免除券を使った！');V.hud()}
+      if(i===0){takeItem(p,'nap');p.skip=0;say(p,'おやすみ免除券を使った！');V.hud();if(p.inJail){p.inJail=false;await V.release(p)}}
     }
-    if(p.skip>0){p.skip--;say(p,`${p.name}は1回休み`);await sleep(700);return}
+    if(p.skip>0){
+      p.skip--;say(p,`${p.name}は1回休み${p.inJail?'（留置所）':''}`);await sleep(700);
+      if(p.inJail&&p.skip===0){say(p,`${p.name}は釈放されました`);p.inJail=false;await V.release(p)}      // 休みが明けたら留置所から出る
+      recordHist(p);return;
+    }
   }
   let guard=0;
   do{
@@ -759,18 +811,27 @@ async function takeTurn(p){
     await land(p);
     V.hud();
   }while(p.again&&!p.finished&&++guard<5);
+  recordHist(p);
 }
 
 function setupGame(list){
   G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));
   G.cur=0;G.order=[];G.over=false;G.turnNo=0;
   G.stockOwner=Array(11).fill(null);G.houseTaken=Array(HOUSES.length).fill(false);
-  buildItemDeck();buildJobDecks();
+  G.hist={};buildItemDeck();buildJobDecks();G.players.forEach(recordHist);
+}
+async function bonusTurn(p){                 // 先に上がった人も、ルーレットを回して「10,000円×出目」をもらえる
+  V.focus(p);V.hud();await V.turnIntro(p,'ボーナスルーレット！');
+  const r=await spin(p,'bonus');
+  const amt=10000*r;
+  say(p,`${p.name}：ボーナスルーレット ${r} × 10,000円 = +${fmt(amt)}円`);Sound.good();
+  await income(p,amt);p.bonusTotal+=amt;p.final=p.cash;recordHist(p);
 }
 async function playGame(){
   while(active().length&&!G.over){
     const p=G.players[G.cur];
     if(!p.finished){G.turnNo++;await takeTurn(p)}
+    else if(!p.left&&active().length)await bonusTurn(p);
     G.cur=(G.cur+1)%G.players.length;
     if(G.turnNo>2500){break}      // 念のための安全弁
   }

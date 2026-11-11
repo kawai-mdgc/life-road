@@ -134,9 +134,14 @@ $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textCon
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
 /* ---------- タイトル画面 ---------- */
+let avCb=null;
+function loadMe(){
+  try{const s=JSON.parse(localStorage.getItem('liferoad_me')||'null');if(s){const a=cleanAv(s,0);a.name=String(s.name||'あなた').slice(0,8);return a}}catch(e){}
+  return{name:'あなた',gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
+}
+function saveMe(){try{localStorage.setItem('liferoad_me',JSON.stringify(AV[0]))}catch(e){}}
 function renderAvatarEditor(){
   const av=AV[0];
-  $('#avWho').textContent='（あなた）';
   $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
   $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;renderAvatarEditor()});
   $('#swCloth').innerHTML=CLOTH_COLS.map(c=>`<span data-c="${c}" class="${av.cloth===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
@@ -145,9 +150,17 @@ function renderAvatarEditor(){
   $('#swCar').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.car=+e.dataset.c;renderAvatarEditor()});
   $('#avPrev').src=renderAvatar(av);
 }
-function buildTitle(){                                   // 最初にアバターを選ぶ（初期値はランダム）
-  AV[0]={gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
-  renderAvatarEditor();
+function refreshAvIcon(){$('#avIconImg').src=renderAvatar(AV[0]);$('#avIconName').textContent=AV[0].name}
+function openAvatar(cb){avCb=cb;$('#avName').value=AV[0].name;renderAvatarEditor();$('#avModal').classList.remove('hidden')}
+function closeAvatar(){
+  AV[0].name=($('#avName').value.trim()||'あなた').slice(0,8);saveMe();
+  $('#avModal').classList.add('hidden');refreshAvIcon();
+  const cb=avCb;avCb=null;if(cb)cb();
+}
+function buildTitle(){                                   // 保存済みのアバターを読み込む（なければランダム）
+  AV[0]=loadMe();
+  $('#avIcon').onclick=()=>openAvatar(null);$('#avDone').onclick=closeAvatar;
+  refreshAvIcon();
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');

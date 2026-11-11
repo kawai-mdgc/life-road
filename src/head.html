@@ -37,6 +37,27 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
 .sw span.sel{outline:3px solid #3b2f4a}.sw span.dis{opacity:.2;pointer-events:none}
 .prow.selrow{background:#fff3c4;border-radius:12px}
 .prow button[data-av]{padding:7px 10px;min-width:0}
+#homeBox,#lobbyBox{padding:14px}
+button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
+.orline{display:flex;align-items:center;gap:8px;color:#998;font-size:.8rem;margin:6px 0}
+.orline:before,.orline:after{content:"";flex:1;border-top:2px dashed #ddd}
+#olCode{width:100%;font:inherit;font-size:1.3rem;text-align:center;letter-spacing:.25em;padding:12px;border-radius:12px;border:2px solid #ddd;margin-bottom:6px}
+#olCode::placeholder{letter-spacing:0;font-size:1rem}
+#olMsg,#lbMsg{color:#c4202a;font-size:.85rem;margin-top:6px;min-height:1.2em}
+#lbMsg{color:#665}
+.codebox{margin:8px 0;padding:8px;border-radius:14px;background:#fff3c4}
+.codebox span{display:block;font-size:.75rem;font-weight:800;color:#887}.codebox b{font-size:2.2rem;letter-spacing:.2em;color:#ff4f86}
+.copyrow{display:flex;gap:8px;margin:6px 0}.copyrow button{flex:1;padding:10px 6px;font-size:.85rem}
+#lbMembers{margin:8px 0}
+.mem{display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:12px;background:#faf6ee;margin:4px 0;text-align:left}
+.mem.me{box-shadow:inset 0 0 0 2px #f2a900;background:#fff7dc}
+.mem img{border-radius:8px;background:#eaf6ff;flex:none}.mem small{display:block;color:#887;font-size:.7rem}
+.mem .st{margin-left:auto;font-weight:900;font-size:.8rem;padding:4px 10px;border-radius:12px;background:#eee;color:#887;white-space:nowrap}
+.mem .st.ok{background:#bdf0c9;color:#0a7a45}
+#avIcon{position:fixed;top:10px;right:10px;z-index:60;background:#fffdf7ee;color:#3b2f4a;border:3px solid #fff;border-radius:18px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.2;box-shadow:var(--shadow)}
+#avIcon img{border-radius:10px;background:#eaf6ff}#avIcon span{font-size:.75rem;font-weight:900}#avIcon small{font-size:.62rem;color:#887}
+#avModal{position:fixed;inset:0;z-index:70;background:#0006;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto}
+#avModal .panel{max-width:520px;width:100%}
 #rulesTxt{font-size:.8rem;text-align:left;margin-top:8px;line-height:1.6;color:#665}
 
 /* ---- HUD ---- */
@@ -110,38 +131,45 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
  <div id="titleBox">
   <h1 id="logo">LIFE ROAD</h1>
   <div id="sub">🚗 みんなで遊ぶ、オンライン人生すごろく 🚗</div>
-  <div class="panel" id="avatarBox" style="margin-bottom:10px">
-   <div style="font-weight:900;margin-bottom:4px">🎨 アバターを選ぼう <span id="avWho" style="font-weight:700;color:#887"></span></div>
-   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">
-    <img id="avPrev" width="200" height="142" alt="アバターのプレビュー" style="background:#eaf6ff99;border-radius:14px">
-    <div style="flex:1;min-width:210px;text-align:left">
-     <div style="font-size:.8rem;font-weight:800">せいべつ</div><div id="avGender" class="gbtn"></div>
-     <div style="font-size:.8rem;font-weight:800;margin-top:6px">服の色</div><div id="swCloth" class="sw"></div>
-     <div style="font-size:.8rem;font-weight:800;margin-top:6px">車の色</div><div id="swCar" class="sw"></div>
-    </div>
+  <div class="panel" id="homeBox">
+   <button id="olHost" class="pink big">🏠 ルームを作る</button>
+   <div class="orline"><span>または</span></div>
+   <input id="olCode" type="text" inputmode="numeric" maxlength="6" placeholder="6桁のルームコードを入力" autocomplete="off">
+   <button id="olJoin" class="gold big">🚪 ルームに参加する</button>
+   <div id="olMsg"></div>
+   <div id="rulesTxt">
+    ルーレット(1〜10)を回して車を進め、ゴール時の<b>総資産</b>がいちばん多い人が勝ち（2〜6人）。<br>
+    ・黄=給料日(通過でもOK) ・緑=ラッキー ・赤=ピンチ ・青=イベント ・金=STOP(必ず止まる)<br>
+    ・お金が足りないと自動で<b>約束手形</b>(20,000借りて25,000返す)。 ・ドラッグで回転／ホイール・ピンチでズーム。
    </div>
   </div>
-  <div class="panel" id="onlineBox">
-   <div id="olMenu">
-    <div style="font-weight:900;font-size:1.1rem;margin-bottom:8px">🌐 オンライン対戦</div>
-    <div class="prow"><span>名前</span><input id="olName" type="text" maxlength="8" value="あなた"></div>
-    <button id="olHost" class="pink" style="margin:8px 0;width:100%">ルームを作る（友だちを招待）</button>
-    <div class="prow"><input id="olCode" type="text" inputmode="numeric" maxlength="6" placeholder="6桁のルームコード"><button id="olJoin" class="gold">参加</button></div>
-    <div id="olMsg" style="color:#c4202a;font-size:.85rem;margin-top:6px"></div>
-    <div id="rulesTxt">
-     ルーレット(1〜10)を回して車を進め、ゴール時の<b>総資産</b>がいちばん多い人が勝ち（2〜6人）。<br>
-     ・黄=給料日(通過でもOK) ・緑=ラッキー ・赤=ピンチ ・青=イベント ・金=STOP(必ず止まる)<br>
-     ・お金が足りないと自動で<b>約束手形</b>(20,000借りて25,000返す)。 ・ドラッグで回転／ホイール・ピンチでズーム。
-    </div>
-   </div>
-   <div id="olLobby" class="hidden">
-    <div id="olTitle" style="font-weight:900;font-size:1.1rem"></div>
-    <div id="olSlots" style="margin:8px 0"></div>
-    <div id="olCtl"></div>
-    <div id="olMsg2" style="font-size:.8rem;color:#665;margin-top:6px"></div>
-    <button id="olLeave" class="alt" style="margin-top:8px">ルームから出る</button>
+  <div class="panel hidden" id="lobbyBox">
+   <div style="font-weight:900;font-size:1.1rem">🛋 待機ルーム</div>
+   <div class="codebox"><span>ルームコード</span><b id="lbCode"></b></div>
+   <div class="copyrow"><button id="lbCopyCode" class="alt">📋 コードをコピー</button><button id="lbCopyLink" class="alt">🔗 招待リンクをコピー</button></div>
+   <div id="lbMembers"></div>
+   <div class="copyrow"><button id="lbAvatar" class="gold">🎨 アバター変更</button><button id="lbReady" class="green">✅ OK</button></div>
+   <button id="lbStart" class="pink big" disabled>スタート</button>
+   <div id="lbMsg"></div>
+   <button id="lbLeave" class="alt" style="margin-top:6px">ルームから出る</button>
+  </div>
+ </div>
+ <button id="avIcon" title="アバター設定"><img id="avIconImg" width="54" height="38" alt=""><span id="avIconName"></span><small>⚙ アバター設定</small></button>
+</div>
+
+<div id="avModal" class="hidden">
+ <div class="panel" id="avatarBox">
+  <div style="font-weight:900;font-size:1.1rem;margin-bottom:6px">🎨 アバター設定</div>
+  <div class="prow"><span>名前</span><input id="avName" type="text" maxlength="8" value="あなた"></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">
+   <img id="avPrev" width="200" height="142" alt="アバターのプレビュー" style="background:#eaf6ff99;border-radius:14px">
+   <div style="flex:1;min-width:210px;text-align:left">
+    <div style="font-size:.8rem;font-weight:800">せいべつ</div><div id="avGender" class="gbtn"></div>
+    <div style="font-size:.8rem;font-weight:800;margin-top:6px">服の色</div><div id="swCloth" class="sw"></div>
+    <div style="font-size:.8rem;font-weight:800;margin-top:6px">車の色</div><div id="swCar" class="sw"></div>
    </div>
   </div>
+  <button id="avDone" class="pink big" style="margin-top:8px">OK</button>
  </div>
 </div>
 

@@ -161,6 +161,13 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #gpGrid .hc.house{width:120px}#gpGrid .hc img{height:76px}
 .chartwrap{margin:8px 0;text-align:left}.chartwrap canvas{width:100%;height:auto;border-radius:10px;border:2px solid #eee;display:block;margin-top:2px}
 .hp{font-size:.8rem;font-weight:800;color:#c4571f;margin-left:3px;white-space:nowrap}
+#cardBody .rkrow{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px}
+.rk{flex:1;border-radius:12px;padding:4px;background:#f2f2f8;border:3px solid #ddd}.rk.on{background:#fff6d6;border-color:#f2a900}.rk.off{opacity:.55}
+.rk .rkh{font-size:.7rem;font-weight:900;color:#887}.rk.on .rkh{color:#c98a00}.rk .rkn{font-weight:900;font-size:.9rem}.rk .rks{font-size:.72rem}.rkarr{font-weight:900;color:#c98a00}
+.hc.ranked{border-color:#f2a900;box-shadow:0 0 0 3px #ffe27a,var(--shadow)}
+.hc.ticket{background:#fff3b0;border-color:#e6a800}.hc .cnt{white-space:nowrap}
+#bonText{position:fixed;left:0;right:0;top:26%;z-index:27;text-align:center;font-size:clamp(70px,22vw,170px);font-weight:900;color:#ffe14a;-webkit-text-stroke:6px #c4202a;paint-order:stroke fill;text-shadow:0 8px 0 #7a1a1a,0 14px 24px #0006;pointer-events:none;animation:bon 1.5s ease-out forwards}
+@keyframes bon{0%{opacity:0;transform:scale(.2) rotate(-14deg)}12%{opacity:1;transform:scale(1.5) rotate(5deg)}25%{transform:scale(.95) rotate(-3deg)}40%{transform:scale(1.1) rotate(2deg)}70%{opacity:1;transform:scale(1) rotate(0)}100%{opacity:0;transform:scale(1.25) translateY(-30px)}}
 #banner{position:fixed;left:0;right:0;top:34%;z-index:25;text-align:center;font-size:clamp(26px,7vw,54px);font-weight:900;color:#fff;
  text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;pointer-events:none;animation:ban 2.4s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
@@ -253,6 +260,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 </div></div>
 <div id="banner" class="hidden"></div>
 <div id="turnBanner" class="hidden"></div>
+<div id="bonText" class="hidden">ボン！！</div>
 <div id="testPanel" class="panel hidden"></div>
 <div id="groupPop" class="hidden"><div class="panel gp"><div class="gph"><b id="gpTitle"></b><button id="gpClose" class="alt">とじる</button></div><div id="gpGrid"></div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

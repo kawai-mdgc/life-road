@@ -1,5 +1,5 @@
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
-const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,followEl:null,shake:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
@@ -91,11 +91,12 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
-    if(Cam.followObj)dist=Cam.followDist||Math.max(dist,17);          // 走る車を追うときは少し引く／動き出す前はぐっと寄る
+    if(Cam.followObj){dist=Cam.followDist||Math.max(dist,17);if(Cam.followEl)el=Cam.followEl}          // 走る車を追うときは少し引く／動き出す前はぐっと寄る
     if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;
   camP.position.set(sTgt.x+Math.sin(sAz)*Math.cos(sEl)*sDist,sTgt.y+Math.sin(sEl)*sDist,sTgt.z+Math.cos(sAz)*Math.cos(sEl)*sDist);
+  if(Cam.shake>.01){camP.position.x+=(Math.random()-.5)*Cam.shake*.9;camP.position.y+=(Math.random()-.5)*Cam.shake*.6;camP.position.z+=(Math.random()-.5)*Cam.shake*.9;Cam.shake*=Math.exp(-dt*5)}
   camP.lookAt(sTgt);
   // 章ごとの空と光
   const ch=cur&&!Cam.title?chapterOf(cur.pos):0;

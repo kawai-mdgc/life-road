@@ -459,6 +459,11 @@ function makeDoll(o){
     if(a==='pad')mesh(new THREE.BoxGeometry(.08,.03,.14),mat(0x222222),.12,.14,.15,g);
     if(a==='ball')mesh(new THREE.SphereGeometry(.06,8,8),mat(0xffffff),.12,.1,.15,g);
   });
+  if(o.rank){                                                   // ランクアップ後：金の肩章と金バッジ
+    [-.1,.1].forEach(z=>mesh(new THREE.BoxGeometry(.06,.025,.08),mat(0xffd23f,140,{emissive:0x664400}),0,.34,z,g));
+    mesh(new THREE.CylinderGeometry(.04,.04,.02,10),mat(0xffd23f,140,{emissive:0x664400}),.145,.24,-.06,g).rotation.z=Math.PI/2;
+    mesh(new THREE.SphereGeometry(.03,8,6),mat(0xffd23f,140,{emissive:0x664400}),0,.75,0,g);
+  }
   g.scale.setScalar(o.scale||1);return g;
 }
 function makePet(scale=1,col=0xb5763a,species='dog'){
@@ -597,7 +602,7 @@ const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
-  const sig=[st,p.oldVeh,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const sig=[st,p.oldVeh,p.jobRank,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
@@ -618,7 +623,7 @@ function refreshCar(p){
   }
   list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired&&st!=='stroller'&&st!=='bike'?p.job.n:null,scale:st==='stroller'?.6:st==='bike'?.85:.95});
+    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
     else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
     else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:lv?lv.cloth:0xffb6cf,gender:lv?lv.gender:(p.gender==='f'?'m':'f'),scale:.88})}
     else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),scale:.7});
@@ -792,15 +797,39 @@ function houseModel(h){
     win(0,2,1.75,.9);mesh(new THREE.BoxGeometry(1.2,1.8,.1),mat(0x7a4a2a),0,.9,1.75,g)}
   return g;
 }
+const bonEl=()=>document.getElementById('bonText');
 V.buildHouse=async(p,h)=>{
   const n=houseSlots.length;houseSlots.push(p.id);
   const base=POS[70],out=base.clone().setY(0).normalize(),hd=HEAD[70],tang=hd.clone();
   const pos=base.clone().addScaledVector(out,9).addScaledVector(tang,((n%6)-2.5)*9).addScaledVector(out,Math.floor(n/6)*10);
-  const g=houseModel(h);g.position.set(pos.x,0,pos.z);g.rotation.y=Math.atan2(-out.x,-out.z);g.scale.setScalar(.01);
+  const g=houseModel(h);g.position.set(pos.x,0,pos.z);g.rotation.y=Math.atan2(-out.x,-out.z);
   mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xffffff),-2.4,1,2.6,g);mesh(new THREE.PlaneGeometry(.9,.55),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),-2.0,1.8,2.6,g);
-  worldG.add(g);
-  const sp=pos.clone().setY(2);V.confetti(sp);Sound.pop();
-  await anim(700,k=>g.scale.setScalar(Math.max(.01,easeBack(k))));
+  const box=new THREE.Box3().setFromObject(g),size=box.getSize(new V3()),hgt=Math.max(4,size.y);
+  g.scale.set(.001,.001,.001);worldG.add(g);
+  // ① その家の場所にカメラがぐっと寄る（まだ何もない…）
+  const focus={position:new V3(pos.x,hgt*.45,pos.z)};
+  const az0=Cam.userAz;
+  Cam.followObj=focus;Cam.followDist=Math.max(16,hgt*2.4+8)*(aspect()<1?1.5:1);Cam.followEl=.55;      // 縦画面では引いて、家が全部入るように
+  await sleep(1300);
+  // ② ボン！！ ― 一気に立ち上がる（縦に伸びて、ぎゅっと縮んで、ぴたっ）＋衝撃波・土ぼこり・紙吹雪・画面ゆれ
+  Sound.boom();Sound.pop();Cam.shake=1.2;
+  const bt=bonEl();if(bt){bt.classList.remove('hidden');bt.style.animation='none';void bt.offsetWidth;bt.style.animation=''}
+  V.confetti(pos.clone().setY(2));
+  const ring=mesh(new THREE.TorusGeometry(1,.12,8,40),new THREE.MeshBasicMaterial({color:0xfff3b0,transparent:true,opacity:.9}),pos.x,.25,pos.z,worldG);ring.rotation.x=Math.PI/2;
+  const puffs=[];for(let i=0;i<12;i++){const a=i/12*Math.PI*2;const m=mesh(new THREE.SphereGeometry(.7,8,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),pos.x,.6,pos.z,worldG);puffs.push({m,a})}
+  const R=Math.max(size.x,size.z)*.8+4;
+  anim(900,k=>{ring.scale.setScalar(.3+R*easeOut(k));ring.material.opacity=.9*(1-k);
+    puffs.forEach(o=>{const d=R*.9*easeOut(k);o.m.position.set(pos.x+Math.cos(o.a)*d,.6+k*2.2,pos.z+Math.sin(o.a)*d);o.m.scale.setScalar(.5+k*1.8);o.m.material.opacity=.85*(1-k)})}
+  ).then(()=>{worldG.remove(ring);puffs.forEach(o=>worldG.remove(o.m))});
+  await anim(750,k=>{
+    const e=easeBack(Math.min(1,k)),sw=.1+.9*e+(k<.55?.18*Math.sin(k/.55*Math.PI):0),sh=.02+.98*e+(k<.55?.4*Math.sin(k/.55*Math.PI):0);   // 縦に伸びて、横にぎゅっ
+    g.scale.set(Math.max(.001,sw),Math.max(.001,sh),Math.max(.001,sw));
+  });
+  g.scale.set(1,1,1);
+  // ③ しっかり見せる：ゆっくり回りこみながら、約4秒
+  await anim(4200,k=>{Cam.userAz=az0+k*1.7});
+  if(bt)bt.classList.add('hidden');
+  Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0+1.7;
 };
 V.confetti=at=>{
   const o=typeof at==='string'?POS[at].clone():at.clone();o.y=Math.max(o.y,1.2);
@@ -828,12 +857,13 @@ V.flash=key=>{const t=TILE[key];if(!t)return;anim(600,k=>{t.g.scale.set(1+Math.s
 
 /* ---------- 職業カードの肖像（別WebGLで1枚ずつ描画してキャッシュ） ---------- */
 let portR=null,portScene=null,portCam=null;const portCache={};
-function portrait(job,p){
+function portrait(job,p,rank){
   const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
-  const k=(job?job.n:'-')+'|'+cloth+'|'+gender;if(portCache[k])return portCache[k];
+  if(rank===undefined)rank=(p&&p.job&&job&&p.job.n===job.n&&p.jobRank)?1:0;
+  const k=(job?job.n:'-')+'|'+cloth+'|'+gender+'|'+rank;if(portCache[k])return portCache[k];
   try{
     if(!portR)portraitInit();
-    const d=makeDoll({color:cloth,gender,job:job?job.n:null,scale:1});d.rotation.y=-.6;portScene.add(d);
+    const d=makeDoll({color:cloth,gender,job:job?job.n:null,rank,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
   }catch(e){return ''}

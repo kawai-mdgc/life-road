@@ -60,6 +60,9 @@ function drawIcon(ctx,kind,cx,cy,s){
   }else if(kind==='coin'){
     ctx.fillStyle='#fff3a0';ctx.strokeStyle='#c98a00';ctx.beginPath();ctx.arc(0,0,s*.38,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle='#c98a00';ctx.font=`900 ${s*.5}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('L',0,s*.03);
+  }else if(kind==='ticket'){
+    ctx.rotate(-.15);ctx.fillStyle='#fff3a0';ctx.strokeStyle='#c98a00';rr(ctx,-s*.4,-s*.26,s*.8,s*.52,s*.07);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#c98a00';ctx.font=`900 ${s*.3}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('宝',-s*.14,0);ctx.fillText('7',s*.2,0);
   }else if(kind==='clover'){
     ctx.fillStyle='#fff';for(let i=0;i<4;i++){ctx.save();ctx.rotate(i*Math.PI/2);ctx.beginPath();ctx.arc(s*.17,0,s*.17,0,7);ctx.fill();ctx.restore()}
     ctx.fillStyle='#2fb36f';ctx.fillRect(-s*.03,s*.1,s*.06,s*.3);
@@ -82,7 +85,7 @@ function tileTexture(sq){
     ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(64,64,56,0,7);ctx.fill();
     ctx.fillStyle=hex(base);ctx.beginPath();ctx.arc(64,64,50,0,7);ctx.fill();
     let icon={yellow:'coin',green:'clover',red:'warn',blue:'q',gold:'flag'}[sq.c];
-    if(sq.c==='blue')icon={item:'card',duel:'roulette',family:'heart',job:'tie',event:'q'}[sq.k];
+    if(sq.c==='blue')icon={item:'card',duel:'roulette',family:'heart',job:'tie',event:'q',lottery:'ticket'}[sq.k];
     ctx.fillStyle='#fff';ctx.font=`900 30px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.35)';
     ctx.font=`900 26px ${FONT}`;const label=sq.id;ctx.strokeText(label,64,24);ctx.fillText(label,64,24);

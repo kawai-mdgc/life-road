@@ -7,7 +7,7 @@ const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],
 const cleanAv=(a,i=0)=>({gender:'mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n',cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length]});
 let AV=[],selRow=0;
 const DEF_NAME=['あなた','タロウ','ハナ','ケン','ミキ','ソラ'];
-const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳'};
+const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳',fossil:'🦖',meteor:'☄️',ukiyoe:'🌊',katana:'🗡️',wine:'🍷',goldcoin:'🪙',oldmap:'📜',figure:'🧸'};
 let cardOpen=false,logOn=false;
 const prevCash={};
 
@@ -94,7 +94,7 @@ V.hud=()=>{
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
   const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
-  $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?esc(cur.job.n)+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
+  $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?(cur.jobRank?'✨':'')+esc(rankName(cur))+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
   const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
@@ -115,15 +115,17 @@ function renderHand(p){
     const st=document.createElement('div');st.className='stack'+(wide?' wide':'');st.style.setProperty('--n',Math.min(cards.length,4));
     cards.slice(-4).forEach((c,i)=>{const d=mk(c);d.style.setProperty('--i',i);st.appendChild(d)});    // 少しずらして重ね、枚数がわかるようにする
     const top=st.lastChild;const bd2=document.createElement('span');bd2.className='cnt';bd2.textContent='×'+cards.length;top.appendChild(bd2);
-    st.onclick=()=>openGroupPopup(label,cards);                                                          // タップでポップアップに全部表示
+    groupMap[label]=cards;st.onclick=()=>openGroupPopup(label,groupMap[label]||cards);                                                          // タップでポップアップに全部表示
     row.appendChild(st);
   };
   // 💰 財布：お札の枚数（高額順）
   const bd=breakdown(p.cash);
   group('💰 財布',[{cls:'wallet',html:`<div class="wt">${fmt(p.cash)}円</div><div class="wb">${bd.map(([d,n])=>`<div class="wi ${n?'':'zero'}"><img src="${billURL(d)}" alt=""><b>×${n}</b></div>`).join('')}</div>`,fn:()=>zoom(p,'wallet')}]);
   // 💼 職業カード
-  group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,fn:()=>zoom(p,'job')}
+  group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':'')+(p.jobRank?' ranked':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${p.jobRank?'✨':''}${esc(rankName(p))}</div>${p.jobRank?'<span class="cnt">ランクアップ後</span>':''}`,fn:()=>zoom(p,'job')}
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
+  // 🎟 宝くじ
+  if(p.tickets.length)group('🎟 宝くじ',p.tickets.map(n=>({cls:'ticket',html:`<div class="big">${n}</div><div class="tt">宝くじ ${n}番</div>`,fn:()=>zoom(p,'ticket',n)})));
   // 💍 配偶者
   if(p.spouseInfo){const c=p.spouseInfo;group('💍 配偶者',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'spouse')}])}
   // 💗 恋人 / 🖤 愛人
@@ -146,9 +148,17 @@ function renderHand(p){
   // 📜 約束手形
   if(p.notes)group('📜 手形',[{cls:'note',html:`<div class="big">×${p.notes}</div><div class="tt">返済 ${fmt(p.notes*NOTE_BACK)}円</div>`,fn:()=>zoom(p,'note')}]);
 }
+const groupMap={};                                // 重なったカード（種類ごとの最新の一覧）
 function openGroupPopup(label,cards){            // 同じ種類のカードを、ポップアップで全部見せる
   const grid=$('#gpGrid');grid.innerHTML='';$('#gpTitle').textContent=`${label}（${cards.length}枚）`;
-  cards.forEach(c=>{const d=document.createElement('div');d.className='hc '+c.cls;d.innerHTML=c.html;d.onclick=()=>{closeGroupPopup();c.fn()};grid.appendChild(d)});
+  cards.forEach(c=>{
+    const d=document.createElement('div');d.className='hc '+c.cls;d.innerHTML=c.html;
+    d.onclick=async()=>{                         // カードの詳細を見て「閉じる」を押したら、ポップアップに戻る
+      closeGroupPopup();await c.fn();
+      const again=groupMap[label];if(again&&again.length>=2&&!cardOpen)openGroupPopup(label,again);
+    };
+    grid.appendChild(d);
+  });
   $('#groupPop').classList.remove('hidden');
 }
 function closeGroupPopup(){$('#groupPop').classList.add('hidden')}
@@ -166,7 +176,15 @@ async function zoom(p,type,x){
   else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust({cloth:x.cloth,gender:x.gender})}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
   else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
-  else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
+  else if(type==='job'){
+    const j=p.job,r=RANK_UP[j.n],ranked=p.jobRank&&r;
+    const side=(label,name,sal,on,img)=>`<div class="rk ${on?'on':'off'}"><div class="rkh">${label}</div><img src="${img}" width="86"><div class="rkn">${esc(name)}</div><div class="rks">給料 ${fmt(sal)}円</div></div>`;
+    o={head:'職業カード',color:j.deck==='s'?'#c98a00':'#3f8cff',title:esc(rankName(p)),
+      text:`<div class="rkrow">${side('ランクアップ前',j.n,j.sal,!ranked,portrait(j,p,0))}${r?`<div class="rkarr">▶</div>${side('ランクアップ後',r[0],Math.round(j.sal*r[1]),ranked,portrait(j,p,1))}`:''}</div>
+        ${r?`<small>昇進のマス（29・68・91）に止まると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
+        今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
+  }
+  else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば1等 ${fmt(LOT_FIRST)}円、となり合う数字は前後賞 ${fmt(LOT_SIDE)}円！`};
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'お宝（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }

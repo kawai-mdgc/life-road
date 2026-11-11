@@ -101,7 +101,7 @@ function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0,chased:false};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -123,11 +123,24 @@ function assetsOf(p){   // 現在の総資産（見込み）
 function say(p,msg){V.toast(msg);V.log(msg)}
 
 /* ---------- お金 ---------- */
+const CHASE_ON=3,CHASE_OFF=1;                          // 手形が3枚以上で取り立て屋が来て、1枚以下になるまでついてくる
+async function checkChase(p){
+  if(p.finished){if(p.chased){p.chased=false;await V.thugsLeave(p)}return}
+  if(!p.chased&&p.notes>=CHASE_ON){
+    p.chased=true;V.banner('🕶 取り立て屋が現れた！');
+    say(p,`${p.name}：約束手形が${p.notes}枚… 黒い車の取り立て屋が付きまといます（${CHASE_OFF}枚以下に返済するまで）`);
+    await V.thugsArrive(p);
+  }else if(p.chased&&p.notes<=CHASE_OFF){
+    p.chased=false;say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
+    await V.thugsLeave(p);
+  }
+}
 async function ensureCash(p,amt){          // 足りなければ約束手形を自動発行
   while(p.cash<amt){
     p.notes++;p.cash+=NOTE_LOAN;
     say(p,`${p.name}：約束手形を発行（+${fmt(NOTE_LOAN)}円／返済${fmt(NOTE_BACK)}）`);
     Sound.stamp();await V.noteStamp(p);V.hud();
+    await checkChase(p);
   }
 }
 async function income(p,amt,o={}){          // 銀行 or 他プレイヤーからもらう
@@ -172,7 +185,7 @@ async function repayNotes(p,n){            // 財布から、いつでも約束�
   if(n<=0||p.finished)return false;
   p.notes-=n;p.cash-=n*NOTE_BACK;
   say(p,`${p.name}：約束手形を${n}枚 返済（${fmt(n*NOTE_BACK)}円）`);Sound.stamp();
-  await V.bills(p,'bank',n*NOTE_BACK);V.hud();return true;
+  await V.bills(p,'bank',n*NOTE_BACK);V.hud();await checkChase(p);return true;
 }
 
 /* ---------- 選択肢 / カード ---------- */
@@ -687,6 +700,7 @@ async function goalSettle(p){
   const bonus=[50000,30000,20000][p.rank-1]||10000;
   add(`到着順ボーナス（${p.rank}位）`,bonus);
   p.cash+=total;p.final=p.cash;p.notes=0;p.houses=[];p.stocks=[];p.items=[];
+  if(p.chased){p.chased=false;await V.thugsLeave(p)}
   V.hud();recordHist(p);Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
   const rows=rep.map(r=>`<tr><td>${r[0]}</td><td class="${r[1]<0?'minus':''}">${fmt(r[1])}</td></tr>`).join('');
   await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} の最終決算`,text:`<table class="tbl">${rows}<tr><th>総資産</th><th>${fmt(p.final)}円</th></tr></table>`,btns:['OK'],pick:0});
@@ -775,12 +789,13 @@ async function useItem(p,c){
     takeItem(p,'map');const r=await spin(p,'duel');
     if(r===10){say(p,'宝を発見！ +50,000');await income(p,50000);Sound.fanfare()}else say(p,`出た数${r}… 宝は見つからなかった`);
   }else if(c==='key'){
-    takeItem(p,'key');p.notes--;p.cash-=NOTE_LOAN;say(p,'金庫カギで手形1枚を利息なしで返済！');Sound.stamp();V.hud();
+    takeItem(p,'key');p.notes--;p.cash-=NOTE_LOAN;checkChase(p);say(p,'金庫カギで手形1枚を利息なしで返済！');Sound.stamp();V.hud();
   }else if(c==='coupon'){takeItem(p,'coupon');p.coupon=true;say(p,'次の支払いが半額になります')}
   else if(c==='boost'){takeItem(p,'boost');p.booster=true;say(p,'次にもらうお祝い金が2倍になります')}
   V.hud();
 }
 async function cpuItems(p){
+  if(p.notes>0&&p.cash>=p.notes*NOTE_BACK+20000)await repayNotes(p,p.notes);          // CPU：余裕ができたら手形を返す
   const L=usableItems(p);
   for(const c of L){
     if(c==='map'||c==='key'||c==='coupon')await useItem(p,c);

@@ -24,7 +24,7 @@ function initTestPanel(){
   const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
   $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
   $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testLife(b.dataset.k));
-  $('#tpFam').innerHTML='<button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
+  $('#tpFam').innerHTML='<button data-f="notes">🕶手形3枚(取り立て屋)</button><button data-f="pay">手形を全部返す</button><button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
   $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>{testFamily(b.dataset.f);V.hud()});
   $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
   $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
@@ -54,6 +54,8 @@ async function testJump(key){
 
 function testFamily(what){
   const p=myTestPlayer();
+  if(what==='notes'){p.notes=Math.max(3,p.notes);p.cash=Math.min(p.cash,5000);checkChase(p);V.hud();return}
+  if(what==='pay'){p.cash=Math.max(p.cash,p.notes*NOTE_BACK);repayNotes(p,p.notes);return}
   if(what==='mate'&&!p.spouse){p.spouseInfo=genPerson(p.gender==='f'?'m':'f',p,'spouse');p.spouse=true;p.lover=false;p.loverInfo=null}
   if(what==='kids'){for(let i=0;i<2;i++){const g=i?'f':'m';p.kidList.push({name:(g==='f'?GIRL_N:BOY_N)[i],gender:g,bornAge:Math.max(0,ageOfKey(p.pos)-8),cloth:KID_COL[p.kidList.length%KID_COL.length]})}p.kids=p.kidList.length}
   if(what==='aff'&&!p.affairInfo)p.affairInfo=genPerson('f',p,'affair');

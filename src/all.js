@@ -52,6 +52,7 @@ const Sound=(()=>{
     stopSq(){tone(660,0,.1,'triangle',.2);tone(880,.1,.18,'triangle',.2)},
     click(){tone(900,0,.05,'sine',.15)},
     fanfare(){[523,523,523,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'square',.15));tone(1318,.9,.6,'triangle',.2)},
+    rumble(){tone(70,0,.5,'sawtooth',.16,50);tone(95,.35,.5,'sawtooth',.14,60)},      // 取り立て屋のエンジン音
     siren(){[0,.3,.6,.9].forEach((t,i)=>tone(i%2?720:980,t,.28,'square',.1))},      // パトカーのサイレン
     spinStop(){tone(880,0,.12,'triangle',.25);tone(1175,.1,.3,'triangle',.25)}
   };
@@ -408,7 +409,7 @@ function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0,chased:false};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -430,11 +431,24 @@ function assetsOf(p){   // 現在の総資産（見込み）
 function say(p,msg){V.toast(msg);V.log(msg)}
 
 /* ---------- お金 ---------- */
+const CHASE_ON=3,CHASE_OFF=1;                          // 手形が3枚以上で取り立て屋が来て、1枚以下になるまでついてくる
+async function checkChase(p){
+  if(p.finished){if(p.chased){p.chased=false;await V.thugsLeave(p)}return}
+  if(!p.chased&&p.notes>=CHASE_ON){
+    p.chased=true;V.banner('🕶 取り立て屋が現れた！');
+    say(p,`${p.name}：約束手形が${p.notes}枚… 黒い車の取り立て屋が付きまといます（${CHASE_OFF}枚以下に返済するまで）`);
+    await V.thugsArrive(p);
+  }else if(p.chased&&p.notes<=CHASE_OFF){
+    p.chased=false;say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
+    await V.thugsLeave(p);
+  }
+}
 async function ensureCash(p,amt){          // 足りなければ約束手形を自動発行
   while(p.cash<amt){
     p.notes++;p.cash+=NOTE_LOAN;
     say(p,`${p.name}：約束手形を発行（+${fmt(NOTE_LOAN)}円／返済${fmt(NOTE_BACK)}）`);
     Sound.stamp();await V.noteStamp(p);V.hud();
+    await checkChase(p);
   }
 }
 async function income(p,amt,o={}){          // 銀行 or 他プレイヤーからもらう
@@ -479,7 +493,7 @@ async function repayNotes(p,n){            // 財布から、いつでも約束�
   if(n<=0||p.finished)return false;
   p.notes-=n;p.cash-=n*NOTE_BACK;
   say(p,`${p.name}：約束手形を${n}枚 返済（${fmt(n*NOTE_BACK)}円）`);Sound.stamp();
-  await V.bills(p,'bank',n*NOTE_BACK);V.hud();return true;
+  await V.bills(p,'bank',n*NOTE_BACK);V.hud();await checkChase(p);return true;
 }
 
 /* ---------- 選択肢 / カード ---------- */
@@ -994,6 +1008,7 @@ async function goalSettle(p){
   const bonus=[50000,30000,20000][p.rank-1]||10000;
   add(`到着順ボーナス（${p.rank}位）`,bonus);
   p.cash+=total;p.final=p.cash;p.notes=0;p.houses=[];p.stocks=[];p.items=[];
+  if(p.chased){p.chased=false;await V.thugsLeave(p)}
   V.hud();recordHist(p);Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
   const rows=rep.map(r=>`<tr><td>${r[0]}</td><td class="${r[1]<0?'minus':''}">${fmt(r[1])}</td></tr>`).join('');
   await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} の最終決算`,text:`<table class="tbl">${rows}<tr><th>総資産</th><th>${fmt(p.final)}円</th></tr></table>`,btns:['OK'],pick:0});
@@ -1082,12 +1097,13 @@ async function useItem(p,c){
     takeItem(p,'map');const r=await spin(p,'duel');
     if(r===10){say(p,'宝を発見！ +50,000');await income(p,50000);Sound.fanfare()}else say(p,`出た数${r}… 宝は見つからなかった`);
   }else if(c==='key'){
-    takeItem(p,'key');p.notes--;p.cash-=NOTE_LOAN;say(p,'金庫カギで手形1枚を利息なしで返済！');Sound.stamp();V.hud();
+    takeItem(p,'key');p.notes--;p.cash-=NOTE_LOAN;checkChase(p);say(p,'金庫カギで手形1枚を利息なしで返済！');Sound.stamp();V.hud();
   }else if(c==='coupon'){takeItem(p,'coupon');p.coupon=true;say(p,'次の支払いが半額になります')}
   else if(c==='boost'){takeItem(p,'boost');p.booster=true;say(p,'次にもらうお祝い金が2倍になります')}
   V.hud();
 }
 async function cpuItems(p){
+  if(p.notes>0&&p.cash>=p.notes*NOTE_BACK+20000)await repayNotes(p,p.notes);          // CPU：余裕ができたら手形を返す
   const L=usableItems(p);
   for(const c of L){
     if(c==='map'||c==='key'||c==='coupon')await useItem(p,c);
@@ -1571,16 +1587,31 @@ async function runObj(o,a,b,ms){                          // ダッシュ：体�
   await anim(ms,k=>{o.position.lerpVectors(a,b,k);o.position.y=a.y+Math.abs(Math.sin(k*Math.PI*ms/110))*.18;o.rotation.z=-.22;if(Math.floor(k*ms/220)!==o.userData.stp){o.userData.stp=Math.floor(k*ms/220);Sound.step()}});
   o.rotation.z=0;
 }
+async function announceGo(obj,dir,runner){                // 動き出す前に：その人物にズームして「今から行くぞ」の動き
+  Cam.followObj=obj;Cam.followDist=7.5;
+  if(runner){                                              // ダッシュ警官：しゃがんで構える → 一気に飛び出す
+    obj.rotation.y=Math.atan2(-dir.z,dir.x);
+    await anim(1500,k=>{const s=k<.65?1-.2*(k/.65):.8+.35*Math.sin((k-.65)/.35*Math.PI*.5);obj.scale.set(1.25,1.25*s,1.25);obj.rotation.z=-.1*k});
+    obj.scale.setScalar(1.25);
+  }else{                                                   // パトカー：サイレン点灯・エンジンをふかす
+    obj.rotation.y=Math.atan2(-dir.z,dir.x);patrol.siren=true;Sound.siren();
+    const bx=obj.position.clone();
+    await anim(1700,k=>{obj.position.set(bx.x+Math.sin(k*70)*.05,bx.y,bx.z+Math.cos(k*61)*.05);if(obj.wheels)obj.wheels.forEach(w=>w.rotation.z-=.8);if(patrol.off)patrol.off.position.y=.46+Math.abs(Math.sin(k*Math.PI*3))*.12});
+    obj.position.copy(bx);
+  }
+  Cam.followDist=null;
+}
 V.policeDispatch=async(p,dash)=>{                         // 警察署 → 逮捕されるプレイヤーのマスまで
   const c=cars[p.id];if(!c||!patrol)return;
   if(dash){                                                // ごくまれに：モッズコートの警察官がダッシュで来る
     const r=ensureRunner();r.visible=true;r.position.copy(PATROL_HOME).setY(.3);
     const target=c.g.position.clone().add(new V3(1.6,0,1.1)).setY(.3);
+    await announceGo(r,target.clone().sub(r.position),true);
     Cam.followObj=r;await runObj(r,r.position.clone(),target,1500);
     await anim(500,k=>{r.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.3});Cam.followObj=null;return;
   }
-  patrol.siren=true;Sound.siren();
   const target=c.g.position.clone().add(new V3(2.1,0,1.4)).setY(.3);
+  await announceGo(patrol.g,target.clone().sub(patrol.g.position),false);
   Cam.followObj=patrol.g;
   await moveObj(patrol.g,patrol.g.position.clone(),target,2300);
   await anim(600,k=>{patrol.off.position.y=.46+Math.abs(Math.sin(k*Math.PI*2))*.25});          // 警官：逮捕だ！
@@ -1631,6 +1662,51 @@ V.release=async p=>{                                      // 釈放：警察が�
   Cam.followObj=null;await moveObj(patrol.g,drop,PATROL_HOME.clone(),1900);
   c.anim=false;
 };
+/* ---------- 取り立て屋：黒い車にサングラスの男たち。手形が溜まると、真後ろに張り付いてついてくる ---------- */
+function buildThugCar(){
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.7,.3,.84),mat(0x0b0b10,140),0,.32,0,v);
+  mesh(new THREE.BoxGeometry(.9,.26,.8),mat(0x0b0b10,140),-.05,.58,0,v);
+  mesh(new THREE.BoxGeometry(.5,.18,.78),mat(0x0b0b10,140),.65,.5,0,v);
+  mesh(new THREE.BoxGeometry(.92,.1,.7),mat(0x24303a,160),-.05,.64,0,v);                    // スモークの窓
+  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.86,.38,z,v));
+  [[.55,.45],[.55,-.45],[-.55,.45],[-.55,-.45]].forEach(a=>addWheel(v,a[0],.17,a[1],.17,.14));
+  [[.28,-.17],[.28,.17],[-.3,0]].forEach((s2,i)=>{const d=makeDoll({color:0x15151a,job:'取り立て屋',gender:'m',scale:.92});d.position.set(s2[0],.49,s2[1]);v.add(d)});
+  v.visible=false;worldG.add(v);return v;
+}
+const thugOf=c=>c.thugs||(c.thugs={g:buildThugCar(),following:false});
+const fwdOf=c=>new V3(Math.cos(c.g.rotation.y),0,-Math.sin(c.g.rotation.y));        // 車の進行方向
+V.thugsArrive=async p=>{                                  // 遠くから現れる：ズーム → エンジンをふかす → 真後ろへ
+  const c=cars[p.id];if(!c)return;
+  const t=thugOf(c),out=c.g.position.clone().setY(0).normalize();
+  const spawn=c.g.position.clone().addScaledVector(out.lengthSq()?out:new V3(1,0,0),36).setY(.3);
+  t.following=false;t.g.visible=true;t.g.position.copy(spawn);
+  const d0=c.g.position.clone().sub(spawn);t.g.rotation.y=Math.atan2(-d0.z,d0.x);
+  Cam.followObj=t.g;Cam.followDist=7.5;Sound.rumble();
+  const bx=spawn.clone();
+  await anim(1800,k=>{t.g.position.set(bx.x+Math.sin(k*60)*.04,bx.y,bx.z+Math.cos(k*53)*.04);t.g.wheels.forEach(w=>w.rotation.z-=.7)});   // 「今から行くぞ」
+  Cam.followDist=null;
+  const behind=c.g.position.clone().addScaledVector(fwdOf(c),-2.4).setY(.3);
+  await moveObj(t.g,t.g.position.clone(),behind,1500);
+  t.following=true;Cam.followObj=null;
+};
+V.thugsLeave=async p=>{                                   // 引き上げる
+  const c=cars[p.id];if(!c||!c.thugs)return;
+  const t=c.thugs;t.following=false;
+  const out=t.g.position.clone().setY(0).normalize(),away=t.g.position.clone().addScaledVector(out.lengthSq()?out:new V3(1,0,0),36).setY(.3);
+  await moveObj(t.g,t.g.position.clone(),away,1500);
+  t.g.visible=false;
+};
+function updateThugs(dt){                                 // ついてくる：自分の車の真後ろにべったり
+  for(const id in cars){
+    const c=cars[id],t=c.thugs;if(!t||!t.following)continue;
+    const want=c.g.position.clone().addScaledVector(fwdOf(c),-2.4).setY(.3);
+    const before=t.g.position.clone();
+    t.g.position.lerp(want,1-Math.exp(-dt*5));
+    const d=t.g.position.clone().sub(before);if(d.lengthSq()>1e-6)t.g.wheels.forEach(w=>w.rotation.z-=Math.sqrt(d.lengthSq())*2.4);
+    t.g.rotation.y+=angDiff(t.g.rotation.y,c.g.rotation.y)*(1-Math.exp(-dt*6));
+  }
+}
 function updatePolice(dt){
   if(!patrol)return;
   patrol.t+=dt;const on=Math.floor(patrol.t*4)%2===0;
@@ -1642,7 +1718,7 @@ function updatePolice(dt){
 const LOOK={
  '会社員':{body:0x2a3b6e,acc:['tie','bag']},'販売員':{body:0xffffff,acc:['apron:0xff9a3d']},'コック':{body:0xffffff,hat:'toque'},
  '美容師':{body:0x222222,acc:['pouch']},'大工':{body:0xd98c2b,hat:'helmet:0xffd23f',acc:['belt']},'バス運転手':{body:0x2e5aa8,hat:'peaked:0x1d2f58',acc:['glove']},
- '農家':{body:0x3d6fb5,hat:'straw'},'警察官':{body:0x2a4a9a,hat:'peaked:0x16286a',acc:['badge']},'モッズ警察官':{body:0x5f6b3f,acc:['mod','badge']},'消防士':{body:0xd6402b,hat:'helmet:0xe8302b'},
+ '農家':{body:0x3d6fb5,hat:'straw'},'警察官':{body:0x2a4a9a,hat:'peaked:0x16286a',acc:['badge']},'モッズ警察官':{body:0x5f6b3f,acc:['mod','badge']},'取り立て屋':{body:0x15151a,acc:['shades','tie']},'消防士':{body:0xd6402b,hat:'helmet:0xe8302b'},
  '保育士':{body:0xffffff,acc:['apron:0xff9ec4']},'動画配信者':{body:0x7a5cff,acc:['phones']},'医者':{body:0xffffff,acc:['stetho']},
  '弁護士':{body:0x333344,acc:['badge','bag']},'パイロット':{body:0x1d2f58,hat:'peaked:0x1d2f58',acc:['epaulet']},'エンジニア':{body:0x4a8f5a,acc:['laptop']},
  '教師':{body:0xb9926b,acc:['pointer']},'研究者':{body:0xffffff,acc:['glasses']},'建築家':{body:0x222222,acc:['roll']},'獣医':{body:0x5cb85c,acc:['badge']},
@@ -1696,6 +1772,7 @@ function makeDoll(o){
       const fur=mesh(new THREE.TorusGeometry(.125,.035,6,16),mat(0xd9c7a0,20),.045,.49,0,g);fur.rotation.y=Math.PI/2;
       [-.13,.13].forEach(z=>mesh(new THREE.BoxGeometry(.05,.06,.07),mat(0x4e5a32,50),.16,.1,z*.85,g));
     }
+    if(a==='shades'){mesh(new THREE.BoxGeometry(.03,.05,.17),mat(0x050508,140),.13,.5,0,g);mesh(new THREE.BoxGeometry(.012,.012,.2),mat(0x050508,60),.12,.52,0,g)}   // サングラス
     if(a==='stetho'){const t=mesh(new THREE.TorusGeometry(.09,.015,6,12),mat(0x222222),.1,.3,0,g);t.rotation.y=Math.PI/2}
     if(a==='epaulet'){[-.1,.1].forEach(z=>mesh(new THREE.BoxGeometry(.05,.02,.06),mat(0xffd23f,120),0,.33,z,g))}
     if(a==='laptop')mesh(new THREE.BoxGeometry(.12,.02,.16),mat(0x888899),.1,.12,.15,g);
@@ -2131,7 +2208,7 @@ function portraitBust(c){                       // プロフィール用：顔�
   }catch(e){return ''}
 }
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
-const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
@@ -2202,7 +2279,7 @@ function update(){
   sway.forEach(g=>{g.rotation.z=Math.sin(tAcc*1.2+g.userData.ph)*.03});
   clouds.forEach(c=>{c.visible=!Cam.is2D;c.position.x+=c.userData.sp*dt;if(c.position.x>190)c.position.x=-190});
   if(bankCoin)bankCoin.rotation.z+=dt*1.5;
-  updateRoulette(dt);updatePolice(dt);
+  updateRoulette(dt);updatePolice(dt);updateThugs(dt);
   if(bankDoor)bankDoor.position.y=performance.now()<bankOpenT?4.4:1.9;
   for(const id in TILE){const f=TILE[id];if(f.sq.c==='gold'){const fl=f.g.children.find(o=>o.userData.flag);if(fl)fl.rotation.y=Math.sin(tAcc*3)*.3}}
   for(let i=confetti.length-1;i>=0;i--){
@@ -2223,7 +2300,7 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
-    if(Cam.followObj)dist=Math.max(dist,17);          // パトカーを追うときは少し引いて見やすく
+    if(Cam.followObj)dist=Cam.followDist||Math.max(dist,17);          // 走る車を追うときは少し引く／動き出す前はぐっと寄る
     if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;
@@ -2573,7 +2650,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);ev('thugsArrive',p=>[p.id]);ev('thugsLeave',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -2784,6 +2861,8 @@ function clientRecv(m){
         case 'policeLeave':V.policeLeave(G.players[a[0]],a[1]);break;
         case 'policeTake':V.policeTake(G.players[a[0]],a[1]);break;
         case 'release':V.release(G.players[a[0]]);break;
+        case 'thugsArrive':V.thugsArrive(G.players[a[0]]);break;
+        case 'thugsLeave':V.thugsLeave(G.players[a[0]]);break;
         case 'confetti':if(a[0])V.confetti(a[0]);break;
         default:if(V[m.n])V[m.n](...a);
       }
@@ -2849,7 +2928,7 @@ function initTestPanel(){
   const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
   $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
   $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testLife(b.dataset.k));
-  $('#tpFam').innerHTML='<button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
+  $('#tpFam').innerHTML='<button data-f="notes">🕶手形3枚(取り立て屋)</button><button data-f="pay">手形を全部返す</button><button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
   $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>{testFamily(b.dataset.f);V.hud()});
   $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
   $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
@@ -2879,6 +2958,8 @@ async function testJump(key){
 
 function testFamily(what){
   const p=myTestPlayer();
+  if(what==='notes'){p.notes=Math.max(3,p.notes);p.cash=Math.min(p.cash,5000);checkChase(p);V.hud();return}
+  if(what==='pay'){p.cash=Math.max(p.cash,p.notes*NOTE_BACK);repayNotes(p,p.notes);return}
   if(what==='mate'&&!p.spouse){p.spouseInfo=genPerson(p.gender==='f'?'m':'f',p,'spouse');p.spouse=true;p.lover=false;p.loverInfo=null}
   if(what==='kids'){for(let i=0;i<2;i++){const g=i?'f':'m';p.kidList.push({name:(g==='f'?GIRL_N:BOY_N)[i],gender:g,bornAge:Math.max(0,ageOfKey(p.pos)-8),cloth:KID_COL[p.kidList.length%KID_COL.length]})}p.kids=p.kidList.length}
   if(what==='aff'&&!p.affairInfo)p.affairInfo=genPerson('f',p,'affair');

@@ -52,6 +52,7 @@ const Sound=(()=>{
     stopSq(){tone(660,0,.1,'triangle',.2);tone(880,.1,.18,'triangle',.2)},
     click(){tone(900,0,.05,'sine',.15)},
     fanfare(){[523,523,523,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'square',.15));tone(1318,.9,.6,'triangle',.2)},
+    rumble(){tone(70,0,.5,'sawtooth',.16,50);tone(95,.35,.5,'sawtooth',.14,60)},      // 取り立て屋のエンジン音
     siren(){[0,.3,.6,.9].forEach((t,i)=>tone(i%2?720:980,t,.28,'square',.1))},      // パトカーのサイレン
     spinStop(){tone(880,0,.12,'triangle',.25);tone(1175,.1,.3,'triangle',.25)}
   };

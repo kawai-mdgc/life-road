@@ -887,16 +887,17 @@ const ARRESTS=[
 const ARREST_ROLL=['万引き','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
 async function arrest(p,force,dashForce){
   const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
-  V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');
-  await V.policeDispatch(p,dash);                            // 警察署から、警官がそのマスまで来る
-  Sound.bad();
   let r=force;
-  if(!r){                                                    // 罪状はルーレットの出目で決まる
-    await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:'何の罪で逮捕された？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
+  if(!r){                                                    // ① まず罪状が確定する（ルーレットの出目）
+    await ask(p,{head:'🚨 罪が発覚！',color:'#e8454c',title:'何をやらかした？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
     const n=await spin(p,'duel');                            // 能力による出目補正はなし
     r=ARRESTS.find(x=>x.why===ARREST_ROLL[n-1]);
-    say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」`);
+    say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」で確定！`);
+    await sleep(600);
   }
+  Sound.bad();
+  V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');       // ② 罪が確定したあとに、警察官が来る
+  await V.policeDispatch(p,dash);                            // 警察署から、警官がそのマスまで来る
   const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`${dash?'モッズコートの警察官に捕まった！ 連れていかれる前に':'パトカーに乗せられる前に'}、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、${dash?'走って連行され':'パトカーで'}警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
   if(i===0){
     say(p,`${p.name} は「${r.why}」で逮捕… 保釈金 ${fmt(r.bail)}円を払って釈放`);

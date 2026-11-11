@@ -82,7 +82,7 @@ function update(){
 }
 let sTgt=new V3(),sAz=.6,sEl=.95,sDist=130;
 function updateCamera(dt,cur){
-  const k=1-Math.exp(-dt*(Cam.title?2:4.5));
+  const k=1-Math.exp(-dt*(Cam.title?2:Cam.followObj?9:4.5));
   let tgt,az,el,dist;
   if(Cam.title){Cam.userAz+=dt*.1;tgt=new V3(0,0,0);az=Cam.userAz;el=.7;dist=135}
   else if(Cam.is2D){
@@ -91,6 +91,7 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
+    if(Cam.followObj)dist=Math.max(dist,17);          // パトカーを追うときは少し引いて見やすく
     if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;

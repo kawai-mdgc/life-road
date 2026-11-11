@@ -86,6 +86,7 @@ function hostRecv(c,m){
   if(!NET.started||c.pid===undefined)return;
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
   else if(m.t==='spinGo'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='spin')resolvePend(m.rid)}
+  else if(m.t==='repay'){const p=G.players[c.pid];if(p&&!p.finished)repayNotes(p,Math.max(1,Math.min(6,+m.n||1)))}
   else if(m.t==='useItem'){
     const p=G.players[c.pid];
     if(p&&G.awaiting===p&&typeof m.c==='string'&&usableItems(p).includes(m.c))useItem(p,m.c);

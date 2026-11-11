@@ -474,6 +474,14 @@ async function payday(p,key,passing){
   if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
 }
 
+async function repayNotes(p,n){            // 財布から、いつでも約束手形を返済（1枚25,000円）
+  n=Math.min(n,p.notes,Math.floor(p.cash/NOTE_BACK));
+  if(n<=0||p.finished)return false;
+  p.notes-=n;p.cash-=n*NOTE_BACK;
+  say(p,`${p.name}：約束手形を${n}枚 返済（${fmt(n*NOTE_BACK)}円）`);Sound.stamp();
+  await V.bills(p,'bank',n*NOTE_BACK);V.hud();return true;
+}
+
 /* ---------- 選択肢 / カード ---------- */
 function ask(p,o){return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
 async function showSq(p,sq,note=''){
@@ -862,12 +870,19 @@ function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(
 const ARRESTS=[
   {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
   {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
+const ARREST_ROLL=['万引き','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
 async function arrest(p,force,dashForce){
-  const r=force||pickOf(ARRESTS);
   const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
   V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');
-  await V.policeDispatch(p,dash);                            // 警察署から、警官の乗ったパトカーがそのマスまで来る
+  await V.policeDispatch(p,dash);                            // 警察署から、警官がそのマスまで来る
   Sound.bad();
+  let r=force;
+  if(!r){                                                    // 罪状はルーレットの出目で決まる
+    await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:'何の罪で逮捕された？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
+    const n=await spin(p,'duel');                            // 能力による出目補正はなし
+    r=ARRESTS.find(x=>x.why===ARREST_ROLL[n-1]);
+    say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」`);
+  }
   const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`${dash?'モッズコートの警察官に捕まった！ 連れていかれる前に':'パトカーに乗せられる前に'}、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、${dash?'走って連行され':'パトカーで'}警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
   if(i===0){
     say(p,`${p.name} は「${r.why}」で逮捕… 保釈金 ${fmt(r.bail)}円を払って釈放`);
@@ -1541,7 +1556,8 @@ function buildPolice(){
   worldG.add(pg);
 }
 const JAIL_OFF=[[-1.6,-1.1],[0,-1.1],[1.6,-1.1],[-1.6,1.1],[0,1.1],[1.6,1.1]];
-async function moveObj(g,a,b,ms){                        // 一定の速さでなめらかに走らせる
+async function moveObj(g,a,b,ms){                        // 距離に応じた速さで走らせる（カメラが追いつく速さ）
+  ms=Math.max(ms,a.distanceTo(b)/14*1000);
   const d=b.clone().sub(a);if(d.lengthSq()>.0001)g.rotation.y=Math.atan2(-d.z,d.x);
   await anim(ms,k=>{g.position.lerpVectors(a,b,ease(k));if(g.wheels)g.wheels.forEach(w=>w.rotation.z-=.4)});
 }
@@ -1550,6 +1566,7 @@ function ensureRunner(){                                  // モッズコート�
   const r=makeDoll({color:0x5f6b3f,job:'モッズ警察官',gender:'m',scale:1.25});r.visible=false;worldG.add(r);patrol.runner=r;return r;
 }
 async function runObj(o,a,b,ms){                          // ダッシュ：体を前に傾けて、はずみながら走る
+  ms=Math.max(ms,a.distanceTo(b)/17*1000);
   const d=b.clone().sub(a);if(d.lengthSq()>.0001)o.rotation.y=Math.atan2(-d.z,d.x);
   await anim(ms,k=>{o.position.lerpVectors(a,b,k);o.position.y=a.y+Math.abs(Math.sin(k*Math.PI*ms/110))*.18;o.rotation.z=-.22;if(Math.floor(k*ms/220)!==o.userData.stp){o.userData.stp=Math.floor(k*ms/220);Sound.step()}});
   o.rotation.z=0;
@@ -1582,7 +1599,8 @@ V.policeTake=async(p,dash)=>{                             // 連行：署の隣�
     const r=ensureRunner();Cam.followObj=r;
     const a=r.position.clone(),b=JAIL_GATE.clone(),start=c.g.position.clone(),dir=b.clone().sub(a).normalize();
     const d=b.clone().sub(a);r.rotation.y=Math.atan2(-d.z,d.x);c.g.rotation.y=r.rotation.y;
-    await anim(2100,k=>{r.position.lerpVectors(a,b,k);r.position.y=.3+Math.abs(Math.sin(k*Math.PI*19))*.18;r.rotation.z=-.22;
+    const dMs=Math.max(2100,a.distanceTo(b)/15*1000);
+    await anim(dMs,k=>{r.position.lerpVectors(a,b,k);r.position.y=.3+Math.abs(Math.sin(k*Math.PI*dMs/110))*.18;r.rotation.z=-.22;
       c.g.position.lerpVectors(start,r.position.clone().addScaledVector(dir,-1.8),Math.min(1,k*1.4)).setY(.3)});
     r.rotation.z=0;layoutAll();const to=c.target.clone();
     await anim(800,k=>c.g.position.lerpVectors(c.g.position.clone(),to,.25+k*.75));c.g.position.copy(to);
@@ -2196,7 +2214,7 @@ function update(){
 }
 let sTgt=new V3(),sAz=.6,sEl=.95,sDist=130;
 function updateCamera(dt,cur){
-  const k=1-Math.exp(-dt*(Cam.title?2:4.5));
+  const k=1-Math.exp(-dt*(Cam.title?2:Cam.followObj?9:4.5));
   let tgt,az,el,dist;
   if(Cam.title){Cam.userAz+=dt*.1;tgt=new V3(0,0,0);az=Cam.userAz;el=.7;dist=135}
   else if(Cam.is2D){
@@ -2205,6 +2223,7 @@ function updateCamera(dt,cur){
   else{
     const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
+    if(Cam.followObj)dist=Math.max(dist,17);          // パトカーを追うときは少し引いて見やすく
     if(performance.now()<Cam.introUntil){dist=Math.min(dist,9.5);el=.72}      // ターン開始：その人にぐっとズーム
   }
   sTgt.lerp(tgt,k);sAz+=angDiff(sAz,az)*k;sEl+=(el-sEl)*k;sDist+=(dist-sDist)*k;
@@ -2405,11 +2424,19 @@ async function zoom(p,type,x){
   }
   else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)}円<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
   else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000円。<br>ゴールで 10,000円 で買い取られます。'};
-  const btns=['閉じる'];
+  const actions=[];                                                           // [ボタン名, 実行する処理]
   const canUse=type==='item'&&G.awaiting===p&&!p.cpu&&usableItems(p).includes(x.c);
-  if(canUse)btns.unshift('使う');
-  const i=await cardLocal(Object.assign(o,{btns,cpu:false}),p);
-  if(canUse&&i===0&&G.awaiting===p){if(NET.on&&!NET.isHost)NET.send({t:'useItem',c:x.c});else await useItem(p,x.c)}
+  if(canUse)actions.push(['使う',async()=>{if(G.awaiting!==p)return;if(NET.on&&!NET.isHost)NET.send({t:'useItem',c:x.c});else await useItem(p,x.c)}]);
+  if((type==='wallet'||type==='note')&&p.notes>0){                            // 途中でも精算できる
+    const can=Math.min(p.notes,Math.floor(p.cash/NOTE_BACK));
+    const doRepay=n=>async()=>{if(NET.on&&!NET.isHost)NET.send({t:'repay',n});else await repayNotes(p,n)};
+    if(can>=1)actions.push([`手形を1枚返す（${fmt(NOTE_BACK)}円）`,doRepay(1)]);
+    if(can>=2)actions.push([`返せるだけ返す（${can}枚＝${fmt(can*NOTE_BACK)}円）`,doRepay(can)]);
+    if(can<1)o.text+=`<div class="minus" style="margin-top:6px">現金が足りないので、まだ返せません（1枚 ${fmt(NOTE_BACK)}円）</div>`;
+  }
+  actions.push(['閉じる',async()=>{}]);
+  const i=await cardLocal(Object.assign(o,{btns:actions.map(a=>a[0]),cpu:false,col:actions.length>2}),p);
+  await actions[i][1]();
 }
 
 /* ---------- 結果 ---------- */
@@ -2609,6 +2636,7 @@ function hostRecv(c,m){
   if(!NET.started||c.pid===undefined)return;
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
   else if(m.t==='spinGo'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='spin')resolvePend(m.rid)}
+  else if(m.t==='repay'){const p=G.players[c.pid];if(p&&!p.finished)repayNotes(p,Math.max(1,Math.min(6,+m.n||1)))}
   else if(m.t==='useItem'){
     const p=G.players[c.pid];
     if(p&&G.awaiting===p&&typeof m.c==='string'&&usableItems(p).includes(m.c))useItem(p,m.c);

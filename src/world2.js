@@ -249,7 +249,8 @@ function buildPolice(){
   worldG.add(pg);
 }
 const JAIL_OFF=[[-1.6,-1.1],[0,-1.1],[1.6,-1.1],[-1.6,1.1],[0,1.1],[1.6,1.1]];
-async function moveObj(g,a,b,ms){                        // 一定の速さでなめらかに走らせる
+async function moveObj(g,a,b,ms){                        // 距離に応じた速さで走らせる（カメラが追いつく速さ）
+  ms=Math.max(ms,a.distanceTo(b)/14*1000);
   const d=b.clone().sub(a);if(d.lengthSq()>.0001)g.rotation.y=Math.atan2(-d.z,d.x);
   await anim(ms,k=>{g.position.lerpVectors(a,b,ease(k));if(g.wheels)g.wheels.forEach(w=>w.rotation.z-=.4)});
 }
@@ -258,6 +259,7 @@ function ensureRunner(){                                  // モッズコート�
   const r=makeDoll({color:0x5f6b3f,job:'モッズ警察官',gender:'m',scale:1.25});r.visible=false;worldG.add(r);patrol.runner=r;return r;
 }
 async function runObj(o,a,b,ms){                          // ダッシュ：体を前に傾けて、はずみながら走る
+  ms=Math.max(ms,a.distanceTo(b)/17*1000);
   const d=b.clone().sub(a);if(d.lengthSq()>.0001)o.rotation.y=Math.atan2(-d.z,d.x);
   await anim(ms,k=>{o.position.lerpVectors(a,b,k);o.position.y=a.y+Math.abs(Math.sin(k*Math.PI*ms/110))*.18;o.rotation.z=-.22;if(Math.floor(k*ms/220)!==o.userData.stp){o.userData.stp=Math.floor(k*ms/220);Sound.step()}});
   o.rotation.z=0;
@@ -290,7 +292,8 @@ V.policeTake=async(p,dash)=>{                             // 連行：署の隣�
     const r=ensureRunner();Cam.followObj=r;
     const a=r.position.clone(),b=JAIL_GATE.clone(),start=c.g.position.clone(),dir=b.clone().sub(a).normalize();
     const d=b.clone().sub(a);r.rotation.y=Math.atan2(-d.z,d.x);c.g.rotation.y=r.rotation.y;
-    await anim(2100,k=>{r.position.lerpVectors(a,b,k);r.position.y=.3+Math.abs(Math.sin(k*Math.PI*19))*.18;r.rotation.z=-.22;
+    const dMs=Math.max(2100,a.distanceTo(b)/15*1000);
+    await anim(dMs,k=>{r.position.lerpVectors(a,b,k);r.position.y=.3+Math.abs(Math.sin(k*Math.PI*dMs/110))*.18;r.rotation.z=-.22;
       c.g.position.lerpVectors(start,r.position.clone().addScaledVector(dir,-1.8),Math.min(1,k*1.4)).setY(.3)});
     r.rotation.z=0;layoutAll();const to=c.target.clone();
     await anim(800,k=>c.g.position.lerpVectors(c.g.position.clone(),to,.25+k*.75));c.g.position.copy(to);

@@ -167,6 +167,14 @@ async function payday(p,key,passing){
   if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
 }
 
+async function repayNotes(p,n){            // 財布から、いつでも約束手形を返済（1枚25,000円）
+  n=Math.min(n,p.notes,Math.floor(p.cash/NOTE_BACK));
+  if(n<=0||p.finished)return false;
+  p.notes-=n;p.cash-=n*NOTE_BACK;
+  say(p,`${p.name}：約束手形を${n}枚 返済（${fmt(n*NOTE_BACK)}円）`);Sound.stamp();
+  await V.bills(p,'bank',n*NOTE_BACK);V.hud();return true;
+}
+
 /* ---------- 選択肢 / カード ---------- */
 function ask(p,o){return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
 async function showSq(p,sq,note=''){
@@ -555,12 +563,19 @@ function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(
 const ARRESTS=[
   {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
   {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
+const ARREST_ROLL=['万引き','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
 async function arrest(p,force,dashForce){
-  const r=force||pickOf(ARRESTS);
   const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
   V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');
-  await V.policeDispatch(p,dash);                            // 警察署から、警官の乗ったパトカーがそのマスまで来る
+  await V.policeDispatch(p,dash);                            // 警察署から、警官がそのマスまで来る
   Sound.bad();
+  let r=force;
+  if(!r){                                                    // 罪状はルーレットの出目で決まる
+    await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:'何の罪で逮捕された？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
+    const n=await spin(p,'duel');                            // 能力による出目補正はなし
+    r=ARRESTS.find(x=>x.why===ARREST_ROLL[n-1]);
+    say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」`);
+  }
   const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`${dash?'モッズコートの警察官に捕まった！ 連れていかれる前に':'パトカーに乗せられる前に'}、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、${dash?'走って連行され':'パトカーで'}警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
   if(i===0){
     say(p,`${p.name} は「${r.why}」で逮捕… 保釈金 ${fmt(r.bail)}円を払って釈放`);

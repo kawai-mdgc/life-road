@@ -172,11 +172,19 @@ async function zoom(p,type,x){
   }
   else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)}円<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
   else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000円。<br>ゴールで 10,000円 で買い取られます。'};
-  const btns=['閉じる'];
+  const actions=[];                                                           // [ボタン名, 実行する処理]
   const canUse=type==='item'&&G.awaiting===p&&!p.cpu&&usableItems(p).includes(x.c);
-  if(canUse)btns.unshift('使う');
-  const i=await cardLocal(Object.assign(o,{btns,cpu:false}),p);
-  if(canUse&&i===0&&G.awaiting===p){if(NET.on&&!NET.isHost)NET.send({t:'useItem',c:x.c});else await useItem(p,x.c)}
+  if(canUse)actions.push(['使う',async()=>{if(G.awaiting!==p)return;if(NET.on&&!NET.isHost)NET.send({t:'useItem',c:x.c});else await useItem(p,x.c)}]);
+  if((type==='wallet'||type==='note')&&p.notes>0){                            // 途中でも精算できる
+    const can=Math.min(p.notes,Math.floor(p.cash/NOTE_BACK));
+    const doRepay=n=>async()=>{if(NET.on&&!NET.isHost)NET.send({t:'repay',n});else await repayNotes(p,n)};
+    if(can>=1)actions.push([`手形を1枚返す（${fmt(NOTE_BACK)}円）`,doRepay(1)]);
+    if(can>=2)actions.push([`返せるだけ返す（${can}枚＝${fmt(can*NOTE_BACK)}円）`,doRepay(can)]);
+    if(can<1)o.text+=`<div class="minus" style="margin-top:6px">現金が足りないので、まだ返せません（1枚 ${fmt(NOTE_BACK)}円）</div>`;
+  }
+  actions.push(['閉じる',async()=>{}]);
+  const i=await cardLocal(Object.assign(o,{btns:actions.map(a=>a[0]),cpu:false,col:actions.length>2}),p);
+  await actions[i][1]();
 }
 
 /* ---------- 結果 ---------- */

@@ -13,12 +13,19 @@ function initTestPanel(){
    <div class="trow" style="margin-top:4px"><input id="tpKey" type="text" placeholder="マス番号 例: 95 / U3 / R5"><button id="tpGo" class="gold">行く</button></div>
    <div class="tsec">ルーレットの出目を固定（次の1回だけ）</div><div id="tpRoll" class="tgrid"></div>
    <div class="tsec">お金</div><div id="tpMoney" class="tgrid"></div>
+   <div class="tsec">リアルなできごと（必要な家族は自動で付きます）</div><div id="tpLife" class="tgrid"></div>
+   <div class="tsec">家族・年齢</div><div id="tpFam" class="tgrid"></div>
    <div class="tsec">職業</div><div class="trow"><select id="tpJob"></select><button id="tpJobBtn" class="gold">変更</button></div>
    <div class="tsec">アイテム</div><div class="trow"><select id="tpItem"></select><button id="tpItemBtn" class="gold">追加</button></div>
    <div class="tgrid" style="margin-top:4px"><button id="tpAllCol" class="green">お宝を全部</button><button id="tpAllIns" class="green">保険を全部</button><button id="tpAllUse" class="green">使い切りを全部</button></div>`;
   $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
   $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testJump(b.dataset.k));
   $('#tpGo').onclick=()=>testJump($('#tpKey').value.trim().toUpperCase());
+  const LIFE_BTNS=[['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
+  $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
+  $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testLife(b.dataset.k));
+  $('#tpFam').innerHTML='<button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
+  $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>{testFamily(b.dataset.f);V.hud()});
   $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
   $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
   $('#tpMoney').innerHTML=[[100000,'+10万円'],[1000000,'+100万円'],[-100000,'−10万円']].map(m=>`<button data-m="${m[0]}">${m[1]}</button>`).join('')+'<button data-m="reset" class="alt">財布を空に</button>';
@@ -42,5 +49,27 @@ async function testJump(key){
     if(s.r==='U'||s.r==='W')p.route=s.r;else if(s.r==='S'||s.r==='R')p.route2=s.r;
     p.route=p.route||'U';p.route2=p.route2||'S';
     p.pos=key;await V.step(p,key);await land(p);V.hud();
+  }finally{testBusy=false}
+}
+
+function testFamily(what){
+  const p=myTestPlayer();
+  if(what==='mate'&&!p.spouse){p.spouseInfo=genPerson(p.gender==='f'?'m':'f',p,'spouse');p.spouse=true;p.lover=false;p.loverInfo=null}
+  if(what==='kids'){for(let i=0;i<2;i++){const g=i?'f':'m';p.kidList.push({name:(g==='f'?GIRL_N:BOY_N)[i],gender:g,bornAge:Math.max(0,ageOfKey(p.pos)-8),cloth:KID_COL[p.kidList.length%KID_COL.length]})}p.kids=p.kidList.length}
+  if(what==='aff'&&!p.affairInfo)p.affairInfo=genPerson('f',p,'affair');
+  if(what==='job'&&!p.job)p.job={...JOBS.find(j=>j.n==='医者')};
+  V.pins(p);
+}
+async function testLife(k){
+  const p=myTestPlayer();
+  if(G.awaiting!==p){V.toast('自分の番のルーレット前に使ってください');return}
+  if(testBusy)return;testBusy=true;
+  try{
+    if(['mateJobless','cheated','affair','exposed','divorce'].includes(k))testFamily('mate');
+    if(k==='exposed')testFamily('aff');
+    if(k==='delinquent')testFamily('kids');
+    if(k==='jobless')testFamily('job');
+    if(k==='mateJobless'){p.spouseInfo.bonus=Math.max(p.spouseInfo.bonus,3000);p.spouseJobless=0}
+    await lifeEvent(p,k);
   }finally{testBusy=false}
 }

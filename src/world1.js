@@ -85,9 +85,10 @@ function tileTexture(sq){
     if(sq.c==='blue')icon={item:'card',duel:'roulette',family:'heart',job:'tie',event:'q'}[sq.k];
     ctx.fillStyle='#fff';ctx.font=`900 30px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.35)';
-    const label=sq.id;ctx.strokeText(label,64,30);ctx.fillText(label,64,30);
-    drawIcon(ctx,icon,64,76,52);
-    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 18px ${FONT}`;ctx.strokeText(t,64,108);ctx.fillText(t,64,108)}
+    ctx.font=`900 26px ${FONT}`;const label=sq.id;ctx.strokeText(label,64,24);ctx.fillText(label,64,24);
+    ctx.font=`900 17px ${FONT}`;ctx.lineWidth=4;const age=ageOfKey(sq.id)+'歳';ctx.strokeText(age,64,44);ctx.fillText(age,64,44);   // マスの年齢
+    drawIcon(ctx,icon,64,82,44);
+    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 16px ${FONT}`;ctx.strokeText(t,64,111);ctx.fillText(t,64,111)}
   });
 }
 

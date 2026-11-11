@@ -603,9 +603,11 @@ function prevKey(p,key){
 }
 
 /* ---------- 年齢（盤上の位置から決める） ---------- */
+const AGE20=[0,3,5,6,7,8,9,10,10,11,12,13,14,15,15,16,18,18,18,18];   // マス1〜20の年齢（17=18歳で免許）
 const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,80]];
 function ageOfKey(key){
   const s=SQ[key];let n;
+  if(s.r==='main'&&s.n<=20)return AGE20[s.n-1];
   if(s.r==='main')n=s.n;
   else{const lim={U:12,W:8,S:10,R:10}[s.r],a=(s.r==='U'||s.r==='W')?20:80;n=a+s.n/(lim+1)}
   for(let i=1;i<AGE_A.length;i++){
@@ -614,12 +616,24 @@ function ageOfKey(key){
   return 80;
 }
 
+/* ---------- 乗り物：ベビーカー → 自転車 → 車（免許）→ 車椅子（免許返納） ---------- */
+const VORDER={stroller:0,bike:1,car:2,chair:3};
+const vehicleOfAge=a=>a<5?'stroller':a<18?'bike':a<70?'car':'chair';
+const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業して、自転車に乗れるように！'],car:['🚗 免許を取って車に！','18歳！ 免許を取って、車に乗りかえ！'],chair:['🧓 老年期に突入… 免許を返納','免許を返納して、車椅子に乗りかえました']};
+async function checkVehicle(p){
+  const v=vehicleOfAge(ageOfKey(p.pos));
+  if(v===p.vstage)return;
+  const up=VORDER[v]>VORDER[p.vstage];p.vstage=v;
+  if(up&&VEH_MSG[v]){V.banner(VEH_MSG[v][0]);say(p,`${p.name}：${VEH_MSG[v][1]}`);Sound.good();await sleep(900)}
+  V.pins(p);
+}
+
 /* ---------- プレイヤー ---------- */
 function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller'};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -674,21 +688,27 @@ async function payday(p,key,passing){
     if(a==='farm'&&r%2===0){s+=3000;note='（偶数ボーナス+3,000）'}
   }
   if(key==='R10'&&p.president){s*=2;note='（社長マーカーで2倍）'}
-  if(p.spouseInfo&&!p.retired&&p.spouseInfo.bonus){s+=p.spouseInfo.bonus;note+=`（${p.spouseInfo.name}さんの共働き+${fmt(p.spouseInfo.bonus)}円）`}
+  if(p.jobless>0&&!p.retired){p.jobless--;s=Math.round(s*.3);note+='（失業中：失業手当は30%）'}
+  if(p.spouseInfo&&!p.retired&&p.spouseInfo.bonus){
+    if(p.spouseJobless>0){p.spouseJobless--;note+=`（${p.spouseInfo.name}さんが失業中で共働きなし）`}
+    else{s+=p.spouseInfo.bonus;note+=`（${p.spouseInfo.name}さんの共働き+${fmt(p.spouseInfo.bonus)}円）`}
+  }
   if(a==='astro'&&!p.astroUsed){p.astroUsed=true;s+=50000;note='（宇宙旅行ボーナス+50,000）'}
   if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
+  if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
 }
 
 /* ---------- 選択肢 / カード ---------- */
 function ask(p,o){return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
-async function showSq(p,sq){
+async function showSq(p,sq,note=''){
   const kindTxt={item:'アイテム',duel:'勝負',family:'家族',job:'職業',event:'イベント'}[sq.k]||'';
-  const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
+  const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}（${ageOfKey(sq.id)}歳）　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
   let amt='';
   if(sq.a!==null&&sq.a!==0){amt=(sq.a>0?'+':'−')+fmt(Math.abs(sq.a))+'円'+(sq.x?'×'+{others:'人数',kids:'子ども',grand:'孫',pins:'ピン',stocks:'株券'}[sq.x]:'')}
   else if(sq.m!=='0')amt=sq.m;
-  await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
+  if(note)amt='';
+  await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:note?`<small>（${note}）</small>`:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
 }
 async function spin(p,purpose='duel'){return V.roulette(p,purpose)}   // 回す→止める（結果は止めた瞬間に決まる）
 async function duelRoll(p,win){             // ルーレット勝負（ゲームクリエイターは+1できる）
@@ -833,22 +853,28 @@ const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社�
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
-function genSpouse(g,p){
+function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
-  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,20,60),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
-    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],bonus:[0,1000,3000,5000][inc]};
+  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,70),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
-function spouseHtml(c){
-  return `<img class="pimg" src="${portraitBust(c)}" alt=""><div class="pi"><b>${esc(c.name)}</b> ${c.age}歳・${GN[c.gender]}<br>💼${esc(c.job)} 🎯${esc(c.hobby)}<br>💬${esc(c.trait)}<br><span class="stars">収入${stars(c.inc)} 家事${stars(c.hk)} 愛情${stars(c.lv)}</span><br><small class="plus">共働き：給料日ごとに+${fmt(c.bonus)}円</small></div>`;
+const genSpouse=(g,p)=>genPerson(g,p,'spouse');
+function spouseHtml(c,tag=''){
+  const line=c.role==='affair'?'<small class="minus">愛人：給料日ごとに−3,000円</small>':c.role==='lover'&&!tag?'<small>恋人</small>':`<small class="plus">共働き：給料日ごとに+${fmt([0,1000,3000,5000][c.inc])}円</small>`;
+  return `<img class="pimg" src="${portraitBust(c)}" alt=""><div class="pi">${tag?`<span class="ptag">${tag}</span> `:''}<b>${esc(c.name)}</b> ${c.age}歳・${GN[c.gender]}<br>💼${esc(c.job)} 🎯${esc(c.hobby)}<br>💬${esc(c.trait)}<br><span class="stars">収入${stars(c.inc)} 家事${stars(c.hk)} 愛情${stars(c.lv)}</span><br>${line}</div>`;
 }
-async function chooseSpouse(p){
-  const gi=await ask(p,{head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',title:'どんな人と結婚する？',text:'まず、相手の性別を選んでください',btns:['👨 男性','👩 女性','🧑 どちらでもない'],pick:rnd(3),col:true});
-  const g=['m','f','n'][gi];
-  const cand=[0,1,2].map(()=>genSpouse(g,p));
-  let best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i});
-  const ci=await ask(p,{head:'💍 プロフィールカード',color:'#ff6fa5',title:'3人の中から、結婚相手を選ぼう',text:'<small>タップして決定</small>',btns:cand.map(spouseHtml),pick:best,col:true,profile:true,wide:true});
-  p.spouseInfo=cand[ci];
-  say(p,`${p.name} は ${cand[ci].name} さんと結婚！`);
+// 性別 → 3人のプロフィールカードから選ぶ（include=すでにいる人を候補に入れる／gender固定も可）
+async function choosePerson(p,o){
+  let g=o.gender;
+  if(!g){
+    const gi=await ask(p,{head:o.head,color:o.color,title:o.q,text:'まず、相手の性別を選んでください',btns:['👨 男性','👩 女性','🧑 どちらでもない'],pick:rnd(3),col:true});
+    g=['m','f','n'][gi];
+  }
+  const cand=[];if(o.include)cand.push(o.include);
+  while(cand.length<3)cand.push(genPerson(g,p,o.role));
+  let best=o.include?0:rnd(3);if(o.role==='spouse'&&!o.include){best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i})}
+  const ci=await ask(p,{head:o.head,color:o.color,title:o.title2,text:o.include?'<small>今の恋人＋新しい出会い。タップして決定</small>':'<small>タップして決定</small>',btns:cand.map(c=>spouseHtml(c,c===o.include?'💗 今の恋人':'')),pick:best,col:true,profile:true,wide:true});
+  return cand[ci];
 }
 const PET_DEF={
   dog:{label:'犬',names:['ポチ','コロ','マロン','ムギ','ハチ','レオ','モカ'],breeds:[['柴犬',0xd89a52],['トイプードル',0xf3e6d0],['ゴールデン',0xe8b45a],['ダックス',0x8a4b2a],['ハスキー',0xb9c4d0],['黒ラブ',0x2f2a2a]]},
@@ -907,7 +933,10 @@ SP['20']=async p=>{
   await stepAndLand(p);
 };
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
-SP['31']=async p=>{p.lover=true;V.pins(p);say(p,'恋人ができた！ 助手席に乗った');await famBonus(p,'31')};
+SP['31']=async p=>{
+  const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
+  p.loverInfo=c;p.lover=true;V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);await famBonus(p,'31');
+};
 SP['34']=async p=>{
   const r=await spin(p,'duel');
   if(G.stockOwner[r]===null){G.stockOwner[r]=p;p.stocks.push(r);say(p,`株券「${r}」をもらった！（他人が${r}を出すと配当5,000）`);Sound.good()}
@@ -932,21 +961,40 @@ SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
 SP['21']=async p=>{await payday(p,'21',false)};
 SP['51']=async p=>{
-  const had=p.lover;
-  await chooseSpouse(p);
-  p.spouse=true;p.lover=false;V.pins(p);Sound.good();
-  say(p,'結婚！ パートナーのピンが車に乗った');
+  const need=p.loverInfo?3:5;                                  // 結婚できるかは、ルーレットの出目しだい
+  await ask(p,{head:'💍 プロポーズ！',color:'#ff6fa5',title:'結婚できるかな？',text:`ルーレットで <b>${need}以上</b> が出れば結婚成立！<br><small>${p.loverInfo?'恋人がいるので成功しやすい（3以上）':'恋人がいないので少し難しい（5以上）'}</small>`,btns:['ルーレットへ'],pick:0});
+  const r=await duelRoll(p,x=>x>=need);
+  if(r<need){
+    Sound.bad();p.lover=false;p.loverInfo=null;V.pins(p);
+    await ask(p,{head:'💔 結婚できなかった…',color:'#8a8aa0',title:`出目は ${r}。縁がなかったみたい`,text:'ひとりで自由に生きていこう。お気楽ライフのご褒美に +20,000円',btns:['OK'],pick:0});
+    say(p,`${p.name} は結婚せず、自由気ままに生きることに…`);await income(p,20000);return;
+  }
+  const had=p.loverInfo;
+  const c=await choosePerson(p,{role:'spouse',head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',q:'どんな人と結婚する？',title2:'3人の中から、結婚相手を選ぼう',gender:had&&had.gender,include:had});
+  p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
+  say(p,`${p.name} は ${c.name} さんと結婚！`);
+  p.spouse=true;p.lover=false;p.loverInfo=null;V.pins(p);Sound.good();
   await gifts(p,5000,'結婚');
-  if(had){say(p,'恋人からの祝い金+10,000');await income(p,10000,{celebrate:true})}
-  if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000');await income(p,5000)}
+  if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}
+  if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000円');await income(p,5000)}
   V.confetti(p.pos);
 };
-const baby=async(p,n,id)=>{
-  p.kids+=n;V.pins(p);Sound.good();say(p,n===2?'双子が誕生！ ピンが2本追加':'子ども誕生！ ピンが追加');
+const BOY_N=['ハルキ','ソウマ','レン','ユウト','アオイ','タイガ','コウタ','リク','ヒビキ'],GIRL_N=['ミオ','サラ','ヒマリ','ユイナ','ココロ','アカリ','リン','ナナミ','ツムギ'];
+async function baby(p,n,id){
+  if(!p.spouse){say(p,'パートナーがいないので、子どもには恵まれなかった…');await ask(p,{head:'👶 子ども',color:'#8a8aa0',title:'子どもには恵まれなかった',text:'<small>（パートナーがいないので対象外です）</small>',btns:['OK'],pick:0});return}
+  if(n===1&&Math.random()<.12){n=2;V.banner('👶👶 なんと双子！');say(p,'なんと、双子が生まれた！')}
+  for(let i=0;i<n;i++){
+    const g=Math.random()<.5?'f':'m',pool=shuffle([...(g==='f'?GIRL_N:BOY_N)].filter(n=>!p.kidList.some(k=>k.name===n))).slice(0,3);   // 兄弟で名前がかぶらない
+    const ni=await ask(p,{head:`👶 ${n===2?(i+1)+'人目：':''}子ども誕生！`,color:'#ff9a3d',title:g==='f'?'女の子が生まれました！':'男の子が生まれました！',text:'名前をつけてあげよう',btns:pool,pick:rnd(3),col:true});
+    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),cloth:KID_COL[p.kidList.length%KID_COL.length]});
+    p.kids=p.kidList.length;
+    say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);
+  }
+  V.pins(p);Sound.good();
   await gifts(p,2000,'出産');
-  if(jobAb(p)==='baby3'){say(p,'保育士の能力で+3,000');await income(p,3000)}
+  if(jobAb(p)==='baby3'){say(p,'保育士の能力で+3,000円');await income(p,3000)}
   await famBonus(p,id);V.confetti(p.pos);
-};
+}
 SP['54']=async p=>baby(p,1,'54');
 SP['61']=async p=>baby(p,2,'61');
 SP['73']=async p=>baby(p,1,'73');
@@ -1034,6 +1082,52 @@ SP['S7']=async p=>{await travelBonus(p,'S7');let a=2000*p.kids;if(jobAb(p)==='te
 SP['109']=async p=>{let a=25000;if(jobAb(p)==='patent'){a*=2;say(p,'エンジニアの能力で2倍！')}await income(p,a)};
 SP['57']=async p=>{await income(p,5000,{celebrate:true})};
 
+/* ---------- リアルな人生のできごと（失業・浮気・愛人・離婚・子どもがぐれる…） ---------- */
+function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(p)}
+const LIFE={
+  jobless:{ok:p=>p.job&&!p.retired,w:2,run:async p=>{
+    await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:'会社が倒産…！ 失業しました',text:'次の2回の給料日は、<b>失業手当（給料の30%）</b>だけになります',btns:['OK'],pick:0});
+    p.jobless=2;say(p,`${p.name} が失業… 次の2回の給料日は30%`)}},
+  mateJobless:{ok:p=>p.spouse&&p.spouseInfo&&p.spouseInfo.bonus>0&&p.spouseJobless===0,w:2,run:async p=>{
+    await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんが失業した！`,text:'次の3回の給料日は、共働き収入がなくなります。励ましに 5,000円',btns:['OK'],pick:0});
+    p.spouseJobless=3;say(p,`${p.spouseInfo.name}さんが失業… 共働きが3回おやすみ`);await pay(p,5000)}},
+  cheated:{ok:p=>p.spouse&&p.spouseInfo,w:1,run:async p=>{
+    Sound.bad();
+    const i=await ask(p,{head:'💔 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんの浮気が発覚！`,text:'許してやり直す？ それとも離婚する？<br><small>離婚すると慰謝料 +30,000円がもらえます</small>',btns:['許してやり直す','離婚する'],pick:p.spouseInfo.bonus>=3000?0:1,col:true});
+    if(i===0){p.spouseInfo.bonus=Math.floor(p.spouseInfo.bonus/2);say(p,'許したけれど、信頼がゆらいで共働きの助けが減った…')}
+    else{say(p,`${p.name} は離婚。慰謝料 +30,000円`);doDivorce(p);await income(p,30000)}}},
+  affair:{ok:p=>(p.spouse||p.lover)&&!p.affairInfo,w:1,run:async p=>{
+    const i=await ask(p,{head:'🖤 人生のできごと',color:'#6a4fd0',title:'魅力的な人に出会ってしまった…',text:'愛人をつくる？ それとも断る？<br><small>愛人は給料日ごとに −3,000円。バレると大変なことに…</small>',btns:['愛人をつくる','きっぱり断る（+3,000円）'],pick:Math.random()<.3?0:1,col:true});
+    if(i===0){
+      const c=await choosePerson(p,{role:'affair',head:'🖤 愛人のプロフィール',color:'#6a4fd0',q:'どんな人？',title2:'3人の中から、愛人を選ぼう'});
+      p.affairInfo=c;say(p,`${p.name} に愛人 ${c.name} さんができた…（秘密）`);
+    }else{say(p,'きっぱり断った。誠実さが評価されて +3,000円');await income(p,3000)}}},
+  exposed:{ok:p=>p.spouse&&p.affairInfo,w:3,run:async p=>{
+    Sound.bad();
+    await ask(p,{head:'🔥 修羅場！',color:'#e8454c',title:'愛人のことがバレた！',text:`${p.spouseInfo.name}さんが激怒…離婚、そして慰謝料 <b>50,000円</b> を支払います`,btns:['OK'],pick:0});
+    say(p,`${p.name} は愛人がバレて離婚… 慰謝料 −50,000円`);doDivorce(p);p.affairInfo=null;await pay(p,50000,{discount:false})}},
+  divorce:{ok:p=>p.spouse&&p.spouseInfo,w:1,run:async p=>{
+    const i=await ask(p,{head:'💔 人生のできごと',color:'#e8454c',title:'すれ違いが続いて、離婚の危機…',text:'やり直す？（ルーレットで<b>5以上</b>なら関係修復）<br><small>失敗か離婚を選ぶと、慰謝料 −20,000円</small>',btns:['やり直す','離婚する'],pick:0,col:true});
+    let split=i===1;
+    if(!split){const r=await duelRoll(p,x=>x>=5);if(r>=5){say(p,'話し合って、関係を修復できた！');Sound.good()}else split=true}
+    if(split){say(p,`${p.name} は離婚… 慰謝料 −20,000円`);doDivorce(p);await pay(p,20000,{discount:false})}}},
+  delinquent:{ok:p=>p.kids>0,w:2,run:async p=>{
+    const k=pickOf(p.kidList);
+    const i=await ask(p,{head:'😠 人生のできごと',color:'#e8454c',title:`${k.name}がグレた！`,text:'夜遊びに、ケンカ…どうする？<br><small>向き合う＝ルーレット<b>6以上</b>で立ち直る（失敗は −15,000円）／見守る＝器物破損の弁償 −8,000円</small>',btns:['しっかり向き合う','そっと見守る'],pick:0,col:true});
+    if(i===0){const r=await duelRoll(p,x=>x>=6);if(r>=6){say(p,`${k.name}が立ち直った！ 親子の絆がふかまった`);Sound.good()}else{say(p,`${k.name}と衝突… 病院代など −15,000円`);await pay(p,15000)}}
+    else{say(p,`${k.name}の起こしたトラブルの弁償 −8,000円`);await pay(p,8000)}}},
+  cold:{ok:()=>true,w:0,run:async p=>{say(p,'風邪をひいて寝込んだ… −3,000円');await pay(p,3000)}}
+};
+async function lifeEvent(p,force){
+  await ask(p,{head:'🎴 人生のできごと',color:'#6a4fd0',title:'何かが起こる予感…',text:'人生にはいろいろあります。今のあなたに起こるできごとは？',btns:['めくる'],pick:0});
+  const pool=[];for(const[k,d]of Object.entries(LIFE)){if(d.ok(p))for(let i=0;i<d.w;i++)pool.push(k)}
+  if(!pool.length)pool.push('cold');
+  const k=force&&LIFE[force]?force:pickOf(pool);
+  await LIFE[k].run(p);V.hud();
+}
+// アイテムマスの一部を「人生のできごと」マスに置き換え（リアルな出来事）
+['33','39','63','69','92','99','105','120','125'].forEach(id=>{const q=SQ[id];q.k='event';q.t='人生のできごと（何が起こるかはお楽しみ）';q.m='?';q.a=null;SP[id]=async p=>lifeEvent(p)});
+
 async function landEffect(p,sq){
   if(SP[sq.id])return SP[sq.id](p,sq);
   switch(sq.c){
@@ -1046,13 +1140,17 @@ async function landEffect(p,sq){
     case 'blue':if(sq.k==='item')return drawItem(p,1);return;
   }
 }
+const NEED_KID=new Set(['56','57','64','78','86','108','112','115','S7','117','129']);   // 子どもがいないと対象外
+const NEED_MATE=new Set(['52']);                                                                  // パートナーがいないと対象外
 async function land(p){
+  await checkVehicle(p);
   const sq=SQ[p.pos];
   V.flash(p.pos);Sound.stopSq();
   V.bubble(p.pos,sq.t);
-  await showSq(p,sq);
+  const skip=NEED_KID.has(sq.id)&&p.kids===0?'子どもがいないので、このマスは対象外です':NEED_MATE.has(sq.id)&&!p.spouse?'パートナーがいないので、このマスは対象外です':'';
+  await showSq(p,sq,skip);
   V.bubbleOff();
-  if(sq.id!=='1')await landEffect(p,sq);
+  if(sq.id!=='1'&&!skip)await landEffect(p,sq);
   // STOPマスの次もSTOPマスなら、また止まらずにそのまま続けて実行（例：卒業U12 → 合流21）
   if(!p.finished&&sq.id!=='150'&&p.pos===sq.id&&isStop(sq)){
     const nk=nextKey(p);
@@ -1324,9 +1422,10 @@ function tileTexture(sq){
     if(sq.c==='blue')icon={item:'card',duel:'roulette',family:'heart',job:'tie',event:'q'}[sq.k];
     ctx.fillStyle='#fff';ctx.font=`900 30px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.35)';
-    const label=sq.id;ctx.strokeText(label,64,30);ctx.fillText(label,64,30);
-    drawIcon(ctx,icon,64,76,52);
-    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 18px ${FONT}`;ctx.strokeText(t,64,108);ctx.fillText(t,64,108)}
+    ctx.font=`900 26px ${FONT}`;const label=sq.id;ctx.strokeText(label,64,24);ctx.fillText(label,64,24);
+    ctx.font=`900 17px ${FONT}`;ctx.lineWidth=4;const age=ageOfKey(sq.id)+'歳';ctx.strokeText(age,64,44);ctx.fillText(age,64,44);   // マスの年齢
+    drawIcon(ctx,icon,64,82,44);
+    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 16px ${FONT}`;ctx.strokeText(t,64,111);ctx.fillText(t,64,111)}
   });
 }
 
@@ -1676,20 +1775,65 @@ const SEATS=[[.25,-.17],[.25,.17],[-.1,-.17],[-.1,.17],[-.45,-.17],[-.45,.17]];
 const KID_COL=[0x7fd1ff,0xffd166,0xb4f06c,0xffa6d1,0xc9b4ff];
 
 /* ---------- 車 ---------- */
+/* ---------- 乗り物：ベビーカー / 自転車 / 車 / 車椅子 ---------- */
+function addWheel(v,x,y,z,r,w=.08,col=0x222222){
+  const g=new THREE.Group();g.position.set(x,y,z);
+  const t=mesh(new THREE.CylinderGeometry(r,r,w,14),mat(col,30),0,0,0,g);t.rotation.x=Math.PI/2;
+  const h=mesh(new THREE.CylinderGeometry(r*.5,r*.5,w+.02,10),mat(0xdddddd,120),0,0,0,g);h.rotation.x=Math.PI/2;
+  v.add(g);v.wheels.push(g);return g;
+}
+function tube(v,a,b,r,col){                 // x-y 平面の2点を結ぶ棒
+  const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+  const m=mesh(new THREE.CylinderGeometry(r,r,len,6),mat(col,90),(a[0]+b[0])/2,(a[1]+b[1])/2,a[2]||0,v);m.rotation.z=Math.atan2(dy,dx)-Math.PI/2;return m;
+}
+function buildCarModel(color){
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(color,100),0,.32,0,v);
+  mesh(new THREE.BoxGeometry(.5,.16,.76),mat(color,100),.6,.5,0,v);
+  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,v);
+  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,v);
+  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,v));
+  [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>addWheel(v,a[0],.17,a[1],.17,.14));
+  SEATS.forEach(s=>mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),s[0],.485,s[1],v));   // 座席の穴6つ
+  return v;
+}
+function buildStroller(color){                // ベビーカー（0〜4歳）
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(.62,.1,.46),mat(color,90),0,.38,0,v);
+  mesh(new THREE.BoxGeometry(.08,.34,.46),mat(color,90),-.26,.58,0,v);
+  const canopy=mesh(new THREE.SphereGeometry(.34,12,8,0,Math.PI*2,0,Math.PI/2),mat(0xffffff,80),-.06,.62,0,v);canopy.scale.set(1,.85,1.2);
+  [-.2,.2].forEach(z=>tube(v,[-.3,.45,z],[-.55,.82,z],.025,0xdddddd));
+  const bar=mesh(new THREE.CylinderGeometry(.03,.03,.5,8),mat(0xdddddd,90),-.55,.82,0,v);bar.rotation.x=Math.PI/2;
+  [-.2,.2].forEach(z=>{tube(v,[.2,.36,z],[.28,.12,z],.022,0xcccccc);tube(v,[-.2,.38,z],[-.28,.15,z],.022,0xcccccc)});
+  [[.28,.1,.26,.1],[.28,.1,-.26,.1],[-.28,.14,.28,.14],[-.28,.14,-.28,.14]].forEach(a=>addWheel(v,a[0],a[1],a[2],a[3],.07));
+  return v;
+}
+function buildBike(color){                    // 自転車（5〜17歳）
+  const v=new THREE.Group();v.wheels=[];
+  addWheel(v,.55,.3,0,.3,.05);addWheel(v,-.55,.3,0,.3,.05);
+  const f=color;
+  tube(v,[-.55,.3],[-.05,.3],.025,f);tube(v,[-.05,.3],[-.22,.66],.025,f);tube(v,[-.55,.3],[-.22,.66],.025,f);
+  tube(v,[-.05,.3],[.4,.62],.025,f);tube(v,[-.22,.66],[.4,.62],.025,f);tube(v,[.4,.62],[.55,.3],.025,0xcccccc);
+  const hb=mesh(new THREE.CylinderGeometry(.025,.025,.5,6),mat(0x222222,60),.42,.72,0,v);hb.rotation.x=Math.PI/2;
+  mesh(new THREE.BoxGeometry(.26,.05,.14),mat(0x222222,40),-.24,.69,0,v);
+  mesh(new THREE.BoxGeometry(.24,.14,.3),mat(0xb98550,40),.62,.52,0,v);          // 前かご
+  return v;
+}
+function buildChair(color){                   // 車椅子（70歳〜・免許返納）
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.05,.8),mat(0x8d8d99,40),0,.04,0,v);            // 家族が立つ台
+  mesh(new THREE.BoxGeometry(.5,.07,.5),mat(color,90),0,.36,0,v);
+  mesh(new THREE.BoxGeometry(.07,.46,.5),mat(color,90),-.25,.6,0,v);
+  [-.27,.27].forEach(z=>{mesh(new THREE.BoxGeometry(.4,.05,.05),mat(0x333344,60),0,.52,z,v);tube(v,[-.36,.8,z*.9],[-.5,.98,z*.9],.025,0x333344)});
+  mesh(new THREE.BoxGeometry(.2,.04,.4),mat(0x333344,60),.34,.2,0,v);
+  [-.3,.3].forEach(z=>addWheel(v,-.08,.34,z,.3,.05));
+  [-.2,.2].forEach(z=>addWheel(v,.3,.1,z,.08,.05));
+  return v;
+}
 function makeCar(p){
-  const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0};
-  mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(p.color,100),0,.32,0,g);
-  mesh(new THREE.BoxGeometry(.5,.16,.76),mat(p.color,100),.6,.5,0,g);
-  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,g);
-  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,g);
-  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,g));
-  [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{
-    const w=new THREE.Group();w.position.set(a[0],.17,a[1]);
-    const t=mesh(new THREE.CylinderGeometry(.17,.17,.14,14),mat(0x222222,30),0,0,0,w);t.rotation.x=Math.PI/2;
-    const h=mesh(new THREE.CylinderGeometry(.09,.09,.16,10),mat(0xdddddd,120),0,0,0,w);h.rotation.x=Math.PI/2;
-    g.add(w);car.wheels.push(w);
-  });
-  SEATS.forEach(s=>mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),s[0],.485,s[1],g));   // 座席の穴6つ
+  const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0,vehicles:{}};
+  car.vehicles.car=buildCarModel(p.color);car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);
+  Object.values(car.vehicles).forEach(v=>{v.visible=false;g.add(v)});
   car.seatG=new THREE.Group();car.seatG.position.y=.49;g.add(car.seatG);
   car.styleG=new THREE.Group();g.add(car.styleG);
   car.stackG=new THREE.Group();car.stackG.position.set(-.1,.02,.95);g.add(car.stackG);
@@ -1701,33 +1845,51 @@ function makeCar(p){
   g.position.copy(POS[p.pos]).setY(.3);car.target.copy(g.position);
   cars[p.id]=car;worldG.add(g);refreshCar(p);return car;
 }
+// 乗り物ごとの席（[x,z,y補正]）と座面の高さ
+const SEAT_SETS={
+  car:{y:.49,slots:SEATS.map(s=>[s[0],s[1],0])},
+  stroller:{y:.43,slots:[[.0,0,0]]},
+  bike:{y:.72,slots:[[-.24,0,0],[.62,0,-.2]]},
+  chair:{y:.4,slots:[[-.02,0,0],[-.5,-.18,-.34],[-.5,.18,-.34],[.4,-.28,-.34],[.4,.28,-.34],[.1,-.34,-.34]]}
+};
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
+  const sig=[st,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+    p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
+  Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
+  car.wheels=car.vehicles[st].wheels;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
-  const list=[{k:'driver'}];
-  if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
-  for(let i=0;i<p.kids;i++)list.push({k:'kid',i});
-  for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
-  for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
-  list.slice(0,PIN_MAX).forEach((e,i)=>{
+  const set=SEAT_SETS[st];car.seatG.position.y=set.y;
+  let list=[{k:'driver'}];
+  if(st==='stroller'){/* 赤ちゃんだけ */}
+  else if(st==='bike'){for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]})}
+  else{
+    if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
+    for(let i=0;i<p.kids;i++)list.push({k:'kid',i,kid:p.kidList[i]});
+    for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
+    for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
+  }
+  list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
+    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired&&st!=='stroller'&&st!=='bike'?p.job.n:null,scale:st==='stroller'?.6:st==='bike'?.85:.95});
     else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
-    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
-    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
+    else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:lv?lv.cloth:0xffb6cf,gender:lv?lv.gender:(p.gender==='f'?'m':'f'),scale:.88})}
+    else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),scale:.7});
     else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
     else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
-    d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
+    const sl=set.slots[i];d.position.set(sl[0],sl[2],sl[1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
-  if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
-  if(p.carLevel>=2)mesh(new THREE.BoxGeometry(.1,.02,.7),mat(0x222222,100),-.74,.62,0,car.styleG);
-  if(p.carLevel>=3)[[-.74,.62],[-.74,-.62]].forEach(a=>mesh(new THREE.BoxGeometry(.04,.16,.04),mat(0x222222),a[0]+.02,.54,a[1]*.0+(a[1]>0?.3:-.3),car.styleG));
-  if(vint){[[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const f=mesh(new THREE.SphereGeometry(.22,10,8),mat(0xf4efe0,100),a[0],.3,a[1]*1.08,car.styleG);f.scale.set(1.3,.7,.5)});
-    mesh(new THREE.CylinderGeometry(.05,.05,.3,8),mat(0xdddddd,120),.82,.5,0,car.styleG).rotation.x=Math.PI/2}
-  car.baseScale=1+Math.min(.2,p.carLevel*.05);car.g.scale.setScalar(car.baseScale);
+  if(st==='car'){
+    if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
+    if(p.carLevel>=2)mesh(new THREE.BoxGeometry(.1,.02,.7),mat(0x222222,100),-.74,.62,0,car.styleG);
+    if(p.carLevel>=3)[[-.74,.62],[-.74,-.62]].forEach(a=>mesh(new THREE.BoxGeometry(.04,.16,.04),mat(0x222222),a[0]+.02,.54,a[1]*.0+(a[1]>0?.3:-.3),car.styleG));
+    if(vint){[[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const f=mesh(new THREE.SphereGeometry(.22,10,8),mat(0xf4efe0,100),a[0],.3,a[1]*1.08,car.styleG);f.scale.set(1.3,.7,.5)});
+      mesh(new THREE.CylinderGeometry(.05,.05,.3,8),mat(0xdddddd,120),.82,.5,0,car.styleG).rotation.x=Math.PI/2}
+  }
+  car.baseScale=st==='car'?1+Math.min(.2,p.carLevel*.05):1;car.g.scale.setScalar(car.baseScale);
 }
 function cheer(p){const c=cars[p.id];if(!c)return;anim(700,k=>c.seatG.children.forEach((d,i)=>{d.position.y=Math.abs(Math.sin(k*Math.PI*2+i*.4))*.28*(1-k*.4)}))}   // ジャンプして喜ぶ
 function sad(p){const c=cars[p.id];if(!c)return;anim(800,k=>c.seatG.children.forEach(d=>{d.rotation.y=Math.sin(k*Math.PI*5)*.6*(1-k)}))}                  // 首を振ってがっかり
@@ -2179,15 +2341,17 @@ V.hud=()=>{
   $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
-  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳</span>`;
+  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳 ${{stroller:'🍼',bike:'🚲',car:'🚗',chair:'🧑‍🦽'}[cur.vstage]||''}</span>`;
   m.textContent=fmt(cur.cash)+'円';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
-  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':''].filter(Boolean).join(' ');
+  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?esc(cur.job.n)+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
-  $('#hudFam').innerHTML=`${cur.spouse?'💍配偶者 ':cur.lover?'💗恋人 ':''}${cur.kids?'👶×'+cur.kids+' ':''}${cur.grand?'🧒孫×'+cur.grand+' ':''}${cur.pets?'🐶×'+cur.pets:''}${!(cur.spouse||cur.lover||cur.kids||cur.grand||cur.pets)?'👤ひとり':''}`;
+  const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
+  const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
+  $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
 };
 const DENS=[100000,50000,10000,5000,1000];
@@ -2219,6 +2383,11 @@ function renderHand(p){
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
   // 💍 配偶者
   if(p.spouseInfo){const c=p.spouseInfo;group('💍 配偶者',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'spouse')}])}
+  // 💗 恋人 / 🖤 愛人
+  if(p.loverInfo){const c=p.loverInfo;group('💗 恋人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'lover')}])}
+  if(p.affairInfo){const c=p.affairInfo;group('🖤 愛人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'affair')}])}
+  // 👶 子ども
+  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust({cloth:k.cloth,gender:k.gender})}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
   // 🐾 ペット
   if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
@@ -2244,6 +2413,9 @@ async function zoom(p,type,x){
     o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)}円`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}円</td><td>×${n}</td><td>${fmt(d*n)}円</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))}円</b></div>`};
   }
   else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
+  else if(type==='lover')o={head:'💗 恋人',color:'#ff6fa5',title:esc(p.loverInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.loverInfo)}</div>`};
+  else if(type==='affair')o={head:'🖤 愛人',color:'#6a4fd0',title:esc(p.affairInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.affairInfo)}</div>`};
+  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust({cloth:x.cloth,gender:x.gender})}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
   else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
@@ -2622,12 +2794,19 @@ function initTestPanel(){
    <div class="trow" style="margin-top:4px"><input id="tpKey" type="text" placeholder="マス番号 例: 95 / U3 / R5"><button id="tpGo" class="gold">行く</button></div>
    <div class="tsec">ルーレットの出目を固定（次の1回だけ）</div><div id="tpRoll" class="tgrid"></div>
    <div class="tsec">お金</div><div id="tpMoney" class="tgrid"></div>
+   <div class="tsec">リアルなできごと（必要な家族は自動で付きます）</div><div id="tpLife" class="tgrid"></div>
+   <div class="tsec">家族・年齢</div><div id="tpFam" class="tgrid"></div>
    <div class="tsec">職業</div><div class="trow"><select id="tpJob"></select><button id="tpJobBtn" class="gold">変更</button></div>
    <div class="tsec">アイテム</div><div class="trow"><select id="tpItem"></select><button id="tpItemBtn" class="gold">追加</button></div>
    <div class="tgrid" style="margin-top:4px"><button id="tpAllCol" class="green">お宝を全部</button><button id="tpAllIns" class="green">保険を全部</button><button id="tpAllUse" class="green">使い切りを全部</button></div>`;
   $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
   $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testJump(b.dataset.k));
   $('#tpGo').onclick=()=>testJump($('#tpKey').value.trim().toUpperCase());
+  const LIFE_BTNS=[['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
+  $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
+  $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testLife(b.dataset.k));
+  $('#tpFam').innerHTML='<button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
+  $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>{testFamily(b.dataset.f);V.hud()});
   $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
   $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
   $('#tpMoney').innerHTML=[[100000,'+10万円'],[1000000,'+100万円'],[-100000,'−10万円']].map(m=>`<button data-m="${m[0]}">${m[1]}</button>`).join('')+'<button data-m="reset" class="alt">財布を空に</button>';
@@ -2651,6 +2830,28 @@ async function testJump(key){
     if(s.r==='U'||s.r==='W')p.route=s.r;else if(s.r==='S'||s.r==='R')p.route2=s.r;
     p.route=p.route||'U';p.route2=p.route2||'S';
     p.pos=key;await V.step(p,key);await land(p);V.hud();
+  }finally{testBusy=false}
+}
+
+function testFamily(what){
+  const p=myTestPlayer();
+  if(what==='mate'&&!p.spouse){p.spouseInfo=genPerson(p.gender==='f'?'m':'f',p,'spouse');p.spouse=true;p.lover=false;p.loverInfo=null}
+  if(what==='kids'){for(let i=0;i<2;i++){const g=i?'f':'m';p.kidList.push({name:(g==='f'?GIRL_N:BOY_N)[i],gender:g,bornAge:Math.max(0,ageOfKey(p.pos)-8),cloth:KID_COL[p.kidList.length%KID_COL.length]})}p.kids=p.kidList.length}
+  if(what==='aff'&&!p.affairInfo)p.affairInfo=genPerson('f',p,'affair');
+  if(what==='job'&&!p.job)p.job={...JOBS.find(j=>j.n==='医者')};
+  V.pins(p);
+}
+async function testLife(k){
+  const p=myTestPlayer();
+  if(G.awaiting!==p){V.toast('自分の番のルーレット前に使ってください');return}
+  if(testBusy)return;testBusy=true;
+  try{
+    if(['mateJobless','cheated','affair','exposed','divorce'].includes(k))testFamily('mate');
+    if(k==='exposed')testFamily('aff');
+    if(k==='delinquent')testFamily('kids');
+    if(k==='jobless')testFamily('job');
+    if(k==='mateJobless'){p.spouseInfo.bonus=Math.max(p.spouseInfo.bonus,3000);p.spouseJobless=0}
+    await lifeEvent(p,k);
   }finally{testBusy=false}
 }
 

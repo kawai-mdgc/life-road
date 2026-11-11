@@ -87,15 +87,17 @@ V.hud=()=>{
   $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
-  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳</span>`;
+  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳 ${{stroller:'🍼',bike:'🚲',car:'🚗',chair:'🧑‍🦽'}[cur.vstage]||''}</span>`;
   m.textContent=fmt(cur.cash)+'円';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
-  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':''].filter(Boolean).join(' ');
+  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?esc(cur.job.n)+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
-  $('#hudFam').innerHTML=`${cur.spouse?'💍配偶者 ':cur.lover?'💗恋人 ':''}${cur.kids?'👶×'+cur.kids+' ':''}${cur.grand?'🧒孫×'+cur.grand+' ':''}${cur.pets?'🐶×'+cur.pets:''}${!(cur.spouse||cur.lover||cur.kids||cur.grand||cur.pets)?'👤ひとり':''}`;
+  const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
+  const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
+  $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
 };
 const DENS=[100000,50000,10000,5000,1000];
@@ -127,6 +129,11 @@ function renderHand(p){
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
   // 💍 配偶者
   if(p.spouseInfo){const c=p.spouseInfo;group('💍 配偶者',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'spouse')}])}
+  // 💗 恋人 / 🖤 愛人
+  if(p.loverInfo){const c=p.loverInfo;group('💗 恋人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'lover')}])}
+  if(p.affairInfo){const c=p.affairInfo;group('🖤 愛人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'affair')}])}
+  // 👶 子ども
+  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust({cloth:k.cloth,gender:k.gender})}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
   // 🐾 ペット
   if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
@@ -152,6 +159,9 @@ async function zoom(p,type,x){
     o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)}円`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}円</td><td>×${n}</td><td>${fmt(d*n)}円</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))}円</b></div>`};
   }
   else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
+  else if(type==='lover')o={head:'💗 恋人',color:'#ff6fa5',title:esc(p.loverInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.loverInfo)}</div>`};
+  else if(type==='affair')o={head:'🖤 愛人',color:'#6a4fd0',title:esc(p.affairInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.affairInfo)}</div>`};
+  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust({cloth:x.cloth,gender:x.gender})}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
   else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};

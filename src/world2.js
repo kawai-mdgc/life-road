@@ -294,20 +294,65 @@ const SEATS=[[.25,-.17],[.25,.17],[-.1,-.17],[-.1,.17],[-.45,-.17],[-.45,.17]];
 const KID_COL=[0x7fd1ff,0xffd166,0xb4f06c,0xffa6d1,0xc9b4ff];
 
 /* ---------- 車 ---------- */
+/* ---------- 乗り物：ベビーカー / 自転車 / 車 / 車椅子 ---------- */
+function addWheel(v,x,y,z,r,w=.08,col=0x222222){
+  const g=new THREE.Group();g.position.set(x,y,z);
+  const t=mesh(new THREE.CylinderGeometry(r,r,w,14),mat(col,30),0,0,0,g);t.rotation.x=Math.PI/2;
+  const h=mesh(new THREE.CylinderGeometry(r*.5,r*.5,w+.02,10),mat(0xdddddd,120),0,0,0,g);h.rotation.x=Math.PI/2;
+  v.add(g);v.wheels.push(g);return g;
+}
+function tube(v,a,b,r,col){                 // x-y 平面の2点を結ぶ棒
+  const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+  const m=mesh(new THREE.CylinderGeometry(r,r,len,6),mat(col,90),(a[0]+b[0])/2,(a[1]+b[1])/2,a[2]||0,v);m.rotation.z=Math.atan2(dy,dx)-Math.PI/2;return m;
+}
+function buildCarModel(color){
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(color,100),0,.32,0,v);
+  mesh(new THREE.BoxGeometry(.5,.16,.76),mat(color,100),.6,.5,0,v);
+  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,v);
+  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,v);
+  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,v));
+  [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>addWheel(v,a[0],.17,a[1],.17,.14));
+  SEATS.forEach(s=>mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),s[0],.485,s[1],v));   // 座席の穴6つ
+  return v;
+}
+function buildStroller(color){                // ベビーカー（0〜4歳）
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(.62,.1,.46),mat(color,90),0,.38,0,v);
+  mesh(new THREE.BoxGeometry(.08,.34,.46),mat(color,90),-.26,.58,0,v);
+  const canopy=mesh(new THREE.SphereGeometry(.34,12,8,0,Math.PI*2,0,Math.PI/2),mat(0xffffff,80),-.06,.62,0,v);canopy.scale.set(1,.85,1.2);
+  [-.2,.2].forEach(z=>tube(v,[-.3,.45,z],[-.55,.82,z],.025,0xdddddd));
+  const bar=mesh(new THREE.CylinderGeometry(.03,.03,.5,8),mat(0xdddddd,90),-.55,.82,0,v);bar.rotation.x=Math.PI/2;
+  [-.2,.2].forEach(z=>{tube(v,[.2,.36,z],[.28,.12,z],.022,0xcccccc);tube(v,[-.2,.38,z],[-.28,.15,z],.022,0xcccccc)});
+  [[.28,.1,.26,.1],[.28,.1,-.26,.1],[-.28,.14,.28,.14],[-.28,.14,-.28,.14]].forEach(a=>addWheel(v,a[0],a[1],a[2],a[3],.07));
+  return v;
+}
+function buildBike(color){                    // 自転車（5〜17歳）
+  const v=new THREE.Group();v.wheels=[];
+  addWheel(v,.55,.3,0,.3,.05);addWheel(v,-.55,.3,0,.3,.05);
+  const f=color;
+  tube(v,[-.55,.3],[-.05,.3],.025,f);tube(v,[-.05,.3],[-.22,.66],.025,f);tube(v,[-.55,.3],[-.22,.66],.025,f);
+  tube(v,[-.05,.3],[.4,.62],.025,f);tube(v,[-.22,.66],[.4,.62],.025,f);tube(v,[.4,.62],[.55,.3],.025,0xcccccc);
+  const hb=mesh(new THREE.CylinderGeometry(.025,.025,.5,6),mat(0x222222,60),.42,.72,0,v);hb.rotation.x=Math.PI/2;
+  mesh(new THREE.BoxGeometry(.26,.05,.14),mat(0x222222,40),-.24,.69,0,v);
+  mesh(new THREE.BoxGeometry(.24,.14,.3),mat(0xb98550,40),.62,.52,0,v);          // 前かご
+  return v;
+}
+function buildChair(color){                   // 車椅子（70歳〜・免許返納）
+  const v=new THREE.Group();v.wheels=[];
+  mesh(new THREE.BoxGeometry(1.5,.05,.8),mat(0x8d8d99,40),0,.04,0,v);            // 家族が立つ台
+  mesh(new THREE.BoxGeometry(.5,.07,.5),mat(color,90),0,.36,0,v);
+  mesh(new THREE.BoxGeometry(.07,.46,.5),mat(color,90),-.25,.6,0,v);
+  [-.27,.27].forEach(z=>{mesh(new THREE.BoxGeometry(.4,.05,.05),mat(0x333344,60),0,.52,z,v);tube(v,[-.36,.8,z*.9],[-.5,.98,z*.9],.025,0x333344)});
+  mesh(new THREE.BoxGeometry(.2,.04,.4),mat(0x333344,60),.34,.2,0,v);
+  [-.3,.3].forEach(z=>addWheel(v,-.08,.34,z,.3,.05));
+  [-.2,.2].forEach(z=>addWheel(v,.3,.1,z,.08,.05));
+  return v;
+}
 function makeCar(p){
-  const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0};
-  mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(p.color,100),0,.32,0,g);
-  mesh(new THREE.BoxGeometry(.5,.16,.76),mat(p.color,100),.6,.5,0,g);
-  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,g);
-  mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,g);
-  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,g));
-  [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{
-    const w=new THREE.Group();w.position.set(a[0],.17,a[1]);
-    const t=mesh(new THREE.CylinderGeometry(.17,.17,.14,14),mat(0x222222,30),0,0,0,w);t.rotation.x=Math.PI/2;
-    const h=mesh(new THREE.CylinderGeometry(.09,.09,.16,10),mat(0xdddddd,120),0,0,0,w);h.rotation.x=Math.PI/2;
-    g.add(w);car.wheels.push(w);
-  });
-  SEATS.forEach(s=>mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),s[0],.485,s[1],g));   // 座席の穴6つ
+  const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0,vehicles:{}};
+  car.vehicles.car=buildCarModel(p.color);car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);
+  Object.values(car.vehicles).forEach(v=>{v.visible=false;g.add(v)});
   car.seatG=new THREE.Group();car.seatG.position.y=.49;g.add(car.seatG);
   car.styleG=new THREE.Group();g.add(car.styleG);
   car.stackG=new THREE.Group();car.stackG.position.set(-.1,.02,.95);g.add(car.stackG);
@@ -319,33 +364,51 @@ function makeCar(p){
   g.position.copy(POS[p.pos]).setY(.3);car.target.copy(g.position);
   cars[p.id]=car;worldG.add(g);refreshCar(p);return car;
 }
+// 乗り物ごとの席（[x,z,y補正]）と座面の高さ
+const SEAT_SETS={
+  car:{y:.49,slots:SEATS.map(s=>[s[0],s[1],0])},
+  stroller:{y:.43,slots:[[.0,0,0]]},
+  bike:{y:.72,slots:[[-.24,0,0],[.62,0,-.2]]},
+  chair:{y:.4,slots:[[-.02,0,0],[-.5,-.18,-.34],[-.5,.18,-.34],[.4,-.28,-.34],[.4,.28,-.34],[.1,-.34,-.34]]}
+};
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
+  const sig=[st,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+    p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
+  Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
+  car.wheels=car.vehicles[st].wheels;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
-  const list=[{k:'driver'}];
-  if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
-  for(let i=0;i<p.kids;i++)list.push({k:'kid',i});
-  for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
-  for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
-  list.slice(0,PIN_MAX).forEach((e,i)=>{
+  const set=SEAT_SETS[st];car.seatG.position.y=set.y;
+  let list=[{k:'driver'}];
+  if(st==='stroller'){/* 赤ちゃんだけ */}
+  else if(st==='bike'){for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]})}
+  else{
+    if(p.spouse)list.push({k:'spouse'});else if(p.lover)list.push({k:'lover'});
+    for(let i=0;i<p.kids;i++)list.push({k:'kid',i,kid:p.kidList[i]});
+    for(let i=0;i<p.grand;i++)list.push({k:'grand',i});
+    for(let i=0;i<p.pets;i++)list.push({k:'pet',pt:p.petList[i]});
+  }
+  list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
+    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired&&st!=='stroller'&&st!=='bike'?p.job.n:null,scale:st==='stroller'?.6:st==='bike'?.85:.95});
     else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
-    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
-    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
+    else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:lv?lv.cloth:0xffb6cf,gender:lv?lv.gender:(p.gender==='f'?'m':'f'),scale:.88})}
+    else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),scale:.7});
     else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
     else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
-    d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
+    const sl=set.slots[i];d.position.set(sl[0],sl[2],sl[1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
-  if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
-  if(p.carLevel>=2)mesh(new THREE.BoxGeometry(.1,.02,.7),mat(0x222222,100),-.74,.62,0,car.styleG);
-  if(p.carLevel>=3)[[-.74,.62],[-.74,-.62]].forEach(a=>mesh(new THREE.BoxGeometry(.04,.16,.04),mat(0x222222),a[0]+.02,.54,a[1]*.0+(a[1]>0?.3:-.3),car.styleG));
-  if(vint){[[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const f=mesh(new THREE.SphereGeometry(.22,10,8),mat(0xf4efe0,100),a[0],.3,a[1]*1.08,car.styleG);f.scale.set(1.3,.7,.5)});
-    mesh(new THREE.CylinderGeometry(.05,.05,.3,8),mat(0xdddddd,120),.82,.5,0,car.styleG).rotation.x=Math.PI/2}
-  car.baseScale=1+Math.min(.2,p.carLevel*.05);car.g.scale.setScalar(car.baseScale);
+  if(st==='car'){
+    if(p.carLevel>=1)mesh(new THREE.BoxGeometry(.5,.02,.12),mat(0xffffff,100),.6,.59,0,car.styleG);
+    if(p.carLevel>=2)mesh(new THREE.BoxGeometry(.1,.02,.7),mat(0x222222,100),-.74,.62,0,car.styleG);
+    if(p.carLevel>=3)[[-.74,.62],[-.74,-.62]].forEach(a=>mesh(new THREE.BoxGeometry(.04,.16,.04),mat(0x222222),a[0]+.02,.54,a[1]*.0+(a[1]>0?.3:-.3),car.styleG));
+    if(vint){[[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const f=mesh(new THREE.SphereGeometry(.22,10,8),mat(0xf4efe0,100),a[0],.3,a[1]*1.08,car.styleG);f.scale.set(1.3,.7,.5)});
+      mesh(new THREE.CylinderGeometry(.05,.05,.3,8),mat(0xdddddd,120),.82,.5,0,car.styleG).rotation.x=Math.PI/2}
+  }
+  car.baseScale=st==='car'?1+Math.min(.2,p.carLevel*.05):1;car.g.scale.setScalar(car.baseScale);
 }
 function cheer(p){const c=cars[p.id];if(!c)return;anim(700,k=>c.seatG.children.forEach((d,i)=>{d.position.y=Math.abs(Math.sin(k*Math.PI*2+i*.4))*.28*(1-k*.4)}))}   // ジャンプして喜ぶ
 function sad(p){const c=cars[p.id];if(!c)return;anim(800,k=>c.seatG.children.forEach(d=>{d.rotation.y=Math.sin(k*Math.PI*5)*.6*(1-k)}))}                  // 首を振ってがっかり

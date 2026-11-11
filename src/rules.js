@@ -44,9 +44,11 @@ function prevKey(p,key){
 }
 
 /* ---------- 年齢（盤上の位置から決める） ---------- */
+const AGE20=[0,3,5,6,7,8,9,10,10,11,12,13,14,15,15,16,18,18,18,18];   // マス1〜20の年齢（17=18歳で免許）
 const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,80]];
 function ageOfKey(key){
   const s=SQ[key];let n;
+  if(s.r==='main'&&s.n<=20)return AGE20[s.n-1];
   if(s.r==='main')n=s.n;
   else{const lim={U:12,W:8,S:10,R:10}[s.r],a=(s.r==='U'||s.r==='W')?20:80;n=a+s.n/(lim+1)}
   for(let i=1;i<AGE_A.length;i++){
@@ -55,12 +57,24 @@ function ageOfKey(key){
   return 80;
 }
 
+/* ---------- 乗り物：ベビーカー → 自転車 → 車（免許）→ 車椅子（免許返納） ---------- */
+const VORDER={stroller:0,bike:1,car:2,chair:3};
+const vehicleOfAge=a=>a<5?'stroller':a<18?'bike':a<70?'car':'chair';
+const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業して、自転車に乗れるように！'],car:['🚗 免許を取って車に！','18歳！ 免許を取って、車に乗りかえ！'],chair:['🧓 老年期に突入… 免許を返納','免許を返納して、車椅子に乗りかえました']};
+async function checkVehicle(p){
+  const v=vehicleOfAge(ageOfKey(p.pos));
+  if(v===p.vstage)return;
+  const up=VORDER[v]>VORDER[p.vstage];p.vstage=v;
+  if(up&&VEH_MSG[v]){V.banner(VEH_MSG[v][0]);say(p,`${p.name}：${VEH_MSG[v][1]}`);Sound.good();await sleep(900)}
+  V.pins(p);
+}
+
 /* ---------- プレイヤー ---------- */
 function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller'};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -115,21 +129,27 @@ async function payday(p,key,passing){
     if(a==='farm'&&r%2===0){s+=3000;note='（偶数ボーナス+3,000）'}
   }
   if(key==='R10'&&p.president){s*=2;note='（社長マーカーで2倍）'}
-  if(p.spouseInfo&&!p.retired&&p.spouseInfo.bonus){s+=p.spouseInfo.bonus;note+=`（${p.spouseInfo.name}さんの共働き+${fmt(p.spouseInfo.bonus)}円）`}
+  if(p.jobless>0&&!p.retired){p.jobless--;s=Math.round(s*.3);note+='（失業中：失業手当は30%）'}
+  if(p.spouseInfo&&!p.retired&&p.spouseInfo.bonus){
+    if(p.spouseJobless>0){p.spouseJobless--;note+=`（${p.spouseInfo.name}さんが失業中で共働きなし）`}
+    else{s+=p.spouseInfo.bonus;note+=`（${p.spouseInfo.name}さんの共働き+${fmt(p.spouseInfo.bonus)}円）`}
+  }
   if(a==='astro'&&!p.astroUsed){p.astroUsed=true;s+=50000;note='（宇宙旅行ボーナス+50,000）'}
   if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
+  if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
 }
 
 /* ---------- 選択肢 / カード ---------- */
 function ask(p,o){return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
-async function showSq(p,sq){
+async function showSq(p,sq,note=''){
   const kindTxt={item:'アイテム',duel:'勝負',family:'家族',job:'職業',event:'イベント'}[sq.k]||'';
-  const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
+  const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}（${ageOfKey(sq.id)}歳）　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
   let amt='';
   if(sq.a!==null&&sq.a!==0){amt=(sq.a>0?'+':'−')+fmt(Math.abs(sq.a))+'円'+(sq.x?'×'+{others:'人数',kids:'子ども',grand:'孫',pins:'ピン',stocks:'株券'}[sq.x]:'')}
   else if(sq.m!=='0')amt=sq.m;
-  await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
+  if(note)amt='';
+  await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:note?`<small>（${note}）</small>`:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
 }
 async function spin(p,purpose='duel'){return V.roulette(p,purpose)}   // 回す→止める（結果は止めた瞬間に決まる）
 async function duelRoll(p,win){             // ルーレット勝負（ゲームクリエイターは+1できる）
@@ -274,22 +294,28 @@ const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社�
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
-function genSpouse(g,p){
+function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
-  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,20,60),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
-    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],bonus:[0,1000,3000,5000][inc]};
+  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,70),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
-function spouseHtml(c){
-  return `<img class="pimg" src="${portraitBust(c)}" alt=""><div class="pi"><b>${esc(c.name)}</b> ${c.age}歳・${GN[c.gender]}<br>💼${esc(c.job)} 🎯${esc(c.hobby)}<br>💬${esc(c.trait)}<br><span class="stars">収入${stars(c.inc)} 家事${stars(c.hk)} 愛情${stars(c.lv)}</span><br><small class="plus">共働き：給料日ごとに+${fmt(c.bonus)}円</small></div>`;
+const genSpouse=(g,p)=>genPerson(g,p,'spouse');
+function spouseHtml(c,tag=''){
+  const line=c.role==='affair'?'<small class="minus">愛人：給料日ごとに−3,000円</small>':c.role==='lover'&&!tag?'<small>恋人</small>':`<small class="plus">共働き：給料日ごとに+${fmt([0,1000,3000,5000][c.inc])}円</small>`;
+  return `<img class="pimg" src="${portraitBust(c)}" alt=""><div class="pi">${tag?`<span class="ptag">${tag}</span> `:''}<b>${esc(c.name)}</b> ${c.age}歳・${GN[c.gender]}<br>💼${esc(c.job)} 🎯${esc(c.hobby)}<br>💬${esc(c.trait)}<br><span class="stars">収入${stars(c.inc)} 家事${stars(c.hk)} 愛情${stars(c.lv)}</span><br>${line}</div>`;
 }
-async function chooseSpouse(p){
-  const gi=await ask(p,{head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',title:'どんな人と結婚する？',text:'まず、相手の性別を選んでください',btns:['👨 男性','👩 女性','🧑 どちらでもない'],pick:rnd(3),col:true});
-  const g=['m','f','n'][gi];
-  const cand=[0,1,2].map(()=>genSpouse(g,p));
-  let best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i});
-  const ci=await ask(p,{head:'💍 プロフィールカード',color:'#ff6fa5',title:'3人の中から、結婚相手を選ぼう',text:'<small>タップして決定</small>',btns:cand.map(spouseHtml),pick:best,col:true,profile:true,wide:true});
-  p.spouseInfo=cand[ci];
-  say(p,`${p.name} は ${cand[ci].name} さんと結婚！`);
+// 性別 → 3人のプロフィールカードから選ぶ（include=すでにいる人を候補に入れる／gender固定も可）
+async function choosePerson(p,o){
+  let g=o.gender;
+  if(!g){
+    const gi=await ask(p,{head:o.head,color:o.color,title:o.q,text:'まず、相手の性別を選んでください',btns:['👨 男性','👩 女性','🧑 どちらでもない'],pick:rnd(3),col:true});
+    g=['m','f','n'][gi];
+  }
+  const cand=[];if(o.include)cand.push(o.include);
+  while(cand.length<3)cand.push(genPerson(g,p,o.role));
+  let best=o.include?0:rnd(3);if(o.role==='spouse'&&!o.include){best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i})}
+  const ci=await ask(p,{head:o.head,color:o.color,title:o.title2,text:o.include?'<small>今の恋人＋新しい出会い。タップして決定</small>':'<small>タップして決定</small>',btns:cand.map(c=>spouseHtml(c,c===o.include?'💗 今の恋人':'')),pick:best,col:true,profile:true,wide:true});
+  return cand[ci];
 }
 const PET_DEF={
   dog:{label:'犬',names:['ポチ','コロ','マロン','ムギ','ハチ','レオ','モカ'],breeds:[['柴犬',0xd89a52],['トイプードル',0xf3e6d0],['ゴールデン',0xe8b45a],['ダックス',0x8a4b2a],['ハスキー',0xb9c4d0],['黒ラブ',0x2f2a2a]]},
@@ -348,7 +374,10 @@ SP['20']=async p=>{
   await stepAndLand(p);
 };
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
-SP['31']=async p=>{p.lover=true;V.pins(p);say(p,'恋人ができた！ 助手席に乗った');await famBonus(p,'31')};
+SP['31']=async p=>{
+  const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
+  p.loverInfo=c;p.lover=true;V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);await famBonus(p,'31');
+};
 SP['34']=async p=>{
   const r=await spin(p,'duel');
   if(G.stockOwner[r]===null){G.stockOwner[r]=p;p.stocks.push(r);say(p,`株券「${r}」をもらった！（他人が${r}を出すと配当5,000）`);Sound.good()}
@@ -373,21 +402,40 @@ SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
 SP['21']=async p=>{await payday(p,'21',false)};
 SP['51']=async p=>{
-  const had=p.lover;
-  await chooseSpouse(p);
-  p.spouse=true;p.lover=false;V.pins(p);Sound.good();
-  say(p,'結婚！ パートナーのピンが車に乗った');
+  const need=p.loverInfo?3:5;                                  // 結婚できるかは、ルーレットの出目しだい
+  await ask(p,{head:'💍 プロポーズ！',color:'#ff6fa5',title:'結婚できるかな？',text:`ルーレットで <b>${need}以上</b> が出れば結婚成立！<br><small>${p.loverInfo?'恋人がいるので成功しやすい（3以上）':'恋人がいないので少し難しい（5以上）'}</small>`,btns:['ルーレットへ'],pick:0});
+  const r=await duelRoll(p,x=>x>=need);
+  if(r<need){
+    Sound.bad();p.lover=false;p.loverInfo=null;V.pins(p);
+    await ask(p,{head:'💔 結婚できなかった…',color:'#8a8aa0',title:`出目は ${r}。縁がなかったみたい`,text:'ひとりで自由に生きていこう。お気楽ライフのご褒美に +20,000円',btns:['OK'],pick:0});
+    say(p,`${p.name} は結婚せず、自由気ままに生きることに…`);await income(p,20000);return;
+  }
+  const had=p.loverInfo;
+  const c=await choosePerson(p,{role:'spouse',head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',q:'どんな人と結婚する？',title2:'3人の中から、結婚相手を選ぼう',gender:had&&had.gender,include:had});
+  p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
+  say(p,`${p.name} は ${c.name} さんと結婚！`);
+  p.spouse=true;p.lover=false;p.loverInfo=null;V.pins(p);Sound.good();
   await gifts(p,5000,'結婚');
-  if(had){say(p,'恋人からの祝い金+10,000');await income(p,10000,{celebrate:true})}
-  if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000');await income(p,5000)}
+  if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}
+  if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000円');await income(p,5000)}
   V.confetti(p.pos);
 };
-const baby=async(p,n,id)=>{
-  p.kids+=n;V.pins(p);Sound.good();say(p,n===2?'双子が誕生！ ピンが2本追加':'子ども誕生！ ピンが追加');
+const BOY_N=['ハルキ','ソウマ','レン','ユウト','アオイ','タイガ','コウタ','リク','ヒビキ'],GIRL_N=['ミオ','サラ','ヒマリ','ユイナ','ココロ','アカリ','リン','ナナミ','ツムギ'];
+async function baby(p,n,id){
+  if(!p.spouse){say(p,'パートナーがいないので、子どもには恵まれなかった…');await ask(p,{head:'👶 子ども',color:'#8a8aa0',title:'子どもには恵まれなかった',text:'<small>（パートナーがいないので対象外です）</small>',btns:['OK'],pick:0});return}
+  if(n===1&&Math.random()<.12){n=2;V.banner('👶👶 なんと双子！');say(p,'なんと、双子が生まれた！')}
+  for(let i=0;i<n;i++){
+    const g=Math.random()<.5?'f':'m',pool=shuffle([...(g==='f'?GIRL_N:BOY_N)].filter(n=>!p.kidList.some(k=>k.name===n))).slice(0,3);   // 兄弟で名前がかぶらない
+    const ni=await ask(p,{head:`👶 ${n===2?(i+1)+'人目：':''}子ども誕生！`,color:'#ff9a3d',title:g==='f'?'女の子が生まれました！':'男の子が生まれました！',text:'名前をつけてあげよう',btns:pool,pick:rnd(3),col:true});
+    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),cloth:KID_COL[p.kidList.length%KID_COL.length]});
+    p.kids=p.kidList.length;
+    say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);
+  }
+  V.pins(p);Sound.good();
   await gifts(p,2000,'出産');
-  if(jobAb(p)==='baby3'){say(p,'保育士の能力で+3,000');await income(p,3000)}
+  if(jobAb(p)==='baby3'){say(p,'保育士の能力で+3,000円');await income(p,3000)}
   await famBonus(p,id);V.confetti(p.pos);
-};
+}
 SP['54']=async p=>baby(p,1,'54');
 SP['61']=async p=>baby(p,2,'61');
 SP['73']=async p=>baby(p,1,'73');
@@ -475,6 +523,52 @@ SP['S7']=async p=>{await travelBonus(p,'S7');let a=2000*p.kids;if(jobAb(p)==='te
 SP['109']=async p=>{let a=25000;if(jobAb(p)==='patent'){a*=2;say(p,'エンジニアの能力で2倍！')}await income(p,a)};
 SP['57']=async p=>{await income(p,5000,{celebrate:true})};
 
+/* ---------- リアルな人生のできごと（失業・浮気・愛人・離婚・子どもがぐれる…） ---------- */
+function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(p)}
+const LIFE={
+  jobless:{ok:p=>p.job&&!p.retired,w:2,run:async p=>{
+    await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:'会社が倒産…！ 失業しました',text:'次の2回の給料日は、<b>失業手当（給料の30%）</b>だけになります',btns:['OK'],pick:0});
+    p.jobless=2;say(p,`${p.name} が失業… 次の2回の給料日は30%`)}},
+  mateJobless:{ok:p=>p.spouse&&p.spouseInfo&&p.spouseInfo.bonus>0&&p.spouseJobless===0,w:2,run:async p=>{
+    await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんが失業した！`,text:'次の3回の給料日は、共働き収入がなくなります。励ましに 5,000円',btns:['OK'],pick:0});
+    p.spouseJobless=3;say(p,`${p.spouseInfo.name}さんが失業… 共働きが3回おやすみ`);await pay(p,5000)}},
+  cheated:{ok:p=>p.spouse&&p.spouseInfo,w:1,run:async p=>{
+    Sound.bad();
+    const i=await ask(p,{head:'💔 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんの浮気が発覚！`,text:'許してやり直す？ それとも離婚する？<br><small>離婚すると慰謝料 +30,000円がもらえます</small>',btns:['許してやり直す','離婚する'],pick:p.spouseInfo.bonus>=3000?0:1,col:true});
+    if(i===0){p.spouseInfo.bonus=Math.floor(p.spouseInfo.bonus/2);say(p,'許したけれど、信頼がゆらいで共働きの助けが減った…')}
+    else{say(p,`${p.name} は離婚。慰謝料 +30,000円`);doDivorce(p);await income(p,30000)}}},
+  affair:{ok:p=>(p.spouse||p.lover)&&!p.affairInfo,w:1,run:async p=>{
+    const i=await ask(p,{head:'🖤 人生のできごと',color:'#6a4fd0',title:'魅力的な人に出会ってしまった…',text:'愛人をつくる？ それとも断る？<br><small>愛人は給料日ごとに −3,000円。バレると大変なことに…</small>',btns:['愛人をつくる','きっぱり断る（+3,000円）'],pick:Math.random()<.3?0:1,col:true});
+    if(i===0){
+      const c=await choosePerson(p,{role:'affair',head:'🖤 愛人のプロフィール',color:'#6a4fd0',q:'どんな人？',title2:'3人の中から、愛人を選ぼう'});
+      p.affairInfo=c;say(p,`${p.name} に愛人 ${c.name} さんができた…（秘密）`);
+    }else{say(p,'きっぱり断った。誠実さが評価されて +3,000円');await income(p,3000)}}},
+  exposed:{ok:p=>p.spouse&&p.affairInfo,w:3,run:async p=>{
+    Sound.bad();
+    await ask(p,{head:'🔥 修羅場！',color:'#e8454c',title:'愛人のことがバレた！',text:`${p.spouseInfo.name}さんが激怒…離婚、そして慰謝料 <b>50,000円</b> を支払います`,btns:['OK'],pick:0});
+    say(p,`${p.name} は愛人がバレて離婚… 慰謝料 −50,000円`);doDivorce(p);p.affairInfo=null;await pay(p,50000,{discount:false})}},
+  divorce:{ok:p=>p.spouse&&p.spouseInfo,w:1,run:async p=>{
+    const i=await ask(p,{head:'💔 人生のできごと',color:'#e8454c',title:'すれ違いが続いて、離婚の危機…',text:'やり直す？（ルーレットで<b>5以上</b>なら関係修復）<br><small>失敗か離婚を選ぶと、慰謝料 −20,000円</small>',btns:['やり直す','離婚する'],pick:0,col:true});
+    let split=i===1;
+    if(!split){const r=await duelRoll(p,x=>x>=5);if(r>=5){say(p,'話し合って、関係を修復できた！');Sound.good()}else split=true}
+    if(split){say(p,`${p.name} は離婚… 慰謝料 −20,000円`);doDivorce(p);await pay(p,20000,{discount:false})}}},
+  delinquent:{ok:p=>p.kids>0,w:2,run:async p=>{
+    const k=pickOf(p.kidList);
+    const i=await ask(p,{head:'😠 人生のできごと',color:'#e8454c',title:`${k.name}がグレた！`,text:'夜遊びに、ケンカ…どうする？<br><small>向き合う＝ルーレット<b>6以上</b>で立ち直る（失敗は −15,000円）／見守る＝器物破損の弁償 −8,000円</small>',btns:['しっかり向き合う','そっと見守る'],pick:0,col:true});
+    if(i===0){const r=await duelRoll(p,x=>x>=6);if(r>=6){say(p,`${k.name}が立ち直った！ 親子の絆がふかまった`);Sound.good()}else{say(p,`${k.name}と衝突… 病院代など −15,000円`);await pay(p,15000)}}
+    else{say(p,`${k.name}の起こしたトラブルの弁償 −8,000円`);await pay(p,8000)}}},
+  cold:{ok:()=>true,w:0,run:async p=>{say(p,'風邪をひいて寝込んだ… −3,000円');await pay(p,3000)}}
+};
+async function lifeEvent(p,force){
+  await ask(p,{head:'🎴 人生のできごと',color:'#6a4fd0',title:'何かが起こる予感…',text:'人生にはいろいろあります。今のあなたに起こるできごとは？',btns:['めくる'],pick:0});
+  const pool=[];for(const[k,d]of Object.entries(LIFE)){if(d.ok(p))for(let i=0;i<d.w;i++)pool.push(k)}
+  if(!pool.length)pool.push('cold');
+  const k=force&&LIFE[force]?force:pickOf(pool);
+  await LIFE[k].run(p);V.hud();
+}
+// アイテムマスの一部を「人生のできごと」マスに置き換え（リアルな出来事）
+['33','39','63','69','92','99','105','120','125'].forEach(id=>{const q=SQ[id];q.k='event';q.t='人生のできごと（何が起こるかはお楽しみ）';q.m='?';q.a=null;SP[id]=async p=>lifeEvent(p)});
+
 async function landEffect(p,sq){
   if(SP[sq.id])return SP[sq.id](p,sq);
   switch(sq.c){
@@ -487,13 +581,17 @@ async function landEffect(p,sq){
     case 'blue':if(sq.k==='item')return drawItem(p,1);return;
   }
 }
+const NEED_KID=new Set(['56','57','64','78','86','108','112','115','S7','117','129']);   // 子どもがいないと対象外
+const NEED_MATE=new Set(['52']);                                                                  // パートナーがいないと対象外
 async function land(p){
+  await checkVehicle(p);
   const sq=SQ[p.pos];
   V.flash(p.pos);Sound.stopSq();
   V.bubble(p.pos,sq.t);
-  await showSq(p,sq);
+  const skip=NEED_KID.has(sq.id)&&p.kids===0?'子どもがいないので、このマスは対象外です':NEED_MATE.has(sq.id)&&!p.spouse?'パートナーがいないので、このマスは対象外です':'';
+  await showSq(p,sq,skip);
   V.bubbleOff();
-  if(sq.id!=='1')await landEffect(p,sq);
+  if(sq.id!=='1'&&!skip)await landEffect(p,sq);
   // STOPマスの次もSTOPマスなら、また止まらずにそのまま続けて実行（例：卒業U12 → 合流21）
   if(!p.finished&&sq.id!=='150'&&p.pos===sq.id&&isStop(sq)){
     const nk=nextKey(p);

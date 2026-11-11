@@ -795,7 +795,7 @@ function gableRoof(len,w,h,col,over=.35){                 // 切妻屋根（三�
 function houseModel(h){
   const g=new THREE.Group(),n=h.n;
   const box=(w,hh,d,c,x,y,z)=>mesh(new THREE.BoxGeometry(w,hh,d),mat(c,70),x,y,z,g);
-  const win=(x,y,z,s=.7)=>{mesh(new THREE.BoxGeometry(s+.16,s+.16,.06),mat(0xffffff,40),x,y,z,g);mesh(new THREE.BoxGeometry(s,s,.1),mat(0xbfe6ff,120),x,y,z+.02,g)};
+  const win=(x,y,z,s=.7)=>{mesh(new THREE.BoxGeometry(s+.16,s+.16,.06),mat(0xffffff,40),x,y,z,g);mesh(new THREE.BoxGeometry(s,s,.1),mat(0x8fc4ee,120),x,y,z+.02,g)};
   const door=(x,z,c=0x7a4a2a,hh=1.7)=>{box(.95,hh,.12,c,x,hh/2,z);mesh(new THREE.SphereGeometry(.07,8,6),mat(0xffd23f,140),x+.3,hh/2,z+.09,g)};
   const roof=(len,w,hh,col,y,rot=0)=>{const r=gableRoof(len,w,hh,col);r.position.y=y;r.rotation.y=rot;g.add(r);return r};
   const chimney=(x,y,z,hh=1.6)=>{box(.55,hh,.55,0x8a5a4a,x,y,z);box(.7,.12,.7,0x4a3a3a,x,y+hh/2,z)};
@@ -819,13 +819,18 @@ function houseModel(h){
     [-1.4,1.4].forEach(x=>{win(x,3.0,1.82);if(x>0)win(x,1.2,1.82)});win(-1.4,1.2,1.82);door(0,1.82,0x3a6a9a);
     box(1.5,.12,.9,0xd9b38c,0,.15,2.2);
     mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xff6b9d),3.4,1,2,g);mesh(new THREE.BoxGeometry(.7,.06,.3),mat(0xffc933),3.4,.7,2,g)}
-  else if(n==='タワーマンション'){
+  else if(n==='タワーマンション'){                         // ガラス張りではなく、普通のマンションと同じ窓つきの壁
     box(5,.6,5,0xcfd6e2,0,.3,0);
-    mesh(new THREE.BoxGeometry(3.2,13,3.2),new THREE.MeshPhongMaterial({color:0x9fd8ff,shininess:140,specular:0xffffff,transparent:true,opacity:.85}),0,7,0,g);
-    for(let i=1;i<9;i++)box(3.3,.1,3.3,0xffffff,0,i*1.55,0);
-    box(2.2,1,2.2,0xffd23f,0,13.9,0);
-    for(let f=1;f<=8;f++)[-.8,.8].forEach(x=>rooms.push({x,y:f*1.55+.25,z:1.62,w:1.2,h:1.1}));
-    door(0,1.64,0x445566,1.3)}
+    box(3.4,13,3.4,0xd8ccb2,0,7,0);
+    for(let i=1;i<9;i++)box(3.55,.14,3.55,0xb8b2a4,0,i*1.55,0);                       // 階ごとの帯
+    box(3.7,.3,3.7,0x8a8a99,0,13.65,0);box(1.4,1,1.4,0xb8b8c6,.7,14.3,-.5);box(2.2,.5,2.2,0xffd23f,-.4,14.0,.4);
+    for(let f=0;f<8;f++)[-.8,.8].forEach(x=>{
+      win(x,f*1.55+1.3,1.75,.7);mesh(new THREE.BoxGeometry(1.1,.1,.4),mat(0x777788,60),x,f*1.55+.95,1.92,g);               // 正面の窓＋バルコニー
+      rooms.push({x,y:f*1.55+1.3,z:1.75,w:1.2,h:1.1});
+      const w2=(wx,wy,wz,ry)=>{const m=new THREE.Group();m.position.set(wx,wy,wz);m.rotation.y=ry;const a=mesh(new THREE.BoxGeometry(.86,.86,.06),mat(0xffffff,40),0,0,0,m);const b2=mesh(new THREE.BoxGeometry(.7,.7,.1),mat(0x8fc4ee,120),0,0,.02,m);g.add(m)};
+      w2(x,f*1.55+1.3,-1.75,Math.PI);w2(1.75,f*1.55+1.3,x,Math.PI/2);w2(-1.75,f*1.55+1.3,x,-Math.PI/2);                      // 背面・側面の窓
+    });
+    door(0,1.74,0x445566,1.3);box(1.8,.12,1.0,0x9a9aa8,0,1.35,2.1)}
   else if(n==='海辺の豪邸'){
     box(6,2.4,3.6,0xffffff,0,1.2,0);box(4,2,3,0xffffff,0,3.4,0);box(6.4,.2,4,0x3f8cff,0,2.5,0);box(4.4,.2,3.4,0x3f8cff,0,4.5,0);
     win(-1.5,1.3,1.85,.9);win(1.5,1.3,1.85,.9);win(0,3.5,1.55,1);door(0,1.85,0x2a5a8a,1.6);

@@ -31,7 +31,7 @@ function cardLocal(o,p){
     wrap.classList.remove('hidden');
     if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
     (o.btns||['OK']).forEach((b,i)=>{
-      const e=document.createElement('button');e.innerHTML=b;e.className=o.profile?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
+      const e=document.createElement('button');e.innerHTML=b;e.className=(o.profile&&i<(o.profileN===undefined?99:o.profileN))?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
     addEventListener('keydown',key);
     if(o.cpu){setTimeout(()=>{

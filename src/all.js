@@ -534,17 +534,20 @@ function takeItemCard(){
   if(!G.deckI.length&&G.discI.length){G.deckI=shuffle(G.discI);G.discI=[]}
   return G.deckI.shift()||null;
 }
+function itemProfileHtml(it){                            // アイテム／お宝カード（結婚相手のプロフィールカードと同じ形式）
+  const tyName={ins:'保険',use:'使い切り',col:'お宝'}[it.ty],bg={ins:'#cfe0ff',use:'#e4dbff',col:'#ffe9a8'}[it.ty];
+  return `<div class="pimg emo" style="background:${bg}">${ITEM_ICON[it.c]||'🎁'}</div><div class="pi"><span class="ptag">${tyName}</span> <b>${esc(it.n)}</b><br>${esc(it.eff)}${it.ty==='col'?`<br><small class="plus">💰 ゴールでの価値：${esc(it.v)}</small>`:''}</div>`;
+}
 async function handleItem(p,it){
-  const tyName={ins:'保険',use:'使い切り',col:'コレクション'}[it.ty];
   if(it.ty==='ins'){
     let price=it.val;if(jobAb(p)==='half_item')price=Math.ceil(price/2);
     const dup=has(p,it.c);
     const buyPick=(!dup&&p.cash>=price*3)?0:1;
-    const i=await ask(p,{head:'アイテムカード（保険）',color:'#3f8cff',title:`${it.n}`,text:`${it.eff}<br>購入代金 ${fmt(price)}円${jobAb(p)==='half_item'?'（販売員で半額）':''}${dup?'<br>※すでに持っています':''}`,btns:['買う','やめる'],pick:buyPick});
+    const i=await ask(p,{head:'アイテムカード（保険）',color:'#3f8cff',title:'保険カードが出た！',text:`<div class="prof zoomprof">${itemProfileHtml(it)}</div>購入代金 <b>${fmt(price)}円</b>${jobAb(p)==='half_item'?'（販売員で半額）':''}${dup?'<br>※すでに持っています':''}`,btns:['買う','やめる'],pick:buyPick});
     if(i===0){await pay(p,price);p.items.push(it);say(p,`${p.name}：${it.n}を購入`)}
     else G.discI.push(it);
   }else{
-    await ask(p,{head:`アイテムカード（${tyName}）`,color:it.ty==='use'?'#8e6bff':'#e6a800',title:it.n,text:`${it.eff}${it.ty==='col'?`<br>ゴールでの価値：${it.v}`:''}`,btns:['もらう']});
+    await ask(p,{head:it.ty==='col'?'💎 お宝カード':'アイテムカード（使い切り）',color:it.ty==='use'?'#8e6bff':'#e6a800',title:it.ty==='col'?'お宝を手に入れた！':'アイテムカードが出た！',text:'<small>タップして受け取る</small>',btns:[itemProfileHtml(it)],profile:true,wide:true,col:true,pick:0});
     p.items.push(it);say(p,`${p.name}：${it.n}を手に入れた`);
   }
   V.hud();
@@ -556,7 +559,7 @@ async function drawItem(p,count=1){
     if(jobAb(p)==='research'){
       const a=takeItemCard(),b=takeItemCard();
       if(a&&b){
-        const i=await ask(p,{head:'研究者の能力：2枚から1枚選ぶ',color:'#8e6bff',title:'どちらにする？',text:`A：${a.n}（${a.eff}）<br>B：${b.n}（${b.eff}）`,btns:['A：'+a.n,'B：'+b.n],pick:itemWorth(a)>=itemWorth(b)?0:1,col:true});
+        const i=await ask(p,{head:'研究者の能力：2枚から1枚選ぶ',color:'#8e6bff',title:'どちらにする？',text:'<small>タップして決定</small>',btns:[itemProfileHtml(a),itemProfileHtml(b)],profile:true,wide:true,col:true,pick:itemWorth(a)>=itemWorth(b)?0:1});
         it=i===0?a:b;G.deckI.push(i===0?b:a);
       }else it=a||b;
     }else it=takeItemCard();
@@ -576,15 +579,20 @@ function drawJob(p,deck){
 }
 function returnJob(j){if(!j)return;(j.deck==='g'?G.deckG:G.deckS).push(j)}
 function jobCardHtml(j){const r=RANK_UP[j.n];return `<b>${j.n}</b>（給料 ${fmt(j.sal)}円）<br>${j.abt}${r?`<br><small>✨ランクアップ後：${r[0]}（給料×${r[1]}）</small>`:''}`}
+function jobProfileHtml(j,p){                           // 職業カード（結婚相手のプロフィールカードと同じ形式）
+  const r=RANK_UP[j.n];
+  return `<img class="pimg" src="${portrait(j,p,0)}" alt=""><div class="pi"><span class="ptag">${j.deck==='s'?'専門職':'一般職'}</span> <b>${esc(j.n)}</b><br>💴 給料 ${fmt(j.sal)}円<br>💬 ${esc(j.abt)}${r?`<br><small class="plus">✨ランクアップ後：${esc(r[0])}（給料×${r[1]}）</small>`:''}</div>`;
+}
 async function chooseJob(p,deck,count,title,mayKeep=false){
   const n=count+(p.abroad&&deck==='s'?1:0);if(p.abroad&&deck==='s'){say(p,'留学経験で1枚多く引けます')}
   const pool=[];for(let i=0;i<n;i++){const j=drawJob(p,deck);if(j)pool.push(j)}
   if(!pool.length){say(p,'職業カードの山札が空です');return}
   const val=j=>j.sal+(j.ab==='athlete'?-8000:0)+(j.ab==='stream'?4000:0);
   let best=0;pool.forEach((j,i)=>{if(val(j)>val(pool[best]))best=i});
-  const btns=pool.map(j=>`${j.n}（${fmt(j.sal)}）`);
+  const btns=pool.map(j=>jobProfileHtml(j,p));
   if(mayKeep)btns.push('そのまま（転職しない）');
-  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業を選ぼう',text:pool.map(j=>jobCardHtml(j)).join('<hr style="border:0;border-top:1px dashed #ccc">'),btns,pick:mayKeep&&pool[best].sal<=(p.job?p.job.sal:0)?pool.length:best,col:true,jobs:pool});
+  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
+    pick:mayKeep&&pool[best].sal<=(p.job?p.job.sal:0)?pool.length:best,col:true});
   if(i>=pool.length){pool.forEach(returnJob);return}
   const chosen=pool[i];pool.forEach((j,k)=>{if(k!==i)returnJob(j)});
   returnJob(p.job);p.job=chosen;p.jobRank=0;V.hud();V.pins(p);
@@ -989,12 +997,13 @@ async function lifeEvent(p,force){
 
 /* ---------- 宝くじ（売り場で最大4枚まで購入／抽選会のルーレットで番号が一致すれば当せん） ---------- */
 const LOT_PRICE=10000,LOT_MAX=4,LOT_FIRST=200000,LOT_SIDE=30000;
-async function lotteryShop(p){
+async function lotteryShop(p,passing=false){
   const room=LOT_MAX-p.tickets.length;
+  if(room<=0&&passing)return;                                  // 通過のときは、もう4枚持っていたら何も起きない
   if(room<=0){await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:`もう${LOT_MAX}枚持っています`,text:'次の抽選会まで大事に持っておこう',btns:['OK'],pick:0});return}
   const opts=[0];for(let n=1;n<=room;n++)opts.push(n);
   const want=p.cash>=120000?2:p.cash>=50000?1:0;
-  const i=await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:'宝くじを買う？',text:`1枚 ${fmt(LOT_PRICE)}円（最大${LOT_MAX}枚まで）<br><small>抽選会のルーレットで番号が一致すれば当せん！<br>1等 ${fmt(LOT_FIRST)}円／前後賞 ${fmt(LOT_SIDE)}円</small><br>いま持っている枚数：${p.tickets.length}枚`,
+  const i=await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:passing?'売り場の前を通りかかった… 宝くじを買う？':'宝くじを買う？',text:`1枚 ${fmt(LOT_PRICE)}円（最大${LOT_MAX}枚まで）<br><small>抽選会のルーレットで番号が一致すれば当せん！<br>1等 ${fmt(LOT_FIRST)}円／前後賞 ${fmt(LOT_SIDE)}円</small><br>いま持っている枚数：${p.tickets.length}枚`,
     btns:opts.map(n=>n?`${n}枚買う（${fmt(n*LOT_PRICE)}円）`:'買わない'),pick:Math.min(opts.length-1,want),col:true});
   const n=opts[i];if(!n)return;
   await pay(p,n*LOT_PRICE,{discount:false});
@@ -1002,9 +1011,10 @@ async function lotteryShop(p){
   p.tickets.push(...nums);p.tickets.sort((a,b)=>a-b);
   say(p,`${p.name}：宝くじを${n}枚購入（番号 ${nums.join('・')}）`);Sound.coin();V.hud();
 }
-async function lotteryDraw(p){
-  if(!p.tickets.length){await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'宝くじを持っていない…',text:'売り場で買っておけば、抽選に参加できました',btns:['OK'],pick:0});return}
-  await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ルーレットで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で1等 ${fmt(LOT_FIRST)}円／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ルーレットを回す'],pick:0});
+async function lotteryDraw(p,auto=false){
+  if(!p.tickets.length){say(p,'宝くじを持っていないので、抽選には参加しません');return}      // 持っていない人は何も起きない
+  if(auto){V.banner('🎊 宝くじ抽選会が始まる！');say(p,`${p.name}：抽選会を通過… 宝くじ ${p.tickets.join('・')} で自動参加`);await sleep(900)}
+  else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ルーレットで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で1等 ${fmt(LOT_FIRST)}円／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ルーレットを回す'],pick:0});
   const r=await spin(p,'duel');
   let total=0;const lines=[];
   for(const t of p.tickets){
@@ -1018,7 +1028,8 @@ async function lotteryDraw(p){
   if(total){say(p,`${p.name}：宝くじ当せん！ +${fmt(total)}円`);Sound.fanfare();await income(p,total)}else say(p,`${p.name}：宝くじははずれ…`);
   V.hud();
 }
-// 宝くじ売り場・抽選会のマス
+// 宝くじ売り場・抽選会のマス（止まっても、通過しても利用できる：売り場は「買いますか？」、持っている人は抽選が自動で始まる）
+const LOT_SHOP=new Set(['26','77','118']);
 [['26','shop'],['77','shop'],['118','shop'],['44','draw'],['97','draw'],['132','draw']].forEach(([id,k])=>{
   const q=SQ[id];q.c='blue';q.k='lottery';q.a=null;q.m='?';
   q.t=k==='shop'?'宝くじ売り場：最大4枚まで買える（1枚10,000円）':'宝くじ抽選会：ルーレットの数字が一致すれば当せん！';
@@ -1119,6 +1130,10 @@ async function moveSteps(p,n){
     const s=SQ[nk];
     if(isStop(s))break;                                   // STOPマスは通過できない
     if(i<n-1&&s.c==='yellow')await payday(p,nk,true);      // 給料日は通過でももらえる
+    if(i<n-1&&s.k==='lottery'){                            // 宝くじも通過でOK
+      if(LOT_SHOP.has(s.id)){V.banner('🎟 宝くじ売り場を通過！');await lotteryShop(p,true)}
+      else if(p.tickets.length)await lotteryDraw(p,true);
+    }
   }
   V.chapter(chapterOf(p.pos),p);
 }
@@ -2218,7 +2233,7 @@ function gableRoof(len,w,h,col,over=.35){                 // 切妻屋根（三�
 function houseModel(h){
   const g=new THREE.Group(),n=h.n;
   const box=(w,hh,d,c,x,y,z)=>mesh(new THREE.BoxGeometry(w,hh,d),mat(c,70),x,y,z,g);
-  const win=(x,y,z,s=.7)=>{mesh(new THREE.BoxGeometry(s+.16,s+.16,.06),mat(0xffffff,40),x,y,z,g);mesh(new THREE.BoxGeometry(s,s,.1),mat(0xbfe6ff,120),x,y,z+.02,g)};
+  const win=(x,y,z,s=.7)=>{mesh(new THREE.BoxGeometry(s+.16,s+.16,.06),mat(0xffffff,40),x,y,z,g);mesh(new THREE.BoxGeometry(s,s,.1),mat(0x8fc4ee,120),x,y,z+.02,g)};
   const door=(x,z,c=0x7a4a2a,hh=1.7)=>{box(.95,hh,.12,c,x,hh/2,z);mesh(new THREE.SphereGeometry(.07,8,6),mat(0xffd23f,140),x+.3,hh/2,z+.09,g)};
   const roof=(len,w,hh,col,y,rot=0)=>{const r=gableRoof(len,w,hh,col);r.position.y=y;r.rotation.y=rot;g.add(r);return r};
   const chimney=(x,y,z,hh=1.6)=>{box(.55,hh,.55,0x8a5a4a,x,y,z);box(.7,.12,.7,0x4a3a3a,x,y+hh/2,z)};
@@ -2242,13 +2257,18 @@ function houseModel(h){
     [-1.4,1.4].forEach(x=>{win(x,3.0,1.82);if(x>0)win(x,1.2,1.82)});win(-1.4,1.2,1.82);door(0,1.82,0x3a6a9a);
     box(1.5,.12,.9,0xd9b38c,0,.15,2.2);
     mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xff6b9d),3.4,1,2,g);mesh(new THREE.BoxGeometry(.7,.06,.3),mat(0xffc933),3.4,.7,2,g)}
-  else if(n==='タワーマンション'){
+  else if(n==='タワーマンション'){                         // ガラス張りではなく、普通のマンションと同じ窓つきの壁
     box(5,.6,5,0xcfd6e2,0,.3,0);
-    mesh(new THREE.BoxGeometry(3.2,13,3.2),new THREE.MeshPhongMaterial({color:0x9fd8ff,shininess:140,specular:0xffffff,transparent:true,opacity:.85}),0,7,0,g);
-    for(let i=1;i<9;i++)box(3.3,.1,3.3,0xffffff,0,i*1.55,0);
-    box(2.2,1,2.2,0xffd23f,0,13.9,0);
-    for(let f=1;f<=8;f++)[-.8,.8].forEach(x=>rooms.push({x,y:f*1.55+.25,z:1.62,w:1.2,h:1.1}));
-    door(0,1.64,0x445566,1.3)}
+    box(3.4,13,3.4,0xd8ccb2,0,7,0);
+    for(let i=1;i<9;i++)box(3.55,.14,3.55,0xb8b2a4,0,i*1.55,0);                       // 階ごとの帯
+    box(3.7,.3,3.7,0x8a8a99,0,13.65,0);box(1.4,1,1.4,0xb8b8c6,.7,14.3,-.5);box(2.2,.5,2.2,0xffd23f,-.4,14.0,.4);
+    for(let f=0;f<8;f++)[-.8,.8].forEach(x=>{
+      win(x,f*1.55+1.3,1.75,.7);mesh(new THREE.BoxGeometry(1.1,.1,.4),mat(0x777788,60),x,f*1.55+.95,1.92,g);               // 正面の窓＋バルコニー
+      rooms.push({x,y:f*1.55+1.3,z:1.75,w:1.2,h:1.1});
+      const w2=(wx,wy,wz,ry)=>{const m=new THREE.Group();m.position.set(wx,wy,wz);m.rotation.y=ry;const a=mesh(new THREE.BoxGeometry(.86,.86,.06),mat(0xffffff,40),0,0,0,m);const b2=mesh(new THREE.BoxGeometry(.7,.7,.1),mat(0x8fc4ee,120),0,0,.02,m);g.add(m)};
+      w2(x,f*1.55+1.3,-1.75,Math.PI);w2(1.75,f*1.55+1.3,x,Math.PI/2);w2(-1.75,f*1.55+1.3,x,-Math.PI/2);                      // 背面・側面の窓
+    });
+    door(0,1.74,0x445566,1.3);box(1.8,.12,1.0,0x9a9aa8,0,1.35,2.1)}
   else if(n==='海辺の豪邸'){
     box(6,2.4,3.6,0xffffff,0,1.2,0);box(4,2,3,0xffffff,0,3.4,0);box(6.4,.2,4,0x3f8cff,0,2.5,0);box(4.4,.2,3.4,0x3f8cff,0,4.5,0);
     win(-1.5,1.3,1.85,.9);win(1.5,1.3,1.85,.9);win(0,3.5,1.55,1);door(0,1.85,0x2a5a8a,1.6);
@@ -2637,7 +2657,7 @@ function cardLocal(o,p){
     wrap.classList.remove('hidden');
     if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
     (o.btns||['OK']).forEach((b,i)=>{
-      const e=document.createElement('button');e.innerHTML=b;e.className=o.profile?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
+      const e=document.createElement('button');e.innerHTML=b;e.className=(o.profile&&i<(o.profileN===undefined?99:o.profileN))?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
     addEventListener('keydown',key);
     if(o.cpu){setTimeout(()=>{

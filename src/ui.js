@@ -6,27 +6,35 @@ let cardOpen=false,logOn=false;
 const prevCash={};
 
 /* ---------- カード（マスの内容・選択） ---------- */
-V.card=(o,p)=>new Promise(res=>{
-  cardOpen=true;
-  const head=$('#cardHead');head.textContent=o.head||'';head.style.background=o.color||'#3f8cff';
-  $('#cardTitle').innerHTML=o.title||'';
-  let t=o.text||'';
-  if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p?p.color:0x3f8cff)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
-  $('#cardText').innerHTML=t;
-  const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
-  const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
-  const done=i=>{if(!cardOpen)return;cardOpen=false;removeEventListener('keydown',key);$('#cardWrap').classList.add('hidden');Sound.click();res(i)};
-  const key=e=>{if((e.code==='Enter'||e.code==='Space')&&!o.cpu&&(o.btns||['OK']).length===1){e.preventDefault();done(0)}};
-  (o.btns||['OK']).forEach((b,i)=>{
-    const e=document.createElement('button');e.innerHTML=b;if(i>0)e.className='alt';e.onclick=()=>done(i);bx.appendChild(e);
+let cardCloseFn=null;
+function cardLocal(o,p){
+  if(cardCloseFn)cardCloseFn();
+  return new Promise(res=>{
+    cardOpen=true;
+    const wrap=$('#cardWrap'),head=$('#cardHead');wrap.classList.toggle('spec',!!o.spec);
+    head.textContent=(o.head||'')+(o.spec&&p?`（${p.name}）`:'');head.style.background=o.color||'#3f8cff';
+    $('#cardTitle').innerHTML=o.title||'';
+    let t=o.text||'';
+    if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p?p.color:0x3f8cff)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
+    $('#cardText').innerHTML=t;
+    const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
+    const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
+    const done=i=>{if(!cardOpen)return;cardOpen=false;cardCloseFn=null;removeEventListener('keydown',key);wrap.classList.add('hidden');wrap.classList.remove('spec');Sound.click();res(i)};
+    const key=e=>{if((e.code==='Enter'||e.code==='Space')&&!o.cpu&&!o.spec&&(o.btns||['OK']).length===1){e.preventDefault();done(0)}};
+    cardCloseFn=()=>done(-1);                       // 外部（観戦終了）から閉じる用
+    wrap.classList.remove('hidden');
+    if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
+    (o.btns||['OK']).forEach((b,i)=>{
+      const e=document.createElement('button');e.innerHTML=b;if(i>0)e.className='alt';e.onclick=()=>done(i);bx.appendChild(e);
+    });
+    addEventListener('keydown',key);
+    if(o.cpu){setTimeout(()=>{
+      const bs=bx.children;if(bs[o.pick||0])bs[o.pick||0].style.outline='4px solid #ffc933';
+      setTimeout(()=>done(o.pick||0),(o.btns&&o.btns.length>1?700:200)/SPD);
+    },900/SPD)}
   });
-  addEventListener('keydown',key);
-  $('#cardWrap').classList.remove('hidden');
-  if(o.cpu){setTimeout(()=>{
-    const bs=bx.children;if(bs[o.pick||0])bs[o.pick||0].style.outline='4px solid #ffc933';
-    setTimeout(()=>done(o.pick||0),(o.btns&&o.btns.length>1?700:200)/SPD);
-  },(o.btns&&o.btns.length>1?900:900)/SPD)}
-});
+}
+V.card=cardLocal;
 
 /* ---------- トースト・ログ・数字・バナー ---------- */
 let toastT=0;
@@ -55,11 +63,11 @@ V.waitSpin=(p,purpose)=>new Promise(res=>{
 function houseCardHtml(h){return `<div class="ic">🏠</div><div class="tt">${esc(h.n)}</div>`}
 V.hud=()=>{
   if(!G.players.length)return;
-  const cur=G.players[G.cur];
+  const turnP=G.players[G.cur],cur=(NET.on&&G.players[NET.myPid])||turnP;
   G.players.forEach(refreshCar);updateStacks();
   // 左：プレイヤー一覧（総資産ランキング順）
   const ord=[...G.players].sort((a,b)=>(b.finished?b.final:assetsOf(b))-(a.finished?a.final:assetsOf(a)));
-  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===cur?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
+  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
   $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''}`;
@@ -94,8 +102,8 @@ async function zoom(p,type,x){
   const btns=['閉じる'];
   const canUse=type==='item'&&G.awaiting===p&&!p.cpu&&usableItems(p).includes(x.c);
   if(canUse)btns.unshift('使う');
-  const i=await V.card(Object.assign(o,{btns,cpu:false}),p);
-  if(canUse&&i===0&&G.awaiting===p)await useItem(p,x.c);
+  const i=await cardLocal(Object.assign(o,{btns,cpu:false}),p);
+  if(canUse&&i===0&&G.awaiting===p){if(NET.on&&!NET.isHost)NET.send({t:'useItem',c:x.c});else await useItem(p,x.c)}
 }
 
 /* ---------- 結果 ---------- */
@@ -109,7 +117,7 @@ V.results=async()=>{
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
   if(AUTO)return;
-  await V.card({head:'🏆 総資産ランキング',color:'#c98a00',title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産(LD)</th></tr>${rows}</table>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
+  await cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産(LD)</th></tr>${rows}</table>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
   location.reload();
 };
 
@@ -134,17 +142,19 @@ function buildTitle(){
     $('#prows').appendChild(d);
   }
 }
-async function startGame(list){
-  Sound.resume();
+function enterGameUI(){
   $('#titleScr').classList.add('hidden');
   ['#tools','#left','#hudR','#actions','#hand'].forEach(s=>$(s).classList.remove('hidden'));
-  setupGame(list);
+  if(NET.on)$('#btnSpd').classList.add('hidden');
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;
-  V.hud();
-  V.chapter(0,G.players[0]);G.players.forEach(p=>p.maxCh=0);
-  V.banner('LIFE ROAD スタート！');
+  G.players.forEach(p=>p.maxCh=0);
+}
+async function startGame(list){
+  Sound.resume();
+  setupGame(list);enterGameUI();
+  V.hud();V.banner('LIFE ROAD スタート！');
   await sleep(1200);
   await playGame();
 }

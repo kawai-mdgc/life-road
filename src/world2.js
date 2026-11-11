@@ -412,6 +412,9 @@ V.noteStamp=async p=>{await sleep(350)};
 let roulBusy=false;
 V.roulette=async(p,r,purpose)=>{
   await V.waitSpin(p,purpose);                // 人間はボタン待ち／CPUは少し待つ
+  await V.rouletteAnim(r,purpose);
+};
+V.rouletteAnim=async(r,purpose)=>{            // 演出だけ（オンラインでは全員の画面で再生）
   Cam.rouletteView=true;await sleep(900);
   const sec=Math.PI/5,target=-(r-1+.5)*sec+(Math.random()-.5)*sec*.7;
   const TAU=Math.PI*2,turns=5+rnd(3),cur=roulDisc.rotation.y;

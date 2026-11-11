@@ -557,7 +557,7 @@ async function cpuItems(p){
 
 /* ---------- 1ターン ---------- */
 async function takeTurn(p){
-  V.focus(p);V.hud();
+  V.focus(p);V.hud();V.toast(`${p.name} の番です`);
   if(p.skip>0){
     if(has(p,'nap')){
       const i=await ask(p,{head:'1回休み',color:'#e8454c',title:'おやすみ免除券を使う？',text:'使うと休まずに進めます',btns:['使う','休む'],pick:0});

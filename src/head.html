@@ -79,6 +79,12 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
 #cardBtns.col button{flex:1 1 100%}
 #cardImg{display:block;margin:4px auto;max-width:100%;border-radius:10px}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
+#cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
+#cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#cardWrap.spec #cardBtns{display:none}
+.slotrow{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:10px;background:#faf6ee;margin:3px 0;text-align:left}
+.slotrow .dot{width:18px;height:18px;border-radius:50%;flex:none}
+.slotrow .tag{margin-left:auto;font-size:.75rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#ddd}
 #banner{position:fixed;left:0;right:0;top:34%;z-index:25;text-align:center;font-size:clamp(26px,7vw,54px);font-weight:900;color:#fff;
  text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;pointer-events:none;animation:ban 2.4s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
@@ -104,10 +110,28 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
    <div class="cnt" id="cnt"></div>
    <div id="prows"></div>
    <button id="startBtn" class="pink" style="margin-top:10px;font-size:1.2rem;padding:12px 40px">スタート！</button>
+   <button id="olOpen" class="green" style="margin-top:10px;margin-left:6px;font-size:1.05rem;padding:12px 22px">🌐 オンライン対戦</button>
    <div id="rulesTxt">
     ルーレット(1〜10)を回して車を進め、ゴール時の<b>総資産</b>がいちばん多い人が勝ち。<br>
     ・黄=給料日(通過でもOK) ・緑=ラッキー ・赤=ピンチ ・青=イベント ・金=STOP(必ず止まる)<br>
     ・お金が足りないと自動で<b>約束手形</b>(20,000借りて25,000返す)。 ・ドラッグで回転／ホイール・ピンチでズーム。
+   </div>
+  </div>
+  <div class="panel hidden" id="onlineBox">
+   <div id="olMenu">
+    <div style="font-weight:900;font-size:1.1rem;margin-bottom:8px">🌐 オンライン対戦</div>
+    <div class="prow"><span>名前</span><input id="olName" type="text" maxlength="8" value="あなた"></div>
+    <button id="olHost" class="pink" style="margin:8px 0;width:100%">ルームを作る（ホスト）</button>
+    <div class="prow"><input id="olCode" type="text" inputmode="numeric" maxlength="6" placeholder="6桁のルームコード"><button id="olJoin" class="gold">参加</button></div>
+    <button id="olBack" class="alt" style="margin-top:6px">← もどる</button>
+    <div id="olMsg" style="color:#c4202a;font-size:.85rem;margin-top:6px"></div>
+   </div>
+   <div id="olLobby" class="hidden">
+    <div id="olTitle" style="font-weight:900;font-size:1.1rem"></div>
+    <div id="olSlots" style="margin:8px 0"></div>
+    <div id="olCtl"></div>
+    <div id="olMsg2" style="font-size:.8rem;color:#665;margin-top:6px"></div>
+    <button id="olLeave" class="alt" style="margin-top:8px">ルームから出る</button>
    </div>
   </div>
  </div>
@@ -141,4 +165,5 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
 </div></div>
 <div id="banner" class="hidden"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>

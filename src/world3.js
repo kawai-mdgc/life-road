@@ -69,6 +69,7 @@ function update(){
   sway.forEach(g=>{g.rotation.z=Math.sin(tAcc*1.2+g.userData.ph)*.03});
   clouds.forEach(c=>{c.visible=!Cam.is2D;c.position.x+=c.userData.sp*dt;if(c.position.x>190)c.position.x=-190});
   if(bankCoin)bankCoin.rotation.z+=dt*1.5;
+  updateRoulette(dt);
   if(bankDoor)bankDoor.position.y=performance.now()<bankOpenT?4.4:1.9;
   for(const id in TILE){const f=TILE[id];if(f.sq.c==='gold'){const fl=f.g.children.find(o=>o.userData.flag);if(fl)fl.rotation.y=Math.sin(tAcc*3)*.3}}
   for(let i=confetti.length-1;i>=0;i--){
@@ -84,7 +85,7 @@ function updateCamera(dt,cur){
   if(Cam.title){Cam.userAz+=dt*.1;tgt=new V3(0,0,0);az=Cam.userAz;el=.7;dist=135}
   else if(Cam.is2D){
     camO.position.set(Cam.pan.x,300,Cam.pan.z);camO.up.set(0,0,-1);camO.lookAt(Cam.pan.x,0,Cam.pan.z);return;
-  }else if(Cam.rouletteView){tgt=new V3(0,4.6,0);az=0;el=.42;dist=21}
+  }else if(Cam.rouletteView){tgt=new V3(0,6.2,1.0);az=0;el=1.42;dist=Math.max(15.5,14/aspect())}   // 真上から見て、針と止まる目がはっきり見える
   else{
     const c=cur&&cars[cur.id];tgt=c?c.g.position.clone():new V3();
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;

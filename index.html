@@ -77,6 +77,9 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #tools{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:11;display:flex;gap:6px}
 #tools button{padding:7px 12px;font-size:.8rem}
 #actions{position:fixed;left:50%;bottom:calc(132px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:12;display:flex;flex-direction:column;align-items:center;gap:8px;width:min(92vw,560px)}
+#spinBtn.stop{background:linear-gradient(#7fe3a8,#1fb36a);animation:pulse .5s infinite}
+.age{font-size:.8rem;font-weight:800;color:#e8730c;margin-left:4px;white-space:nowrap}
+.pl .ag{color:#e8730c;font-weight:800;font-size:.68rem;white-space:nowrap}
 #spinBtn{font-size:clamp(18px,4vw,26px);padding:14px 34px;border-radius:40px;background:linear-gradient(#ff8fb4,#ff4f86);animation:pulse 1.1s infinite}
 @keyframes pulse{50%{transform:scale(1.07)}}
 #toast{background:#3b2f4aee;color:#fff;padding:8px 16px;border-radius:20px;font-weight:700;font-size:.9rem;max-width:100%;text-align:center;transition:opacity .3s}
@@ -134,7 +137,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #logBox{position:fixed;left:8px;bottom:140px;z-index:11;width:min(300px,60vw);max-height:30vh;overflow:auto;font-size:.74rem;line-height:1.5}
 #logBox div{border-bottom:1px dashed #ddd;padding:2px 0}
 @media(max-width:640px){
- #left{width:150px;max-height:34vh}.pl .nm{max-width:48px}
+ #left{width:170px;max-height:34vh}.pl .nm{max-width:40px}
  #hudR{width:150px}#tools{top:auto;bottom:calc(228px + env(safe-area-inset-bottom));left:8px;transform:none;flex-direction:column}
  #actions{bottom:calc(132px + env(safe-area-inset-bottom))}
  .hc{width:66px;height:84px}.hc.house{width:92px}.hc.wallet{width:210px}.stack{--w:66px;height:84px}.stack.wide{--w:92px}
@@ -567,6 +570,18 @@ function prevKey(p,key){
   return s.r+(s.n-1);
 }
 
+/* ---------- 年齢（盤上の位置から決める） ---------- */
+const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,80]];
+function ageOfKey(key){
+  const s=SQ[key];let n;
+  if(s.r==='main')n=s.n;
+  else{const lim={U:12,W:8,S:10,R:10}[s.r],a=(s.r==='U'||s.r==='W')?20:80;n=a+s.n/(lim+1)}
+  for(let i=1;i<AGE_A.length;i++){
+    if(n<=AGE_A[i][0]){const[a0,g0]=AGE_A[i-1],[a1,g1]=AGE_A[i];return Math.floor(g0+(g1-g0)*(n-a0)/(a1-a0))}
+  }
+  return 80;
+}
+
 /* ---------- プレイヤー ---------- */
 function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
@@ -642,9 +657,7 @@ async function showSq(p,sq){
   else if(sq.m!=='0')amt=sq.m;
   await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
 }
-async function spin(p,purpose='duel'){
-  const r=1+rnd(10);await V.roulette(p,r,purpose);return r;
-}
+async function spin(p,purpose='duel'){return V.roulette(p,purpose)}   // 回す→止める（結果は止めた瞬間に決まる）
 async function duelRoll(p,win){             // ルーレット勝負（ゲームクリエイターは+1できる）
   let r=await spin(p,'duel');
   if(jobAb(p)==='gamer'&&r<10&&(!win||(!win(r)&&win(r+1)))){r++;say(p,'ゲームクリエイターの能力で出目+1！')}
@@ -1274,6 +1287,8 @@ function buildTiles(){
 }
 // ===== 3D ワールド（後半）：背景・ルーレット・銀行・車・人形・お札・カメラ =====
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
+const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
+const Roul={free:false,speed:0,max:8,last:-1};
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
 let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
@@ -1447,19 +1462,24 @@ function buildScenery(){
 /* ---------- 中央：ルーレット塔 と 銀行 ---------- */
 function buildCenter(){
   const g=new THREE.Group();g.position.copy(ROUL_POS);
-  mesh(new THREE.CylinderGeometry(7,7.6,.8,36),mat(0xffd6e7,60),0,.4,0,g);
+  mesh(new THREE.CylinderGeometry(7,7.6,.8,36),mat(0x3a2f6e,60),0,.4,0,g);   // 濃い色の台座：白いピンと盤が見やすい
   mesh(new THREE.CylinderGeometry(1.8,2.4,5,20),mat(0xffffff,90),0,3.2,0,g);
   [1.2,3,5].forEach(y=>mesh(new THREE.TorusGeometry(2.1-(y>4?.2:0),.14,8,24),mat(0xff4f86),0,y+.4,0,g).rotation.x=Math.PI/2);
   roulDisc=new THREE.Group();roulDisc.position.y=6.1;g.add(roulDisc);
-  for(let i=0;i<10;i++){
+  for(let i=0;i<10;i++){                                     // レインボーの10分割
     const th=i*Math.PI/5;
-    mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(i%2?0xffffff:0xff4d5a,90),0,0,0,roulDisc);
-    const c=th+Math.PI/10,sp=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(64,64,(ctx,w,h)=>{ctx.font=`900 46px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=7;ctx.strokeStyle=i%2?'#ff4d5a':'#fff';ctx.fillStyle=i%2?'#ff4d5a':'#c4202a';ctx.fillStyle=i%2?'#c4202a':'#fff';ctx.strokeText(i+1,32,34);ctx.fillText(i+1,32,34)}),transparent:true,depthTest:false}));
+    mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(RAINBOW[i],110),0,0,0,roulDisc);
+    const c=th+Math.PI/10,sp=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(64,64,(ctx,w,h)=>{ctx.font=`900 48px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=9;ctx.strokeStyle='rgba(40,20,70,.85)';ctx.fillStyle='#fff';ctx.strokeText(i+1,32,34);ctx.fillText(i+1,32,34)}),transparent:true,depthTest:false}));
     sp.position.set(Math.sin(c)*3.1,.8,Math.cos(c)*3.1);sp.scale.set(1.5,1.5,1);sp.renderOrder=5;roulDisc.add(sp);
+    // 区切り線（白）
+    const ln=mesh(new THREE.BoxGeometry(4.4,.04,.07),mat(0xffffff,100),Math.sin(th)*2.2,.32,Math.cos(th)*2.2,roulDisc);ln.rotation.y=th-Math.PI/2;
   }
-  mesh(new THREE.TorusGeometry(4.45,.2,8,40),mat(0xffc933,120),0,.3,0,roulDisc).rotation.x=Math.PI/2;
-  mesh(new THREE.CylinderGeometry(.7,.7,.9,14),mat(0xffc933,120),0,.5,0,roulDisc);
-  const ptr=mesh(new THREE.ConeGeometry(.45,1.2,10),mat(0xffc933,120),0,7.6,4.5,g);ptr.rotation.x=Math.PI;
+  mesh(new THREE.TorusGeometry(4.45,.2,8,40),mat(0xffffff,120),0,.3,0,roulDisc).rotation.x=Math.PI/2;
+  mesh(new THREE.CylinderGeometry(.7,.7,.9,14),mat(0xffffff,120),0,.5,0,roulDisc);
+  // 白いピン（針）：盤の外側から中心に向けて、止まった目を指す
+  const ptr=mesh(new THREE.ConeGeometry(.6,1.7,18),mat(0xffffff,140,{emissive:0x444444}),0,6.85,5.15,g);ptr.rotation.x=-Math.PI/2;
+  mesh(new THREE.SphereGeometry(.5,14,10),mat(0xffffff,140,{emissive:0x333333}),0,6.85,5.95,g);
+  const pin=mesh(new THREE.BoxGeometry(.18,.05,2.4),mat(0xffffff,100,{emissive:0x555555}),0,6.52,3.3,g);pin.userData.pin=1;   // 針の先の目印ライン
   worldG.add(g);
   // 銀行
   const b=new THREE.Group();b.position.copy(BANK_POS);b.rotation.y=Math.PI/2;
@@ -1700,24 +1720,37 @@ function bankOpen(){bankOpenT=performance.now()+900/SPD}
 V.noteStamp=async p=>{await sleep(350)};
 
 /* ---------- ルーレット ---------- */
-let roulBusy=false;
-V.roulette=async(p,r,purpose)=>{
-  await V.waitSpin(p,purpose);                // 人間はボタン待ち／CPUは少し待つ
-  await V.rouletteAnim(r,purpose);
+// 流れ：①「回す」で回り始める → ②「ストップ」で止める。止まった目はその瞬間に決まり、減速して針の位置に止まる
+V.roulette=async(p,purpose)=>{
+  await V.waitSpin(p,purpose,'start');
+  await V.rouletteStart(purpose);
+  await V.waitSpin(p,purpose,'stop');
+  const r=1+rnd(10);
+  await V.rouletteStop(r);
+  return r;
 };
-V.rouletteAnim=async(r,purpose)=>{            // 演出だけ（オンラインでは全員の画面で再生）
-  Cam.rouletteView=true;await sleep(900);
-  const sec=Math.PI/5,target=-(r-1+.5)*sec+(Math.random()-.5)*sec*.7;
-  const TAU=Math.PI*2,turns=5+rnd(3),cur=roulDisc.rotation.y;
-  const d=(((target-cur)%TAU)+TAU)%TAU,fin=cur+d-TAU*turns;        // 針の下に目の中心が来る角度（必ず負方向に回る）
-  const start=cur;let lastIdx=-1;
-  await anim(purpose==='move'?3000:2300,k=>{
-    const e=easeOut(k);roulDisc.rotation.y=start+(fin-start)*e;
-    const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==lastIdx){lastIdx=idx;Sound.tick()}
+V.rouletteStart=async purpose=>{                // 全員の画面でカメラが真上に寄り、盤が回り始める
+  Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
+  await sleep(900);
+};
+V.rouletteStop=async r=>{                       // ストップ：回転がだんだん遅くなって針の下で止まる
+  const TAU=Math.PI*2,sec=Math.PI/5,cur=roulDisc.rotation.y,w=Math.max(Roul.speed,3);
+  const target=-(r-1+.5)*sec+(Math.random()-.5)*sec*.6;
+  const d=(((target-cur)%TAU)+TAU)%TAU,n=Math.ceil((d+TAU*.9)/TAU),dist=d-TAU*n;   // 必ず0.9周以上、負方向に回って止まる
+  Roul.free=false;let last=-1;
+  await anim(Math.abs(dist)*2/w*1000,k=>{
+    const e=1-(1-k)*(1-k);roulDisc.rotation.y=cur+dist*e;
+    const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==last){last=idx;Sound.tick()}
   });
   Sound.spinStop();V.bigNum(r);
-  await sleep(900);Cam.rouletteView=false;await sleep(350);
+  await sleep(1000);Cam.rouletteView=false;await sleep(350);
 };
+function updateRoulette(dt){                    // 回転中（ストップを待っている間）
+  if(!Roul.free||!roulDisc)return;
+  Roul.speed+=(Roul.max-Roul.speed)*Math.min(1,dt*2.5);
+  roulDisc.rotation.y-=Roul.speed*dt;
+  const idx=Math.floor(-roulDisc.rotation.y/(Math.PI/5));if(idx!==Roul.last){Roul.last=idx;Sound.tick()}
+}
 
 /* ---------- 家・紙吹雪・ふきだし ---------- */
 function houseModel(h){
@@ -1878,6 +1911,7 @@ function update(){
   sway.forEach(g=>{g.rotation.z=Math.sin(tAcc*1.2+g.userData.ph)*.03});
   clouds.forEach(c=>{c.visible=!Cam.is2D;c.position.x+=c.userData.sp*dt;if(c.position.x>190)c.position.x=-190});
   if(bankCoin)bankCoin.rotation.z+=dt*1.5;
+  updateRoulette(dt);
   if(bankDoor)bankDoor.position.y=performance.now()<bankOpenT?4.4:1.9;
   for(const id in TILE){const f=TILE[id];if(f.sq.c==='gold'){const fl=f.g.children.find(o=>o.userData.flag);if(fl)fl.rotation.y=Math.sin(tAcc*3)*.3}}
   for(let i=confetti.length-1;i>=0;i--){
@@ -1893,7 +1927,7 @@ function updateCamera(dt,cur){
   if(Cam.title){Cam.userAz+=dt*.1;tgt=new V3(0,0,0);az=Cam.userAz;el=.7;dist=135}
   else if(Cam.is2D){
     camO.position.set(Cam.pan.x,300,Cam.pan.z);camO.up.set(0,0,-1);camO.lookAt(Cam.pan.x,0,Cam.pan.z);return;
-  }else if(Cam.rouletteView){tgt=new V3(0,4.6,0);az=0;el=.42;dist=21}
+  }else if(Cam.rouletteView){tgt=new V3(0,6.2,1.0);az=0;el=1.42;dist=Math.max(15.5,14/aspect())}   // 真上から見て、針と止まる目がはっきり見える
   else{
     const c=cur&&cars[cur.id];tgt=c?c.g.position.clone():new V3();
     az=Cam.userAz;el=Cam.userEl;dist=Cam.userDist;
@@ -1965,11 +1999,11 @@ V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
 
 /* ---------- ルーレットボタン ---------- */
-V.waitSpin=(p,purpose)=>new Promise(res=>{
-  if(p.cpu||AUTO){setTimeout(res,650/SPD);return}
+V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
+  if(p.cpu||AUTO){setTimeout(res,(phase==='stop'?400+rnd(900):650)/SPD);return}
   const b=$('#spinBtn');
-  b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:`🎰 ${p.name}：勝負のルーレット！`;
-  b.classList.remove('hidden');
+  if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
+  else{b.textContent='✋ ストップ！';b.className='stop';V.toast('好きなタイミングでストップを押そう！')}
   const go=()=>{b.classList.add('hidden');b.onclick=null;removeEventListener('keydown',key);Sound.resume();res()};
   const key=e=>{if((e.code==='Space'||e.code==='Enter')&&!cardOpen){e.preventDefault();go()}};
   b.onclick=go;addEventListener('keydown',key);
@@ -1983,10 +2017,10 @@ V.hud=()=>{
   G.players.forEach(refreshCar);updateStacks();
   // 左：プレイヤー一覧（総資産ランキング順）
   const ord=[...G.players].sort((a,b)=>(b.finished?b.final:assetsOf(b))-(a.finished?a.final:assetsOf(a)));
-  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
+  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
-  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''}`;
+  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳</span>`;
   m.textContent=fmt(cur.cash)+' LD';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
@@ -2174,15 +2208,15 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ['good','bad','stamp','stopSq','fanfare'].forEach(n=>{const o=Sound[n];Sound[n]=()=>{bc({t:'snd',n});o()}});
   // ルーレット：入力待ち→演出を全員に配信
   const wait=V.waitSpin;
-  V.waitSpin=(p,purpose)=>{
-    if(!isRemote(p))return wait(p,purpose);
+  V.waitSpin=(p,purpose,phase)=>{
+    if(!isRemote(p))return wait(p,purpose,phase);
     return new Promise(res=>{
       const rid=NET.rid++;NET.pend[rid]={res,pid:p.id,kind:'spin'};
-      sendTo(connOf(p.id),{t:'spinWait',rid,pur:purpose});
-      V.toast(`${p.name} がルーレットを回します…`);
+      sendTo(connOf(p.id),{t:'spinWait',rid,pur:purpose,phase});
+      V.toast(phase==='stop'?`${p.name} がストップを狙っています…`:`${p.name} がルーレットを回します…`);
     });
   };
-  const rA=V.rouletteAnim;V.rouletteAnim=(r,pur)=>{bc({t:'ev',n:'rouletteAnim',a:[r,pur]});return rA(r,pur)};
+  ev('rouletteStart');ev('rouletteStop');
   const results=V.results;V.results=async()=>{sendSnap();bc({t:'results'});await results()};
   // カード：本人にだけボタンを出し、他の人は観戦表示
   const clean=(o)=>{const c={...o};delete c.sq;delete c.cpu;delete c.pick;return c};
@@ -2377,7 +2411,7 @@ function clientRecv(m){
       break}
     case 'cardClose':if(cardCloseFn)cardCloseFn();break;
     case 'spinWait':{
-      const p=G.players[NET.myPid];V.waitSpin(p,m.pur,true).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
+      const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
     case 'results':V.results();break;
   }
 }

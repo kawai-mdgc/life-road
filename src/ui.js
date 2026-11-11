@@ -55,11 +55,11 @@ V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
 
 /* ---------- ルーレットボタン ---------- */
-V.waitSpin=(p,purpose)=>new Promise(res=>{
-  if(p.cpu||AUTO){setTimeout(res,650/SPD);return}
+V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
+  if(p.cpu||AUTO){setTimeout(res,(phase==='stop'?400+rnd(900):650)/SPD);return}
   const b=$('#spinBtn');
-  b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:`🎰 ${p.name}：勝負のルーレット！`;
-  b.classList.remove('hidden');
+  if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
+  else{b.textContent='✋ ストップ！';b.className='stop';V.toast('好きなタイミングでストップを押そう！')}
   const go=()=>{b.classList.add('hidden');b.onclick=null;removeEventListener('keydown',key);Sound.resume();res()};
   const key=e=>{if((e.code==='Space'||e.code==='Enter')&&!cardOpen){e.preventDefault();go()}};
   b.onclick=go;addEventListener('keydown',key);
@@ -73,10 +73,10 @@ V.hud=()=>{
   G.players.forEach(refreshCar);updateStacks();
   // 左：プレイヤー一覧（総資産ランキング順）
   const ord=[...G.players].sort((a,b)=>(b.finished?b.final:assetsOf(b))-(a.finished?a.final:assetsOf(a)));
-  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
+  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
   // 右上：手番プレイヤー
   const m=$('#money');
-  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''}`;
+  $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳</span>`;
   m.textContent=fmt(cur.cash)+' LD';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}

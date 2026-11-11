@@ -35,15 +35,15 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ['good','bad','stamp','stopSq','fanfare'].forEach(n=>{const o=Sound[n];Sound[n]=()=>{bc({t:'snd',n});o()}});
   // ルーレット：入力待ち→演出を全員に配信
   const wait=V.waitSpin;
-  V.waitSpin=(p,purpose)=>{
-    if(!isRemote(p))return wait(p,purpose);
+  V.waitSpin=(p,purpose,phase)=>{
+    if(!isRemote(p))return wait(p,purpose,phase);
     return new Promise(res=>{
       const rid=NET.rid++;NET.pend[rid]={res,pid:p.id,kind:'spin'};
-      sendTo(connOf(p.id),{t:'spinWait',rid,pur:purpose});
-      V.toast(`${p.name} がルーレットを回します…`);
+      sendTo(connOf(p.id),{t:'spinWait',rid,pur:purpose,phase});
+      V.toast(phase==='stop'?`${p.name} がストップを狙っています…`:`${p.name} がルーレットを回します…`);
     });
   };
-  const rA=V.rouletteAnim;V.rouletteAnim=(r,pur)=>{bc({t:'ev',n:'rouletteAnim',a:[r,pur]});return rA(r,pur)};
+  ev('rouletteStart');ev('rouletteStop');
   const results=V.results;V.results=async()=>{sendSnap();bc({t:'results'});await results()};
   // カード：本人にだけボタンを出し、他の人は観戦表示
   const clean=(o)=>{const c={...o};delete c.sq;delete c.cpu;delete c.pick;return c};
@@ -238,7 +238,7 @@ function clientRecv(m){
       break}
     case 'cardClose':if(cardCloseFn)cardCloseFn();break;
     case 'spinWait':{
-      const p=G.players[NET.myPid];V.waitSpin(p,m.pur,true).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
+      const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
     case 'results':V.results();break;
   }
 }

@@ -41,6 +41,18 @@ function prevKey(p,key){
   return s.r+(s.n-1);
 }
 
+/* ---------- 年齢（盤上の位置から決める） ---------- */
+const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,80]];
+function ageOfKey(key){
+  const s=SQ[key];let n;
+  if(s.r==='main')n=s.n;
+  else{const lim={U:12,W:8,S:10,R:10}[s.r],a=(s.r==='U'||s.r==='W')?20:80;n=a+s.n/(lim+1)}
+  for(let i=1;i<AGE_A.length;i++){
+    if(n<=AGE_A[i][0]){const[a0,g0]=AGE_A[i-1],[a1,g1]=AGE_A[i];return Math.floor(g0+(g1-g0)*(n-a0)/(a1-a0))}
+  }
+  return 80;
+}
+
 /* ---------- プレイヤー ---------- */
 function newPlayer(id,name,cpu,color,cloth,gender){
   return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
@@ -116,9 +128,7 @@ async function showSq(p,sq){
   else if(sq.m!=='0')amt=sq.m;
   await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
 }
-async function spin(p,purpose='duel'){
-  const r=1+rnd(10);await V.roulette(p,r,purpose);return r;
-}
+async function spin(p,purpose='duel'){return V.roulette(p,purpose)}   // 回す→止める（結果は止めた瞬間に決まる）
 async function duelRoll(p,win){             // ルーレット勝負（ゲームクリエイターは+1できる）
   let r=await spin(p,'duel');
   if(jobAb(p)==='gamer'&&r<10&&(!win||(!win(r)&&win(r+1)))){r++;say(p,'ゲームクリエイターの能力で出目+1！')}

@@ -1,5 +1,7 @@
 // ===== 3D ワールド（後半）：背景・ルーレット・銀行・車・人形・お札・カメラ =====
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
+const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
+const Roul={free:false,speed:0,max:8,last:-1};
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
 let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
@@ -173,19 +175,24 @@ function buildScenery(){
 /* ---------- 中央：ルーレット塔 と 銀行 ---------- */
 function buildCenter(){
   const g=new THREE.Group();g.position.copy(ROUL_POS);
-  mesh(new THREE.CylinderGeometry(7,7.6,.8,36),mat(0xffd6e7,60),0,.4,0,g);
+  mesh(new THREE.CylinderGeometry(7,7.6,.8,36),mat(0x3a2f6e,60),0,.4,0,g);   // 濃い色の台座：白いピンと盤が見やすい
   mesh(new THREE.CylinderGeometry(1.8,2.4,5,20),mat(0xffffff,90),0,3.2,0,g);
   [1.2,3,5].forEach(y=>mesh(new THREE.TorusGeometry(2.1-(y>4?.2:0),.14,8,24),mat(0xff4f86),0,y+.4,0,g).rotation.x=Math.PI/2);
   roulDisc=new THREE.Group();roulDisc.position.y=6.1;g.add(roulDisc);
-  for(let i=0;i<10;i++){
+  for(let i=0;i<10;i++){                                     // レインボーの10分割
     const th=i*Math.PI/5;
-    mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(i%2?0xffffff:0xff4d5a,90),0,0,0,roulDisc);
-    const c=th+Math.PI/10,sp=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(64,64,(ctx,w,h)=>{ctx.font=`900 46px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=7;ctx.strokeStyle=i%2?'#ff4d5a':'#fff';ctx.fillStyle=i%2?'#ff4d5a':'#c4202a';ctx.fillStyle=i%2?'#c4202a':'#fff';ctx.strokeText(i+1,32,34);ctx.fillText(i+1,32,34)}),transparent:true,depthTest:false}));
+    mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(RAINBOW[i],110),0,0,0,roulDisc);
+    const c=th+Math.PI/10,sp=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(64,64,(ctx,w,h)=>{ctx.font=`900 48px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=9;ctx.strokeStyle='rgba(40,20,70,.85)';ctx.fillStyle='#fff';ctx.strokeText(i+1,32,34);ctx.fillText(i+1,32,34)}),transparent:true,depthTest:false}));
     sp.position.set(Math.sin(c)*3.1,.8,Math.cos(c)*3.1);sp.scale.set(1.5,1.5,1);sp.renderOrder=5;roulDisc.add(sp);
+    // 区切り線（白）
+    const ln=mesh(new THREE.BoxGeometry(4.4,.04,.07),mat(0xffffff,100),Math.sin(th)*2.2,.32,Math.cos(th)*2.2,roulDisc);ln.rotation.y=th-Math.PI/2;
   }
-  mesh(new THREE.TorusGeometry(4.45,.2,8,40),mat(0xffc933,120),0,.3,0,roulDisc).rotation.x=Math.PI/2;
-  mesh(new THREE.CylinderGeometry(.7,.7,.9,14),mat(0xffc933,120),0,.5,0,roulDisc);
-  const ptr=mesh(new THREE.ConeGeometry(.45,1.2,10),mat(0xffc933,120),0,7.6,4.5,g);ptr.rotation.x=Math.PI;
+  mesh(new THREE.TorusGeometry(4.45,.2,8,40),mat(0xffffff,120),0,.3,0,roulDisc).rotation.x=Math.PI/2;
+  mesh(new THREE.CylinderGeometry(.7,.7,.9,14),mat(0xffffff,120),0,.5,0,roulDisc);
+  // 白いピン（針）：盤の外側から中心に向けて、止まった目を指す
+  const ptr=mesh(new THREE.ConeGeometry(.6,1.7,18),mat(0xffffff,140,{emissive:0x444444}),0,6.85,5.15,g);ptr.rotation.x=-Math.PI/2;
+  mesh(new THREE.SphereGeometry(.5,14,10),mat(0xffffff,140,{emissive:0x333333}),0,6.85,5.95,g);
+  const pin=mesh(new THREE.BoxGeometry(.18,.05,2.4),mat(0xffffff,100,{emissive:0x555555}),0,6.52,3.3,g);pin.userData.pin=1;   // 針の先の目印ライン
   worldG.add(g);
   // 銀行
   const b=new THREE.Group();b.position.copy(BANK_POS);b.rotation.y=Math.PI/2;
@@ -426,24 +433,37 @@ function bankOpen(){bankOpenT=performance.now()+900/SPD}
 V.noteStamp=async p=>{await sleep(350)};
 
 /* ---------- ルーレット ---------- */
-let roulBusy=false;
-V.roulette=async(p,r,purpose)=>{
-  await V.waitSpin(p,purpose);                // 人間はボタン待ち／CPUは少し待つ
-  await V.rouletteAnim(r,purpose);
+// 流れ：①「回す」で回り始める → ②「ストップ」で止める。止まった目はその瞬間に決まり、減速して針の位置に止まる
+V.roulette=async(p,purpose)=>{
+  await V.waitSpin(p,purpose,'start');
+  await V.rouletteStart(purpose);
+  await V.waitSpin(p,purpose,'stop');
+  const r=1+rnd(10);
+  await V.rouletteStop(r);
+  return r;
 };
-V.rouletteAnim=async(r,purpose)=>{            // 演出だけ（オンラインでは全員の画面で再生）
-  Cam.rouletteView=true;await sleep(900);
-  const sec=Math.PI/5,target=-(r-1+.5)*sec+(Math.random()-.5)*sec*.7;
-  const TAU=Math.PI*2,turns=5+rnd(3),cur=roulDisc.rotation.y;
-  const d=(((target-cur)%TAU)+TAU)%TAU,fin=cur+d-TAU*turns;        // 針の下に目の中心が来る角度（必ず負方向に回る）
-  const start=cur;let lastIdx=-1;
-  await anim(purpose==='move'?3000:2300,k=>{
-    const e=easeOut(k);roulDisc.rotation.y=start+(fin-start)*e;
-    const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==lastIdx){lastIdx=idx;Sound.tick()}
+V.rouletteStart=async purpose=>{                // 全員の画面でカメラが真上に寄り、盤が回り始める
+  Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
+  await sleep(900);
+};
+V.rouletteStop=async r=>{                       // ストップ：回転がだんだん遅くなって針の下で止まる
+  const TAU=Math.PI*2,sec=Math.PI/5,cur=roulDisc.rotation.y,w=Math.max(Roul.speed,3);
+  const target=-(r-1+.5)*sec+(Math.random()-.5)*sec*.6;
+  const d=(((target-cur)%TAU)+TAU)%TAU,n=Math.ceil((d+TAU*.9)/TAU),dist=d-TAU*n;   // 必ず0.9周以上、負方向に回って止まる
+  Roul.free=false;let last=-1;
+  await anim(Math.abs(dist)*2/w*1000,k=>{
+    const e=1-(1-k)*(1-k);roulDisc.rotation.y=cur+dist*e;
+    const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==last){last=idx;Sound.tick()}
   });
   Sound.spinStop();V.bigNum(r);
-  await sleep(900);Cam.rouletteView=false;await sleep(350);
+  await sleep(1000);Cam.rouletteView=false;await sleep(350);
 };
+function updateRoulette(dt){                    // 回転中（ストップを待っている間）
+  if(!Roul.free||!roulDisc)return;
+  Roul.speed+=(Roul.max-Roul.speed)*Math.min(1,dt*2.5);
+  roulDisc.rotation.y-=Roul.speed*dt;
+  const idx=Math.floor(-roulDisc.rotation.y/(Math.PI/5));if(idx!==Roul.last){Roul.last=idx;Sound.tick()}
+}
 
 /* ---------- 家・紙吹雪・ふきだし ---------- */
 function houseModel(h){

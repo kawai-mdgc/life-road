@@ -87,21 +87,59 @@ V.hud=()=>{
   $('#hudFam').innerHTML=`${cur.spouse?'💍配偶者 ':cur.lover?'💗恋人 ':''}${cur.kids?'👶×'+cur.kids+' ':''}${cur.grand?'🧒孫×'+cur.grand+' ':''}${cur.pets?'🐶×'+cur.pets:''}${!(cur.spouse||cur.lover||cur.kids||cur.grand||cur.pets)?'👤ひとり':''}`;
   renderHand(cur);
 };
+const DENS=[100000,50000,10000,5000,1000];
+const billImg={};
+const billURL=d=>billImg[d]||(billImg[d]=billTexture(d).image.toDataURL('image/png'));
+function breakdown(cash){let v=Math.max(0,cash);return DENS.map(d=>{const n=Math.floor(v/d);v-=n*d;return[d,n]})}
 function renderHand(p){
   const h=$('#hand');h.innerHTML='';
-  const add=(cls,inner,fn)=>{const d=document.createElement('div');d.className='hc '+cls;d.innerHTML=inner;d.onclick=fn;h.appendChild(d)};
-  if(p.job&&!p.retired)add('job '+(p.job.deck==='s'?'sp':''),`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,()=>zoom(p,'job'));
-  p.items.forEach(it=>add(it.ty,`<div class="ic">${ITEM_ICON[it.c]||'🎁'}</div><div class="tt">${esc(it.n)}</div>`,()=>zoom(p,'item',it)));
-  p.houses.forEach(hs=>add('house',houseCardHtml(hs),()=>zoom(p,'house',hs)));
-  p.stocks.forEach(n=>add('stock',`<div class="big">${n}</div><div class="tt">株券 ${n}</div>`,()=>zoom(p,'stock',n)));
-  if(!h.children.length)h.innerHTML='<div id="handEmpty">手持ちカードはまだありません</div>';
+  const mk=c=>{const d=document.createElement('div');d.className='hc '+c.cls;d.innerHTML=c.html;return d};
+  // 種類ごとのまとまり。1枚ならそのまま、複数枚なら少しずつずらして重ね、重なりが見えるようにする（タップで広げる）
+  const group=(label,cards,wide)=>{
+    const g=document.createElement('div');g.className='hg';g.innerHTML=`<div class="hl">${label}${cards.length>1?` <span class="gc">×${cards.length}</span>`:''}</div><div class="hrow"></div>`;
+    const row=g.querySelector('.hrow');h.appendChild(g);
+    if(cards.length===1){const d=mk(cards[0]);d.onclick=cards[0].fn;row.appendChild(d);return}
+    const st=document.createElement('div');st.className='stack'+(wide?' wide':'');st.style.setProperty('--n',cards.length);
+    cards.forEach((c,i)=>{
+      const d=mk(c);d.style.setProperty('--i',i);
+      d.onclick=e=>{e.stopPropagation();if(st.classList.contains('open'))c.fn();else{closeStacks();st.classList.add('open')}};
+      st.appendChild(d);
+    });
+    const top=st.lastChild;const b=document.createElement('span');b.className='cnt';b.textContent='×'+cards.length;top.appendChild(b);
+    row.appendChild(st);
+  };
+  // 💰 財布：お札の枚数（高額順）
+  const bd=breakdown(p.cash);
+  group('💰 財布',[{cls:'wallet',html:`<div class="wt">${fmt(p.cash)} LD</div><div class="wb">${bd.map(([d,n])=>`<div class="wi ${n?'':'zero'}"><img src="${billURL(d)}" alt=""><b>×${n}</b></div>`).join('')}</div>`,fn:()=>zoom(p,'wallet')}]);
+  // 💼 職業カード
+  group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,fn:()=>zoom(p,'job')}
+    :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
+  // 💎 お宝カード
+  const cols=p.items.filter(i=>i.ty==='col');
+  if(cols.length)group('💎 お宝',cols.map(it=>({cls:'col',html:`<div class="ic">${ITEM_ICON[it.c]||'💎'}</div><div class="tt">${esc(it.n)}</div>`,fn:()=>zoom(p,'item',it)})));
+  // 🎁 アイテムカード（保険・使い切り）
+  const its=p.items.filter(i=>i.ty!=='col');
+  if(its.length)group('🎁 アイテム',its.map(it=>({cls:it.ty,html:`<div class="ic">${ITEM_ICON[it.c]||'🎁'}</div><div class="tt">${esc(it.n)}</div>`,fn:()=>zoom(p,'item',it)})));
+  // 🏠 家カード
+  if(p.houses.length)group('🏠 家',p.houses.map(hs=>({cls:'house',html:houseCardHtml(hs),fn:()=>zoom(p,'house',hs)})),true);
+  // 📈 株券
+  if(p.stocks.length)group('📈 株券',p.stocks.map(n=>({cls:'stock',html:`<div class="big">${n}</div><div class="tt">株券 ${n}</div>`,fn:()=>zoom(p,'stock',n)})));
+  // 📜 約束手形
+  if(p.notes)group('📜 手形',[{cls:'note',html:`<div class="big">×${p.notes}</div><div class="tt">返済 ${fmt(p.notes*NOTE_BACK)}</div>`,fn:()=>zoom(p,'note')}]);
 }
+function closeStacks(){document.querySelectorAll('.stack.open').forEach(e=>e.classList.remove('open'))}
+document.addEventListener('click',e=>{if(!e.target.closest('.stack'))closeStacks()});
 async function zoom(p,type,x){
   if(cardOpen)return;
   let o;
-  if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
+  if(type==='wallet'){
+    const bd=breakdown(p.cash);
+    o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)} LD`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}</td><td>×${n}</td><td>${fmt(d*n)}</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)} LD）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))} LD</b></div>`};
+  }
+  else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)} LD を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)} LD（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)} LD</b>`};
+  else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){
-    o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'アイテム（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
+    o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'お宝（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }
   else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)} LD<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
   else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000 LD。<br>ゴールで 10,000 LD で買い取られます。'};

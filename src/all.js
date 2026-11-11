@@ -6,6 +6,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,Math.max(0,ms/SPD)));
 const fmt=n=>(n<0?'−':'')+Math.abs(Math.round(n)).toLocaleString('en-US');
 const rnd=n=>Math.floor(Math.random()*n);
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const yen=s=>String(s).replace(/(\d{1,3}(?:,\d{3})+)(?![\d,]|円)/g,'$1円');   // 文章中の金額に「円」を付ける
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -304,7 +305,8 @@ const HOUSES=[
 const STOCKS=[1,2,3,4,5,6,7,8,9,10].map(n=>({n,face:10000,div:5000}));
 // ===== ルールエンジン：マスの効果・職業能力・お金・手形・株・ゴール精算 =====
 const V={};                         // 表示層（world.js / ui.js が中身を差し込む）
-const SQ={};SQDATA.forEach(s=>SQ[s.id]=s);
+const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
+JOBS.forEach(j=>j.abt=yen(j.abt));ITEMS.forEach(i=>{i.eff=yen(i.eff);i.v=yen(i.v)});HOUSES.forEach(h=>h.sellt=yen(h.sellt));   // 通貨は円
 const NUM_JOB={};JOBS.forEach(j=>NUM_JOB[j.n]=j);
 const ITEM_BY_CODE={};ITEMS.forEach(i=>ITEM_BY_CODE[i.c]=i);
 const COLOR_NAME={yellow:'給料日',green:'ラッキー',red:'ピンチ',blue:'イベント',gold:'STOP'};
@@ -387,7 +389,7 @@ function say(p,msg){V.toast(msg);V.log(msg)}
 async function ensureCash(p,amt){          // 足りなければ約束手形を自動発行
   while(p.cash<amt){
     p.notes++;p.cash+=NOTE_LOAN;
-    say(p,`${p.name}：約束手形を発行（+${fmt(NOTE_LOAN)} LD／返済${fmt(NOTE_BACK)}）`);
+    say(p,`${p.name}：約束手形を発行（+${fmt(NOTE_LOAN)}円／返済${fmt(NOTE_BACK)}）`);
     Sound.stamp();await V.noteStamp(p);V.hud();
   }
 }
@@ -418,7 +420,7 @@ async function payday(p,key,passing){
   }
   if(key==='R10'&&p.president){s*=2;note='（社長マーカーで2倍）'}
   if(a==='astro'&&!p.astroUsed){p.astroUsed=true;s+=50000;note='（宇宙旅行ボーナス+50,000）'}
-  if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)} LD ${note}`);await income(p,s);Sound.good()}
+  if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
 }
 
@@ -428,7 +430,7 @@ async function showSq(p,sq){
   const kindTxt={item:'アイテム',duel:'勝負',family:'家族',job:'職業',event:'イベント'}[sq.k]||'';
   const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
   let amt='';
-  if(sq.a!==null&&sq.a!==0){amt=(sq.a>0?'+':'−')+fmt(Math.abs(sq.a))+' LD'+(sq.x?'×'+{others:'人数',kids:'子ども',grand:'孫',pins:'ピン',stocks:'株券'}[sq.x]:'')}
+  if(sq.a!==null&&sq.a!==0){amt=(sq.a>0?'+':'−')+fmt(Math.abs(sq.a))+'円'+(sq.x?'×'+{others:'人数',kids:'子ども',grand:'孫',pins:'ピン',stocks:'株券'}[sq.x]:'')}
   else if(sq.m!=='0')amt=sq.m;
   await ask(p,{head,color:HEAD_COLOR[sq.c],title:sq.t,text:'',amt,amtCls:sq.a>0?'plus':sq.a<0?'minus':'',btns:['OK'],sq});
 }
@@ -451,7 +453,7 @@ async function handleItem(p,it){
     let price=it.val;if(jobAb(p)==='half_item')price=Math.ceil(price/2);
     const dup=has(p,it.c);
     const buyPick=(!dup&&p.cash>=price*3)?0:1;
-    const i=await ask(p,{head:'アイテムカード（保険）',color:'#3f8cff',title:`${it.n}`,text:`${it.eff}<br>購入代金 ${fmt(price)} LD${jobAb(p)==='half_item'?'（販売員で半額）':''}${dup?'<br>※すでに持っています':''}`,btns:['買う','やめる'],pick:buyPick});
+    const i=await ask(p,{head:'アイテムカード（保険）',color:'#3f8cff',title:`${it.n}`,text:`${it.eff}<br>購入代金 ${fmt(price)}円${jobAb(p)==='half_item'?'（販売員で半額）':''}${dup?'<br>※すでに持っています':''}`,btns:['買う','やめる'],pick:buyPick});
     if(i===0){await pay(p,price);p.items.push(it);say(p,`${p.name}：${it.n}を購入`)}
     else G.discI.push(it);
   }else{
@@ -486,7 +488,7 @@ function drawJob(p,deck){
   return null;
 }
 function returnJob(j){if(!j)return;(j.deck==='g'?G.deckG:G.deckS).push(j)}
-function jobCardHtml(j){return `<b>${j.n}</b>（給料 ${fmt(j.sal)} LD）<br>${j.abt}`}
+function jobCardHtml(j){return `<b>${j.n}</b>（給料 ${fmt(j.sal)}円）<br>${j.abt}`}
 async function chooseJob(p,deck,count,title,mayKeep=false){
   const n=count+(p.abroad&&deck==='s'?1:0);if(p.abroad&&deck==='s'){say(p,'留学経験で1枚多く引けます')}
   const pool=[];for(let i=0;i<n;i++){const j=drawJob(p,deck);if(j)pool.push(j)}
@@ -513,8 +515,8 @@ const PET_SQ=new Set(['15','58','62','102']);
 const TRAVEL_SQ=new Set(['46','S7','106','123']);
 async function redSq(p,sq){
   let amt=Math.abs(sq.a||0)*(sq.x?mulCount(p,sq.x):1);
-  if(HOUSE_REQ.has(sq.id)&&!p.houses.length){say(p,'家を持っていないので0 LD');return}
-  if(amt===0){say(p,'0 LD（対象なし）');return}
+  if(HOUSE_REQ.has(sq.id)&&!p.houses.length){say(p,'家を持っていないので0円');return}
+  if(amt===0){say(p,'0円（対象なし）');return}
   if(p.redShield>0){p.redShield--;say(p,'人間ドックの効果で無効！');Sound.good();return}
   const ins=INS_FOR[sq.id];
   if(ins&&has(p,ins)){say(p,`${ITEM_BY_CODE[ins].n}で無効！`);Sound.good();return}
@@ -524,8 +526,8 @@ async function redSq(p,sq){
   if(sq.id==='90'&&jobAb(p)==='carp'){amt=Math.round(amt*.8);say(p,'大工の特殊能力で20%引き！')}
   Sound.bad();await pay(p,amt);
   for(const q of others(p)){     // 医者・弁護士の特殊能力（銀行から受け取る）
-    if(jobAb(q)==='doc'&&HEALTH_CAT.has(sq.id)){say(q,`${q.name}（医者）が5,000 LD受け取る`);await income(q,5000)}
-    if(jobAb(q)==='law'&&LAW_CAT.has(sq.id)){say(q,`${q.name}（弁護士）が5,000 LD受け取る`);await income(q,5000)}
+    if(jobAb(q)==='doc'&&HEALTH_CAT.has(sq.id)){say(q,`${q.name}（医者）が5,000円受け取る`);await income(q,5000)}
+    if(jobAb(q)==='law'&&LAW_CAT.has(sq.id)){say(q,`${q.name}（弁護士）が5,000円受け取る`);await income(q,5000)}
   }
 }
 
@@ -559,11 +561,11 @@ async function betSquare(p,max,winMsg){
   const opts=[0,10000,30000,50000].filter(v=>v<=max);
   const leader=G.players.every(q=>q===p||assetsOf(q)<=assetsOf(p));
   const pick=leader?1:opts.length-1;
-  const i=await ask(p,{head:'賭けの勝負',color:'#3f8cff',title:'いくら賭ける？',text:`6以上で2倍、5以下で没収<br>現金 ${fmt(p.cash)} LD`,btns:opts.map(v=>v?fmt(v)+' LD':'賭けない'),pick,col:true});
+  const i=await ask(p,{head:'賭けの勝負',color:'#3f8cff',title:'いくら賭ける？',text:`6以上で2倍、5以下で没収<br>現金 ${fmt(p.cash)}円`,btns:opts.map(v=>v?fmt(v)+'円':'賭けない'),pick,col:true});
   const bet=opts[i];if(!bet)return;
   const r=await duelRoll(p,x=>x>=6);
-  if(r>=6){say(p,`大当たり！ +${fmt(bet)} LD`);await income(p,bet);Sound.good()}
-  else{say(p,`はずれ… −${fmt(bet)} LD`);Sound.bad();await pay(p,bet,{discount:false})}
+  if(r>=6){say(p,`大当たり！ +${fmt(bet)}円`);await income(p,bet);Sound.good()}
+  else{say(p,`はずれ… −${fmt(bet)}円`);Sound.bad();await pay(p,bet,{discount:false})}
 }
 
 /* ---------- マスごとの特殊効果（青マス・STOPなど） ---------- */
@@ -671,26 +673,26 @@ SP['106']=async p=>{
 };
 SP['110']=async p=>{
   const cpuYes=salaryOf(p)*.5*7<50000;
-  const i=await ask(p,{head:'早期退職の誘い',color:'#3f8cff',title:'早期退職を受ける？',text:'受けると +50,000 LD。ただし以降の給料は半分になります',btns:['受ける','受けない'],pick:cpuYes?0:1});
+  const i=await ask(p,{head:'早期退職の誘い',color:'#3f8cff',title:'早期退職を受ける？',text:'受けると +50,000円。ただし以降の給料は半分になります',btns:['受ける','受けない'],pick:cpuYes?0:1});
   if(i===0){p.halfPay=true;await income(p,50000);say(p,'早期退職を受けた（以降の給料は半分）')}
 };
 SP['117']=async p=>{p.grand++;V.pins(p);await income(p,5000);say(p,'孫が誕生！ 孫ピンが増えた');await famBonus(p,'117')};
 SP['129']=async p=>{p.grand++;V.pins(p);await income(p,5000);say(p,'孫が誕生！ 孫ピンが増えた');await famBonus(p,'129')};
 SP['115']=async p=>{
-  if(!p.kids){say(p,'子どもがいないので0 LD');return}
+  if(!p.kids){say(p,'子どもがいないので0円');return}
   let a=10000;if(jobAb(p)==='teach'){a=5000;say(p,'教師の能力で半額')}await pay(p,a);
 };
-SP['108']=async p=>{if(!p.kids){say(p,'子どもがいないので0 LD');return}await redSq(p,SQ['108'])};
+SP['108']=async p=>{if(!p.kids){say(p,'子どもがいないので0円');return}await redSq(p,SQ['108'])};
 SP['119']=async p=>{const r=await duelRoll(p);say(p,`出た数 ${r} × 3,000`);await income(p,r*3000)};
 SP['123']=async p=>{
   const go=p.cash>=60000;
-  const i=await ask(p,{head:'世界一周旅行',color:'#3f8cff',title:'世界一周に行く？',text:'行くなら −30,000 LD。ゴール時に思い出ボーナス +50,000 LD',btns:['行く','行かない'],pick:go?0:1});
+  const i=await ask(p,{head:'世界一周旅行',color:'#3f8cff',title:'世界一周に行く？',text:'行くなら −30,000円。ゴール時に思い出ボーナス +50,000円',btns:['行く','行かない'],pick:go?0:1});
   if(i===0){await pay(p,30000);p.memory=true;say(p,'世界一周へ出発！');await travelBonus(p,'123')}
 };
 SP['128']=async p=>{if(p.job&&!p.retired){say(p,'講演料：給料1回分');await income(p,salaryOf(p))}else say(p,'給料がないので0')};
 SP['132']=async p=>{const r=await duelRoll(p,x=>x===10);if(r===10){say(p,'1等！ +100,000');await income(p,100000);Sound.fanfare()}else say(p,'はずれ')};
 SP['136']=async p=>{
-  const s=salaryOf(p)*3;say(p,`退職！ 退職金 ${fmt(s)} LD`);await income(p,s);
+  const s=salaryOf(p)*3;say(p,`退職！ 退職金 ${fmt(s)}円`);await income(p,s);
   returnJob(p.job);p.job=null;p.promo=0;p.halfPay=false;p.retired=true;V.hud();V.pins(p);
 };
 SP['139']=async p=>{await pay(p,5000);p.book=true;say(p,'自分史を出版！ ゴールで+15,000')};
@@ -715,7 +717,7 @@ SP['R4']=async p=>{await drawItem(p,2)};
 SP['R5']=async p=>{await betSquare(p,50000)};
 SP['R8']=async p=>{const r=await duelRoll(p,x=>x>=9);if(r>=9){say(p,'上場成功！ +100,000');await income(p,100000);Sound.fanfare()}else say(p,'上場ならず')};
 SP['R10']=async p=>{await payday(p,'R10',false)};
-SP['S7']=async p=>{await travelBonus(p,'S7');let a=2000*p.kids;if(jobAb(p)==='teach')a=Math.ceil(a/2);if(a>0)await pay(p,a);else say(p,'子どもがいないので0 LD')};
+SP['S7']=async p=>{await travelBonus(p,'S7');let a=2000*p.kids;if(jobAb(p)==='teach')a=Math.ceil(a/2);if(a>0)await pay(p,a);else say(p,'子どもがいないので0円')};
 SP['109']=async p=>{let a=25000;if(jobAb(p)==='patent'){a*=2;say(p,'エンジニアの能力で2倍！')}await income(p,a)};
 SP['57']=async p=>{await income(p,5000,{celebrate:true})};
 
@@ -767,7 +769,7 @@ async function goalSettle(p){
   p.cash+=total;p.final=p.cash;p.notes=0;p.houses=[];p.stocks=[];p.items=[];
   V.hud();Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
   const rows=rep.map(r=>`<tr><td>${r[0]}</td><td class="${r[1]<0?'minus':''}">${fmt(r[1])}</td></tr>`).join('');
-  await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} の最終決算`,text:`<table class="tbl">${rows}<tr><th>総資産</th><th>${fmt(p.final)} LD</th></tr></table>`,btns:['OK'],pick:0});
+  await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} の最終決算`,text:`<table class="tbl">${rows}<tr><th>総資産</th><th>${fmt(p.final)}円</th></tr></table>`,btns:['OK'],pick:0});
 }
 
 /* ---------- 移動・ターン ---------- */
@@ -1451,7 +1453,7 @@ function billTexture(den){
     const t=den.toLocaleString('en-US');ctx.font=`900 34px ${FONT}`;
     ctx.textAlign='left';ctx.fillText(t,22,64);ctx.textAlign='right';ctx.fillText(t,w-22,h-44);
     ctx.textAlign='left';ctx.font=`700 15px ${FONT}`;ctx.fillText('LR-'+String(100000+Math.floor(Math.random()*899999)),24,h-24);
-    ctx.textAlign='right';ctx.fillText(t+' LD',w-24,h-24);
+    ctx.textAlign='right';ctx.fillText(t+'円',w-24,h-24);
     if(den===100000){const hg=ctx.createLinearGradient(0,0,0,h);['#f55','#fd5','#5f8','#5df','#a6f'].forEach((c,i)=>hg.addColorStop(i/4,c));ctx.globalAlpha=.55;ctx.fillStyle=hg;ctx.fillRect(w-96,12,26,h-24);ctx.globalAlpha=1}   // ホログラム帯
   }));
 }
@@ -1796,11 +1798,11 @@ V.hud=()=>{
   // 右上：手番プレイヤー
   const m=$('#money');
   $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳</span>`;
-  m.textContent=fmt(cur.cash)+' LD';
+  m.textContent=fmt(cur.cash)+'円';
   const pv=prevCash[cur.id];
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
-  $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}）`:''}`;
+  $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
   const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?esc(cur.job.n)+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
   $('#hudFam').innerHTML=`${cur.spouse?'💍配偶者 ':cur.lover?'💗恋人 ':''}${cur.kids?'👶×'+cur.kids+' ':''}${cur.grand?'🧒孫×'+cur.grand+' ':''}${cur.pets?'🐶×'+cur.pets:''}${!(cur.spouse||cur.lover||cur.kids||cur.grand||cur.pets)?'👤ひとり':''}`;
@@ -1829,7 +1831,7 @@ function renderHand(p){
   };
   // 💰 財布：お札の枚数（高額順）
   const bd=breakdown(p.cash);
-  group('💰 財布',[{cls:'wallet',html:`<div class="wt">${fmt(p.cash)} LD</div><div class="wb">${bd.map(([d,n])=>`<div class="wi ${n?'':'zero'}"><img src="${billURL(d)}" alt=""><b>×${n}</b></div>`).join('')}</div>`,fn:()=>zoom(p,'wallet')}]);
+  group('💰 財布',[{cls:'wallet',html:`<div class="wt">${fmt(p.cash)}円</div><div class="wb">${bd.map(([d,n])=>`<div class="wi ${n?'':'zero'}"><img src="${billURL(d)}" alt=""><b>×${n}</b></div>`).join('')}</div>`,fn:()=>zoom(p,'wallet')}]);
   // 💼 職業カード
   group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,fn:()=>zoom(p,'job')}
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
@@ -1844,7 +1846,7 @@ function renderHand(p){
   // 📈 株券
   if(p.stocks.length)group('📈 株券',p.stocks.map(n=>({cls:'stock',html:`<div class="big">${n}</div><div class="tt">株券 ${n}</div>`,fn:()=>zoom(p,'stock',n)})));
   // 📜 約束手形
-  if(p.notes)group('📜 手形',[{cls:'note',html:`<div class="big">×${p.notes}</div><div class="tt">返済 ${fmt(p.notes*NOTE_BACK)}</div>`,fn:()=>zoom(p,'note')}]);
+  if(p.notes)group('📜 手形',[{cls:'note',html:`<div class="big">×${p.notes}</div><div class="tt">返済 ${fmt(p.notes*NOTE_BACK)}円</div>`,fn:()=>zoom(p,'note')}]);
 }
 function closeStacks(){document.querySelectorAll('.stack.open').forEach(e=>e.classList.remove('open'))}
 document.addEventListener('click',e=>{if(!e.target.closest('.stack'))closeStacks()});
@@ -1853,15 +1855,15 @@ async function zoom(p,type,x){
   let o;
   if(type==='wallet'){
     const bd=breakdown(p.cash);
-    o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)} LD`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}</td><td>×${n}</td><td>${fmt(d*n)}</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)} LD）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))} LD</b></div>`};
+    o={head:'💰 財布',color:'#c98a00',title:`${fmt(p.cash)}円`,text:`<table class="tbl">${bd.map(([d,n])=>`<tr><td><img src="${billURL(d)}" width="78" style="vertical-align:middle;border-radius:4px"> ${fmt(d)}円</td><td>×${n}</td><td>${fmt(d*n)}円</td></tr>`).join('')}</table>${p.notes?`<div class="minus" style="margin-top:6px">📜 約束手形 ${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）</div>`:'<div style="margin-top:6px;color:#887">約束手形はありません</div>'}<div style="margin-top:6px">総資産（見込み）<b> ${fmt(assetsOf(p))}円</b></div>`};
   }
-  else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)} LD を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)} LD（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)} LD</b>`};
-  else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
+  else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
+  else if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)}円（昇進×${p.promo}で ${fmt(salaryOf(p))}円）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'お宝（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }
-  else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)} LD<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
-  else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000 LD。<br>ゴールで 10,000 LD で買い取られます。'};
+  else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)}円<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
+  else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000円。<br>ゴールで 10,000円 で買い取られます。'};
   const btns=['閉じる'];
   const canUse=type==='item'&&G.awaiting===p&&!p.cpu&&usableItems(p).includes(x.c);
   if(canUse)btns.unshift('使う');
@@ -1880,7 +1882,7 @@ V.results=async()=>{
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
   if(AUTO)return;
-  await cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産(LD)</th></tr>${rows}</table>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
+  await cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産(円)</th></tr>${rows}</table>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
   location.reload();
 };
 

@@ -6,6 +6,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,Math.max(0,ms/SPD)));
 const fmt=n=>(n<0?'−':'')+Math.abs(Math.round(n)).toLocaleString('en-US');
 const rnd=n=>Math.floor(Math.random()*n);
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const yen=s=>String(s).replace(/(\d{1,3}(?:,\d{3})+)(?![\d,]|円)/g,'$1円');   // 文章中の金額に「円」を付ける
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 

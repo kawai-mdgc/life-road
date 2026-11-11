@@ -389,7 +389,7 @@ function billTexture(den){
     const t=den.toLocaleString('en-US');ctx.font=`900 34px ${FONT}`;
     ctx.textAlign='left';ctx.fillText(t,22,64);ctx.textAlign='right';ctx.fillText(t,w-22,h-44);
     ctx.textAlign='left';ctx.font=`700 15px ${FONT}`;ctx.fillText('LR-'+String(100000+Math.floor(Math.random()*899999)),24,h-24);
-    ctx.textAlign='right';ctx.fillText(t+' LD',w-24,h-24);
+    ctx.textAlign='right';ctx.fillText(t+'円',w-24,h-24);
     if(den===100000){const hg=ctx.createLinearGradient(0,0,0,h);['#f55','#fd5','#5f8','#5df','#a6f'].forEach((c,i)=>hg.addColorStop(i/4,c));ctx.globalAlpha=.55;ctx.fillStyle=hg;ctx.fillRect(w-96,12,26,h-24);ctx.globalAlpha=1}   // ホログラム帯
   }));
 }

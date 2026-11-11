@@ -70,7 +70,7 @@ function update(){
   sway.forEach(g=>{g.rotation.z=Math.sin(tAcc*1.2+g.userData.ph)*.03});
   clouds.forEach(c=>{c.visible=!Cam.is2D;c.position.x+=c.userData.sp*dt;if(c.position.x>190)c.position.x=-190});
   if(bankCoin)bankCoin.rotation.z+=dt*1.5;
-  updateRoulette(dt);updatePolice(dt);updateThugs(dt);
+  updateRoulette(dt);updatePolice(dt);updateThugs(dt);updateLottery(dt);
   if(bankDoor)bankDoor.position.y=performance.now()<bankOpenT?4.4:1.9;
   for(const id in TILE){const f=TILE[id];if(f.sq.c==='gold'){const fl=f.g.children.find(o=>o.userData.flag);if(fl)fl.rotation.y=Math.sin(tAcc*3)*.3}}
   for(let i=confetti.length-1;i>=0;i--){

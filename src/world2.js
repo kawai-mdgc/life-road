@@ -105,12 +105,15 @@ function lighthouse(x,z){
   mesh(new THREE.ConeGeometry(1.4,1.2,12),mat(0xff4d5a),0,9.9,0,g);
   worldG.add(g);
 }
+const FSZ={max:1e9};                                       // 家やマンションは陸地（z<46）だけに建てる
+function landSpot(chs,minPath,r,r0,r1){FSZ.max=46;try{for(const ch of chs){const s=freeSpot(ch,minPath,r,r0,r1,120);if(s)return s}}finally{FSZ.max=1e9}return null}
 function freeSpot(ch,minPath,r,rad0=5,rad1=22,tries=80){
   for(let t=0;t<tries;t++){
     const b=chSquares[ch][rnd(chSquares[ch].length)],a=Math.random()*Math.PI*2,d=rad0+Math.random()*(rad1-rad0);
     const x=b.x+Math.cos(a)*d,z=b.z+Math.sin(a)*d;
     if(Math.hypot(x,z)<14||Math.hypot(x-BANK_POS.x,z-BANK_POS.z)<10||Math.hypot(x-POLICE_POS.x,z-0)<17)continue;
     if(Math.abs(x)>150||Math.abs(z)>85)continue;
+    if(z>FSZ.max)continue;
     if(allPts.some(q=>(q.x-x)**2+(q.z-z)**2<minPath*minPath))continue;
     if(placed.some(q=>(q.x-x)**2+(q.z-z)**2<(q.r+r)**2))continue;
     placed.push({x,z,r});return{x,z};
@@ -139,6 +142,7 @@ function buildScenery(){
     const perp=new V3(-h.z,0,h.x);for(let i=-3;i<=3;i++)placed.push({x:p.x+perp.x*i*8,z:p.z+perp.z*i*8,r:6});
     placed.push({x:p.x,z:p.z,r:7});
   }
+  buildLotterySites();                                      // 宝くじ売り場・抽選会場
   // 第1章 春の公園と学校
   {const s=freeSpot(0,6,8,8,18);if(s)school(s.x,s.z,Math.PI*.1);
    const a=freeSpot(0,4,3,6,16);if(a)swings(a.x,a.z,.5);const b=freeSpot(0,4,3,6,16);if(b)slide(b.x,b.z,1);
@@ -159,8 +163,8 @@ function buildScenery(){
   {scatter(4,18,3,2.2,(x,z)=>tree(x,z,'autumn',.9+Math.random()*.5),4,22);
    scatter(4,8,4.5,3.4,(x,z)=>houseSmall(x,z,0xd9b38c,0x5a3a2a,1.05,Math.random()*6),5,20)}
   // 第6章 夕焼けの海辺
-  {const sea=mesh(new THREE.PlaneGeometry(420,90),new THREE.MeshPhongMaterial({color:0x2f9fe0,shininess:120,specular:0xffd9a8}),-30,-.04,96);sea.rotation.x=-Math.PI/2;worldG.add(sea);
-   const sand=mesh(new THREE.PlaneGeometry(420,16),new THREE.MeshLambertMaterial({color:0xf1dba3}),-30,-.05,57);sand.rotation.x=-Math.PI/2;worldG.add(sand);
+  {const sea=mesh(new THREE.PlaneGeometry(420,90),new THREE.MeshPhongMaterial({color:0x2f9fe0,shininess:120,specular:0xffd9a8}),-30,-.04,108);sea.rotation.x=-Math.PI/2;worldG.add(sea);
+   const sand=mesh(new THREE.PlaneGeometry(420,18),new THREE.MeshLambertMaterial({color:0xf1dba3}),-30,-.03,57);sand.rotation.x=-Math.PI/2;worldG.add(sand);
    const sun=mesh(new THREE.SphereGeometry(9,20,16),new THREE.MeshBasicMaterial({color:0xffb347}),-75,7,128,worldG);sun.userData.sun=1;
    scatter(5,10,3,1.8,(x,z)=>tree(x,z,'palm',1),4,18);
    [[-60,70],[-20,80],[-100,85]].forEach(a=>sailboat(a[0],a[1],Math.random()*3));
@@ -168,8 +172,9 @@ function buildScenery(){
    const p=POS[150],h=HEAD[150],g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(-h.z,h.x);   // ゴールの門
    [-3.4,3.4].forEach(s=>mesh(new THREE.CylinderGeometry(.5,.6,6,12),mat(0xfff2c0),0,3,s,g));
    mesh(new THREE.BoxGeometry(1.2,.9,8.6),mat(0xf5b800),0,6.2,0,g);
-   const bn=mesh(new THREE.PlaneGeometry(6,1.6),new THREE.MeshBasicMaterial({map:canvasTex(256,64,(c,w,hh)=>{c.fillStyle='#ff4f86';rr(c,0,0,w,hh,14);c.fill();c.fillStyle='#fff';c.font=`900 40px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('G O A L',w/2,hh/2+2)}),side:THREE.DoubleSide}),0,7.4,0,g);bn.rotation.y=Math.PI/2;
+   const bn=mesh(new THREE.PlaneGeometry(6,1.6),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,64,(c,w,hh)=>{c.fillStyle='#ff4f86';rr(c,0,0,w,hh,14);c.fill();c.fillStyle='#fff';c.font=`900 40px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('G O A L',w/2,hh/2+2)}),side:THREE.DoubleSide}),0,7.4,0,g);bn.rotation.y=Math.PI/2;
    worldG.add(g)}
+  buildMansions();                                          // マンションは先に建てておく（買うと一室がポンと立つ）
   // 遠景の山と雲
   for(let i=0;i<22;i++){const a=i/22*Math.PI*2,R=210+Math.random()*30;mountain(Math.cos(a)*R*1.25,Math.sin(a)*R*.7+10,16+Math.random()*14,22+Math.random()*20)}
   for(let i=0;i<16;i++)cloud((Math.random()-.5)*340,34+Math.random()*16,(Math.random()-.5)*200,.9+Math.random()*1.2);
@@ -206,7 +211,7 @@ function buildCenter(){
   const roof=mesh(new THREE.CylinderGeometry(4.6,4.6,9.4,3),mat(0xe8554d,70),0,6.1,-.2,b);roof.scale.set(.42,1,1);roof.rotation.set(0,0,Math.PI/2);
   bankDoor=mesh(new THREE.BoxGeometry(1.8,3,.2),mat(0x5a3a2a),0,1.9,2.55,b);
   bankCoin=mesh(new THREE.CylinderGeometry(1,1,.25,24),mat(0xffd23f,120),0,8.2,-.2,b);bankCoin.rotation.x=Math.PI/2;
-  mesh(new THREE.PlaneGeometry(6,1.1),new THREE.MeshBasicMaterial({map:canvasTex(256,48,(c,w,h)=>{c.fillStyle='#2a63c8';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 28px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('LIFE ROAD BANK',w/2,h/2+1)})}),0,5.2,3.4,b);
+  mesh(new THREE.PlaneGeometry(6,1.1),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,48,(c,w,h)=>{c.fillStyle='#2a63c8';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 28px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('LIFE ROAD BANK',w/2,h/2+1)})}),0,5.2,3.4,b);
   worldG.add(b);
   buildPolice();
 }
@@ -219,7 +224,7 @@ function buildPolice(){
   mesh(new THREE.BoxGeometry(8.6,.5,6),mat(0x2a4a9a,70),0,5,-.2,g);
   [-2.6,0,2.6].forEach(x=>mesh(new THREE.BoxGeometry(1.2,1.2,.1),mat(0xbfe6ff,120),x,3.2,2.52,g));
   mesh(new THREE.BoxGeometry(1.6,2.4,.12),mat(0x2a4a9a,60),0,1.6,2.52,g);                  // ドア
-  mesh(new THREE.PlaneGeometry(5.2,1.1),new THREE.MeshBasicMaterial({map:canvasTex(256,56,(c,w,h)=>{c.fillStyle='#2a4a9a';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 30px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('🚓 警察署 POLICE',w/2,h/2+2)})}),0,4.15,2.6,g);
+  mesh(new THREE.PlaneGeometry(5.2,1.1),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,56,(c,w,h)=>{c.fillStyle='#2a4a9a';rr(c,0,0,w,h,10);c.fill();c.fillStyle='#fff';c.font=`900 30px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('🚓 警察署 POLICE',w/2,h/2+2)})}),0,4.15,2.6,g);
   // 屋根のサイレン灯
   const l1=mesh(new THREE.CylinderGeometry(.35,.35,.5,12),new THREE.MeshBasicMaterial({color:0xff2b2b}),-.5,5.5,-.2,g);
   const l2=mesh(new THREE.CylinderGeometry(.35,.35,.5,12),new THREE.MeshBasicMaterial({color:0x2b6bff}),.5,5.5,-.2,g);
@@ -233,7 +238,7 @@ function buildPolice(){
   [[0,3.9,-3],[0,3.9,3]].forEach(a=>mesh(new THREE.BoxGeometry(8.4,.14,.14),mat(0x45455a,80),a[0],a[1],a[2],j));
   [[-4.1,3.9,0],[4.1,3.9,0]].forEach(a=>mesh(new THREE.BoxGeometry(.14,.14,6.4),mat(0x45455a,80),a[0],a[1],a[2],j));
   for(let x=-3.2;x<=3.3;x+=1.6)mesh(new THREE.BoxGeometry(.1,.1,6.4),mat(0x45455a,80),x,3.9,0,j);
-  mesh(new THREE.PlaneGeometry(3.4,.9),new THREE.MeshBasicMaterial({map:canvasTex(200,52,(c,w,h)=>{c.fillStyle='#3a3a4a';rr(c,0,0,w,h,8);c.fill();c.fillStyle='#ffe27a';c.font=`900 26px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('留置所',w/2,h/2+2)}),side:THREE.DoubleSide}),0,4.5,-3.1,j);
+  mesh(new THREE.PlaneGeometry(3.4,.9),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(200,52,(c,w,h)=>{c.fillStyle='#3a3a4a';rr(c,0,0,w,h,8);c.fill();c.fillStyle='#ffe27a';c.font=`900 26px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('留置所',w/2,h/2+2)}),side:THREE.DoubleSide}),0,4.5,-3.1,j);
   worldG.add(j);
   // パトカー（警官つき）
   const pg=new THREE.Group();pg.position.copy(PATROL_HOME);pg.wheels=[];
@@ -384,6 +389,7 @@ function updateThugs(dt){                                 // ついてくる：�
     t.g.rotation.y+=angDiff(t.g.rotation.y,c.g.rotation.y)*(1-Math.exp(-dt*6));
   }
 }
+function updateLottery(dt){lotteryDrums.forEach(d=>d.rotation.x+=dt*1.6)}
 function updatePolice(dt){
   if(!patrol)return;
   patrol.t+=dt;const on=Math.floor(patrol.t*4)%2===0;
@@ -777,59 +783,199 @@ function updateRoulette(dt){                    // 回転中（ストップを�
 }
 
 /* ---------- 家・紙吹雪・ふきだし ---------- */
+/* ---------- 家：ちゃんと家の形（切妻屋根・玄関・窓・煙突）／マンションは先に建てておき、買うと一室がポンと立つ ---------- */
+function gableRoof(len,w,h,col,over=.35){                 // 切妻屋根（三角柱）：棟はx方向
+  const L=len/2+over,W=w/2+over,g=new THREE.BufferGeometry();
+  const v=[-L,0,-W,-L,0,W,-L,h,0,  L,0,W,L,0,-W,L,h,0,
+           -L,0,W,L,0,W,L,h,0,  -L,0,W,L,h,0,-L,h,0,
+           L,0,-W,-L,0,-W,-L,h,0,  L,0,-W,-L,h,0,L,h,0];
+  g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.computeVertexNormals();
+  return new THREE.Mesh(g,new THREE.MeshPhongMaterial({color:col,shininess:60,side:THREE.DoubleSide}));
+}
 function houseModel(h){
   const g=new THREE.Group(),n=h.n;
   const box=(w,hh,d,c,x,y,z)=>mesh(new THREE.BoxGeometry(w,hh,d),mat(c,70),x,y,z,g);
-  const win=(x,y,z,s=.7)=>mesh(new THREE.BoxGeometry(s,s,.1),mat(0xbfe6ff,120),x,y,z,g);
-  if(n==='ワンルームマンション'){box(3.2,6,3,0xe8e0d0,0,3,0);for(let f=0;f<3;f++)[-.9,.9].forEach(x=>win(x,1.2+f*2,1.55));box(3.4,.3,3.2,0x8a8a99,0,6.1,0)}
-  else if(n==='平屋'){box(5,2,3.4,0xfff0d0,0,1,0);const r=mesh(new THREE.ConeGeometry(4.2,1.8,4),mat(0xc0392b,70),0,2.9,0,g);r.rotation.y=Math.PI/4;box(5,.15,1,0x8a5a35,0,.3,2.2);win(-1.4,1.2,1.75);win(1.4,1.2,1.75)}
-  else if(n==='ログハウス'){for(let i=0;i<6;i++)mesh(new THREE.CylinderGeometry(.35,.35,5,10),mat(0x9a6a3a,20),0,.4+i*.62,0,g).rotation.z=Math.PI/2;
-    const r=mesh(new THREE.ConeGeometry(4,2,4),mat(0x5a3a2a,50),0,4.6,0,g);r.rotation.y=Math.PI/4;box(.8,2.2,.8,0x777777,1.6,4.6,-1);win(0,1.6,1.9)}
-  else if(n==='2階建てファミリーハウス'){box(4.4,4,3.4,0xffffff,0,2,0);const r=mesh(new THREE.ConeGeometry(3.7,1.8,4),mat(0x3f8cff,70),0,4.9,0,g);r.rotation.y=Math.PI/4;[-1.3,1.3].forEach(x=>{win(x,1.2,1.75);win(x,3.0,1.75)});
+  const win=(x,y,z,s=.7)=>{mesh(new THREE.BoxGeometry(s+.16,s+.16,.06),mat(0xffffff,40),x,y,z,g);mesh(new THREE.BoxGeometry(s,s,.1),mat(0xbfe6ff,120),x,y,z+.02,g)};
+  const door=(x,z,c=0x7a4a2a,hh=1.7)=>{box(.95,hh,.12,c,x,hh/2,z);mesh(new THREE.SphereGeometry(.07,8,6),mat(0xffd23f,140),x+.3,hh/2,z+.09,g)};
+  const roof=(len,w,hh,col,y,rot=0)=>{const r=gableRoof(len,w,hh,col);r.position.y=y;r.rotation.y=rot;g.add(r);return r};
+  const chimney=(x,y,z,hh=1.6)=>{box(.55,hh,.55,0x8a5a4a,x,y,z);box(.7,.12,.7,0x4a3a3a,x,y+hh/2,z)};
+  const rooms=[];
+  if(n==='ワンルームマンション'){
+    box(3.4,6,3.2,0xe8e0d0,0,3,0);box(3.7,.3,3.5,0x8a8a99,0,6.15,0);box(1.2,.8,1.2,0xb8b8c6,.8,6.7,-.5);
+    for(let f=0;f<3;f++)[-.95,.95].forEach(x=>{win(x,1.7+f*1.9,1.65,.8);mesh(new THREE.BoxGeometry(1.15,.12,.45),mat(0x777788,60),x,1.28+f*1.9,1.85,g);rooms.push({x,y:1.7+f*1.9,z:1.65,w:1.2,h:1.2})});
+    door(0,1.66,0x3a4a6a,1.2);box(1.6,.12,.9,0x9a9aa8,0,1.35,2.0)}
+  else if(n==='平屋'){
+    box(5.2,2.1,3.6,0xfff0d0,0,1.05,0);roof(5.2,3.6,1.7,0xc0392b,2.1);chimney(1.7,3.2,-.5,1.4);
+    box(5.2,.15,1.1,0x8a5a35,0,.2,2.35);win(-1.5,1.2,1.82);win(1.5,1.2,1.82);door(0,1.82)}
+  else if(n==='ログハウス'){                                  // 丸太を四方に積んだ小屋＋切妻屋根＋煙突
+    for(let i=0;i<6;i++){const y=.34+i*.56,o=(i%2)*.0;
+      [-1.75,1.75].forEach(z=>{const l=mesh(new THREE.CylinderGeometry(.3,.3,5.5,10),mat(0x9a6a3a,20),0,y,z,g);l.rotation.z=Math.PI/2});
+      [-2.75,2.75].forEach(x=>{const l=mesh(new THREE.CylinderGeometry(.3,.3,3.9,10),mat(0x8a5a2a,20),x,y,o,g);l.rotation.x=Math.PI/2})}
+    box(4.9,3.2,3.2,0x7a4a2a,0,1.75,0);                       // 中身（すき間を埋める）
+    roof(5.6,3.9,2,0x5a3a2a,3.5);chimney(1.7,4.9,-.6,1.8);
+    door(.9,2.0,0x4a2a1a,1.7);win(-1.3,1.7,2.04,.8)}
+  else if(n==='2階建てファミリーハウス'){
+    box(4.6,4.2,3.6,0xffffff,0,2.1,0);box(4.8,.15,3.8,0xd8d8e6,0,2.15,0);roof(4.6,3.6,1.8,0x3f8cff,4.2);chimney(1.5,5.4,-.5,1.3);
+    [-1.4,1.4].forEach(x=>{win(x,3.0,1.82);if(x>0)win(x,1.2,1.82)});win(-1.4,1.2,1.82);door(0,1.82,0x3a6a9a);
+    box(1.5,.12,.9,0xd9b38c,0,.15,2.2);
     mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xff6b9d),3.4,1,2,g);mesh(new THREE.BoxGeometry(.7,.06,.3),mat(0xffc933),3.4,.7,2,g)}
-  else if(n==='タワーマンション'){mesh(new THREE.BoxGeometry(3.2,13,3.2),new THREE.MeshPhongMaterial({color:0x9fd8ff,shininess:140,specular:0xffffff,transparent:true,opacity:.85}),0,6.5,0,g);for(let i=1;i<9;i++)box(3.3,.1,3.3,0xffffff,0,i*1.4,0);box(2,.8,2,0xffd23f,0,13.4,0)}
-  else if(n==='海辺の豪邸'){box(6,2.4,3.6,0xffffff,0,1.2,0);box(4,2,3,0xffffff,0,3.4,0);box(6.4,.2,4,0x3f8cff,0,2.5,0);box(4.4,.2,3.4,0x3f8cff,0,4.5,0);win(-1.5,1.3,1.85,.9);win(1.5,1.3,1.85,.9);
-    mesh(new THREE.BoxGeometry(4,.05,2.4),new THREE.MeshPhongMaterial({color:0x35b8ff,shininess:140}),0,.05,3.6,g);[-3.2,3.2].forEach(x=>{const t=tree(0,0,'palm',.8);worldG.remove(t);t.position.set(x,0,2);g.add(t)})}
+  else if(n==='タワーマンション'){
+    box(5,.6,5,0xcfd6e2,0,.3,0);
+    mesh(new THREE.BoxGeometry(3.2,13,3.2),new THREE.MeshPhongMaterial({color:0x9fd8ff,shininess:140,specular:0xffffff,transparent:true,opacity:.85}),0,7,0,g);
+    for(let i=1;i<9;i++)box(3.3,.1,3.3,0xffffff,0,i*1.55,0);
+    box(2.2,1,2.2,0xffd23f,0,13.9,0);
+    for(let f=1;f<=8;f++)[-.8,.8].forEach(x=>rooms.push({x,y:f*1.55+.25,z:1.62,w:1.2,h:1.1}));
+    door(0,1.64,0x445566,1.3)}
+  else if(n==='海辺の豪邸'){
+    box(6,2.4,3.6,0xffffff,0,1.2,0);box(4,2,3,0xffffff,0,3.4,0);box(6.4,.2,4,0x3f8cff,0,2.5,0);box(4.4,.2,3.4,0x3f8cff,0,4.5,0);
+    win(-1.5,1.3,1.85,.9);win(1.5,1.3,1.85,.9);win(0,3.5,1.55,1);door(0,1.85,0x2a5a8a,1.6);
+    mesh(new THREE.BoxGeometry(4,.05,2.4),new THREE.MeshPhongMaterial({color:0x35b8ff,shininess:140}),0,.05,3.6,g);
+    [-3.2,3.2].forEach(x=>{const t=tree(0,0,'palm',.8);worldG.remove(t);const i=occ.findIndex(o=>o.g===t);if(i>=0)occ.splice(i,1);t.position.set(x,0,2);g.add(t)})}
   else{ // お城風の家
     box(5,3.4,3.4,0xe8dcc8,0,1.7,0);
     [[-2.6,-1.6],[2.6,-1.6],[-2.6,1.6],[2.6,1.6]].forEach(a=>{mesh(new THREE.CylinderGeometry(.8,.8,5,12),mat(0xf2e6d0,70),a[0],2.5,a[1],g);mesh(new THREE.ConeGeometry(1.1,1.8,12),mat(0xd0455a,70),a[0],5.9,a[1],g)});
     mesh(new THREE.CylinderGeometry(.06,.06,1.4,6),mat(0xffffff),0,5.4,0,g);mesh(new THREE.PlaneGeometry(1,.6),new THREE.MeshBasicMaterial({color:0xff4f86,side:THREE.DoubleSide}),.5,5.8,0,g);
-    win(0,2,1.75,.9);mesh(new THREE.BoxGeometry(1.2,1.8,.1),mat(0x7a4a2a),0,.9,1.75,g)}
+    win(0,2.4,1.75,.9);door(0,1.78,0x7a4a2a,1.8)}
+  g.userData.rooms=rooms;
   return g;
 }
-const bonEl=()=>document.getElementById('bonText');
+function housePortrait(h){                                   // 家カードの絵（3Dモデルを撮影してキャッシュ）
+  const k='house|'+h.n;if(portCache[k])return portCache[k];
+  try{
+    if(!portR)portraitInit();
+    const g=houseModel(h),b=new THREE.Box3().setFromObject(g),c=b.getCenter(new V3()),sz=b.getSize(new V3()),R=Math.max(sz.x,sz.y*1.1,sz.z);
+    g.position.sub(c);g.rotation.y=-.5;portScene.add(g);
+    const cam=new THREE.PerspectiveCamera(30,150/130,.1,200);cam.position.set(R*1.0,R*.75,R*1.9);cam.lookAt(0,-R*.04,0);
+    portR.setClearColor(0xcfe9ff,1);portR.render(portScene,cam);portScene.remove(g);   // 白い壁が見えるよう、空色の背景
+    return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+/* ---------- 宝くじ売り場（屋台）と抽選会場（ガラガラ）：該当マスの隣に建てる ---------- */
+const lotteryDrums=[],lotterySites=[];
+function stripeTex(c1,c2){return canvasTex(128,32,(ctx,w,h)=>{for(let i=0;i<8;i++){ctx.fillStyle=i%2?c1:c2;ctx.fillRect(i*16,0,16,h)}})}
+function buildLotteryShop(){
+  const g=new THREE.Group();
+  const box=(w,h,d,c,x,y,z,sh=70)=>mesh(new THREE.BoxGeometry(w,h,d),mat(c,sh),x,y,z,g);
+  box(3.2,.2,2.2,0xd9c9a0,0,.1,0);
+  box(3,2.4,.2,0xfff0b8,0,1.4,-.9);[-1.4,1.4].forEach(x=>box(.2,2.4,1.9,0xfff0b8,x,1.4,0));         // 後ろと横の壁
+  box(3,1.0,1.0,0xe8454c,0,.7,.75);box(3.05,.12,1.1,0xffffff,0,1.26,.75);                           // カウンター
+  const aw=mesh(new THREE.BoxGeometry(3.6,.14,2.5),new THREE.MeshPhongMaterial({map:stripeTex('#ffffff','#e8454c'),shininess:60}),0,2.75,.45,g);aw.rotation.x=.18;   // 赤白のひさし
+  mesh(new THREE.PlaneGeometry(3,.9),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,76,(c,w,h)=>{c.fillStyle='#e8454c';rr(c,0,0,w,h,12);c.fill();c.strokeStyle='#ffd23f';c.lineWidth=6;rr(c,5,5,w-10,h-10,10);c.stroke();c.fillStyle='#ffe27a';c.font=`900 38px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('宝くじ売り場',w/2,h/2+2)}),side:THREE.DoubleSide,transparent:true}),0,3.45,.9,g);
+  for(let i=0;i<4;i++)box(.5,.04,.3,0xffd23f,-.9+i*.5,1.34,.7,120);                                    // カウンターの上の宝くじ
+  const clerk=makeDoll({color:0xe8454c,gender:'f',scale:2.1});clerk.position.set(.3,.15,-.3);g.add(clerk);   // 店員（カウンターから顔が出る大きさ）
+  [-1.5,1.5].forEach(x=>{mesh(new THREE.CylinderGeometry(.04,.04,2.4,6),mat(0xffffff),x,1.2,1.3,g);mesh(new THREE.PlaneGeometry(.7,.45),new THREE.MeshBasicMaterial({color:0xffd23f,side:THREE.DoubleSide}),x+.38,2.2,1.3,g)});
+  return g;
+}
+function buildLotteryDraw(){
+  const g=new THREE.Group();
+  mesh(new THREE.CylinderGeometry(2.6,2.8,.4,24),mat(0xff9ec4,70),0,.2,0,g);                           // ステージ
+  [-1,1].forEach(s=>mesh(new THREE.BoxGeometry(.2,1.6,.2),mat(0x8a5a35,40),s*1.1,1.2,0,g));
+  const drum=new THREE.Group();drum.position.set(0,2.0,0);g.add(drum);
+  const body=mesh(new THREE.CylinderGeometry(.95,.95,1.5,8),mat(0xe8454c,100),0,0,0,drum);body.rotation.z=Math.PI/2;                      // ガラガラ
+  for(let i=0;i<5;i++)mesh(new THREE.SphereGeometry(.14,8,6),mat([0xffd23f,0xffffff,0x4aa3ff,0x4cd68a,0xff9ec4][i],80),(Math.random()-.5)*.8,(Math.random()-.5)*.8,(Math.random()-.5)*.8,drum);
+  mesh(new THREE.CylinderGeometry(.04,.04,.9,6),mat(0x333344),1.0,-.45,.0,drum);mesh(new THREE.SphereGeometry(.16,8,6),mat(0xffd23f,120),1.0,-.9,0,drum);   // ハンドル
+  mesh(new THREE.PlaneGeometry(4.2,1.1),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,68,(c,w,h)=>{c.fillStyle='#ff4f86';rr(c,0,0,w,h,12);c.fill();c.strokeStyle='#fff';c.lineWidth=5;rr(c,5,5,w-10,h-10,10);c.stroke();c.fillStyle='#fff';c.font=`900 38px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('🎊 宝くじ抽選会',w/2,h/2+2)}),side:THREE.DoubleSide,transparent:true}),0,4.3,0,g);
+  [[-2.2,.9],[2.2,.9],[-2.0,-.9],[2.0,-.9]].forEach((a,i)=>{mesh(new THREE.CylinderGeometry(.02,.02,2,5),mat(0xffffff),a[0],1.6,a[1],g);mesh(new THREE.SphereGeometry(.38,10,8),mat([0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a][i],100),a[0],2.9,a[1],g)});   // 風船
+  const mc=makeDoll({color:0x8e6bff,gender:'m',scale:1.2});mc.position.set(-1.5,.4,.7);g.add(mc);   // 司会
+  lotteryDrums.push(drum);
+  return g;
+}
+function buildLotterySites(){
+  [['26','shop'],['77','shop'],['118','shop'],['44','draw'],['97','draw'],['132','draw']].forEach(([id,k])=>{
+    const p=POS[id],h=HEAD[id],nrm=new V3(-h.z,0,h.x);
+    let best=null;
+    for(const dist of [5.6,7.5])for(const s of [1,-1]){
+      const x=p.x+nrm.x*s*dist,z=p.z+nrm.z*s*dist,r=k==='shop'?2.6:3.4;
+      if(Math.hypot(x,z)<13||Math.hypot(x-BANK_POS.x,z-BANK_POS.z)<9||Math.hypot(x-POLICE_POS.x,z)<16)continue;
+      if(allPts.some(q=>q!==p&&(q.x-x)**2+(q.z-z)**2<(r+1.2)**2))continue;
+      if(placed.some(q=>(q.x-x)**2+(q.z-z)**2<(q.r+r)**2))continue;
+      best={x,z,r,s};break;
+    }
+    lotterySites.push({id,k,ok:!!best,x:best&&best.x,z:best&&best.z});
+    if(!best)return;
+    placed.push({x:best.x,z:best.z,r:best.r});
+    const g=k==='shop'?buildLotteryShop():buildLotteryDraw();
+    g.position.set(best.x,0,best.z);g.rotation.y=Math.atan2(p.x-best.x,p.z-best.z);   // マスのほうを向く
+    worldG.add(g);
+  });
+}
+const mansions={};                                            // 先に建てておくマンション
+function buildMansions(){
+  HOUSES.filter(h=>h.n==='ワンルームマンション'||h.n==='タワーマンション').forEach(h=>{
+    const g=houseModel(h),b=new THREE.Box3().setFromObject(g),sz=b.getSize(new V3()),r=Math.max(sz.x,sz.z)/2+3;
+    let sp=landSpot(shuffle([1,2,0,4]),6.5,r,8,18);
+    if(!sp)sp={x:-60+rnd(120),z:-10+rnd(20)};
+    g.position.set(sp.x,0,sp.z);g.rotation.y=facePath(sp);worldG.add(g);          // 透かし対象にはしない（一室が立つ場面で本体が消えないように）
+    mansions[h.n]={g,used:[],h};
+  });
+}
+function facePath(s){                                         // いちばん近い道のほうを向く
+  let best=null,bd=1e9;allPts.forEach(q=>{const d=(q.x-s.x)**2+(q.z-s.z)**2;if(d<bd){bd=d;best=q}});
+  return best?Math.atan2(best.x-s.x,best.z-s.z):0;
+}
+function houseSpot(h,size){                                   // ランダムに、いい感じの場所へ
+  const r=Math.max(size.x,size.z)/2+3;
+  if(h.n==='海辺の豪邸'){                                      // 海辺限定：砂浜に立てて、海のほうを向く
+    for(let t=0;t<60;t++){
+      const x=-110+Math.random()*125,z=54+Math.random()*5;
+      if(Math.hypot(x+92,z-52)<9)continue;
+      if(allPts.some(q=>(q.x-x)**2+(q.z-z)**2<36))continue;
+      if(placed.some(q=>(q.x-x)**2+(q.z-z)**2<(q.r+r)**2))continue;
+      placed.push({x,z,r});return{x,z,rot:0};
+    }
+    return{x:-60+houseSlots.length*14,z:57,rot:0};
+  }
+  const prefs=h.n==='ログハウス'?[3,4]:h.n==='お城風の家'?[4,3,2]:[2,4,1,0];
+  {const s=landSpot(shuffle(prefs.slice()),6,r,7,16);if(s)return{x:s.x,z:s.z,rot:facePath(s)}}
+  const base=POS[70],out=base.clone().setY(0).normalize();
+  const p=base.clone().addScaledVector(out,9+houseSlots.length*3);return{x:p.x,z:p.z,rot:Math.atan2(-out.x,-out.z)};
+}
+function smokePuffs(center,R,n=16,rise=3.4,ms=1300){          // 煙だけ（ボン！の文字はなし）
+  const puffs=[];
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4;const m=mesh(new THREE.SphereGeometry(.6+Math.random()*.4,8,6),new THREE.MeshBasicMaterial({color:0xf2f2f4,transparent:true,opacity:.85}),center.x,center.y,center.z,worldG);puffs.push({m,a,r:R*(.55+Math.random()*.5),h:rise*(.6+Math.random()*.6)})}
+  return anim(ms,k=>puffs.forEach(o=>{const e=easeOut(k);o.m.position.set(center.x+Math.cos(o.a)*o.r*e,center.y+o.h*e,center.z+Math.sin(o.a)*o.r*e);o.m.scale.setScalar(.5+k*2.2);o.m.material.opacity=.85*(1-k)})).then(()=>puffs.forEach(o=>worldG.remove(o.m)));
+}
+async function popRoom(p,h,mn){                               // マンションの一室が、ポンと立つ
+  const slots=mn.g.userData.rooms,free=slots.map((s,i)=>i).filter(i=>!mn.used.includes(i));
+  const idx=free.length?free[rnd(free.length)]:rnd(slots.length);mn.used.push(idx);
+  const sl=slots[idx],room=new THREE.Group();room.position.set(sl.x,sl.y,sl.z+.22);
+  mesh(new THREE.BoxGeometry(sl.w,sl.h,.5),mat(0xfff7e0,80),0,0,0,room);                        // 一室（出っぱったユニット）
+  mesh(new THREE.BoxGeometry(sl.w*.7,sl.h*.6,.06),mat(0xffe27a,120,{emissive:0x8a6a00}),0,.04,.28,room); // 灯りのついた窓
+  mesh(new THREE.BoxGeometry(sl.w*1.1,.1,.35),mat(p.color,80),0,-sl.h*.5-.02,.2,room);           // バルコニー（プレイヤーの色）
+  mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
+  mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
+  room.scale.set(.001,.001,.001);mn.g.add(room);mn.g.updateMatrixWorld(true);
+  const wpos=mn.g.localToWorld(new V3(sl.x,sl.y,sl.z+.4));
+  const az0=Cam.userAz,hgt=mn.h.n==='タワーマンション'?14:7;
+  Cam.followObj={position:wpos.clone()};Cam.followDist=(hgt*.9+11)*(aspect()<1?1.4:1);Cam.followEl=.32;Cam.userAz=mn.g.rotation.y;
+  await sleep(1300);
+  Sound.boom();Sound.pop();Cam.shake=.7;
+  smokePuffs(wpos.clone().setY(wpos.y-.4),2.4,14,2.6,1200);
+  await anim(750,k=>{const e=easeBack(Math.min(1,k)),sw=.1+.9*e+(k<.55?.2*Math.sin(k/.55*Math.PI):0),sh=.05+.95*e+(k<.55?.35*Math.sin(k/.55*Math.PI):0);room.scale.set(Math.max(.001,sw),Math.max(.001,sh),Math.max(.001,sw))});
+  room.scale.set(1,1,1);
+  await anim(4200,k=>{Cam.userAz=mn.g.rotation.y+Math.sin(k*Math.PI)*.45});
+  Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
+}
 V.buildHouse=async(p,h)=>{
-  const n=houseSlots.length;houseSlots.push(p.id);
-  const base=POS[70],out=base.clone().setY(0).normalize(),hd=HEAD[70],tang=hd.clone();
-  const pos=base.clone().addScaledVector(out,9).addScaledVector(tang,((n%6)-2.5)*9).addScaledVector(out,Math.floor(n/6)*10);
-  const g=houseModel(h);g.position.set(pos.x,0,pos.z);g.rotation.y=Math.atan2(-out.x,-out.z);
+  houseSlots.push(p.id);
+  const mn=mansions[h.n];if(mn)return popRoom(p,h,mn);
+  const g=houseModel(h);
   mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xffffff),-2.4,1,2.6,g);mesh(new THREE.PlaneGeometry(.9,.55),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),-2.0,1.8,2.6,g);
   const box=new THREE.Box3().setFromObject(g),size=box.getSize(new V3()),hgt=Math.max(4,size.y);
-  g.scale.set(.001,.001,.001);worldG.add(g);
-  // ① その家の場所にカメラがぐっと寄る（まだ何もない…）
-  const focus={position:new V3(pos.x,hgt*.45,pos.z)};
-  const az0=Cam.userAz;
-  Cam.followObj=focus;Cam.followDist=Math.max(16,hgt*2.4+8)*(aspect()<1?1.5:1);Cam.followEl=.55;      // 縦画面では引いて、家が全部入るように
+  const sp=houseSpot(h,size);
+  g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;g.scale.set(.001,.001,.001);worldG.add(g);
+  const pos=new V3(sp.x,0,sp.z),focus={position:new V3(pos.x,hgt*.45,pos.z)},az0=Cam.userAz;
+  Cam.followObj=focus;Cam.followDist=Math.max(16,hgt*2.4+8)*(aspect()<1?1.5:1);Cam.followEl=.55;Cam.userAz=sp.rot-.8;      // 玄関のある正面を見る
   await sleep(1300);
-  // ② ボン！！ ― 一気に立ち上がる（縦に伸びて、ぎゅっと縮んで、ぴたっ）＋衝撃波・土ぼこり・紙吹雪・画面ゆれ
-  Sound.boom();Sound.pop();Cam.shake=1.2;
-  const bt=bonEl();if(bt){bt.classList.remove('hidden');bt.style.animation='none';void bt.offsetWidth;bt.style.animation=''}
-  V.confetti(pos.clone().setY(2));
-  const ring=mesh(new THREE.TorusGeometry(1,.12,8,40),new THREE.MeshBasicMaterial({color:0xfff3b0,transparent:true,opacity:.9}),pos.x,.25,pos.z,worldG);ring.rotation.x=Math.PI/2;
-  const puffs=[];for(let i=0;i<12;i++){const a=i/12*Math.PI*2;const m=mesh(new THREE.SphereGeometry(.7,8,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),pos.x,.6,pos.z,worldG);puffs.push({m,a})}
-  const R=Math.max(size.x,size.z)*.8+4;
-  anim(900,k=>{ring.scale.setScalar(.3+R*easeOut(k));ring.material.opacity=.9*(1-k);
-    puffs.forEach(o=>{const d=R*.9*easeOut(k);o.m.position.set(pos.x+Math.cos(o.a)*d,.6+k*2.2,pos.z+Math.sin(o.a)*d);o.m.scale.setScalar(.5+k*1.8);o.m.material.opacity=.85*(1-k)})}
-  ).then(()=>{worldG.remove(ring);puffs.forEach(o=>worldG.remove(o.m))});
+  Sound.boom();Sound.pop();Cam.shake=.7;
+  smokePuffs(pos.clone().setY(.6),Math.max(size.x,size.z)*.8+3,18,3.2,1400);               // 煙だけ
   await anim(750,k=>{
-    const e=easeBack(Math.min(1,k)),sw=.1+.9*e+(k<.55?.18*Math.sin(k/.55*Math.PI):0),sh=.02+.98*e+(k<.55?.4*Math.sin(k/.55*Math.PI):0);   // 縦に伸びて、横にぎゅっ
+    const e=easeBack(Math.min(1,k)),sw=.1+.9*e+(k<.55?.18*Math.sin(k/.55*Math.PI):0),sh=.02+.98*e+(k<.55?.4*Math.sin(k/.55*Math.PI):0);
     g.scale.set(Math.max(.001,sw),Math.max(.001,sh),Math.max(.001,sw));
   });
   g.scale.set(1,1,1);
-  // ③ しっかり見せる：ゆっくり回りこみながら、約4秒
-  await anim(4200,k=>{Cam.userAz=az0+k*1.7});
-  if(bt)bt.classList.add('hidden');
-  Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0+1.7;
+  await anim(4200,k=>{Cam.userAz=sp.rot-.8+k*1.6});                                  // 正面を中心に、左から右へゆっくり
+  Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
 };
 V.confetti=at=>{
   const o=typeof at==='string'?POS[at].clone():at.clone();o.y=Math.max(o.y,1.2);

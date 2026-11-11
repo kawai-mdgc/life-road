@@ -77,7 +77,7 @@ V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
 });
 
 /* ---------- HUD / プレイヤー一覧 / 手持ちカード ---------- */
-function houseCardHtml(h){return `<div class="ic">🏠</div><div class="tt">${esc(h.n)}</div>`}
+function houseCardHtml(h){return `<img src="${housePortrait(h)}" alt=""><div class="tt">${esc(h.n)}</div>`}
 V.hud=()=>{
   if(!G.players.length)return;
   const turnP=G.players[G.cur],cur=(NET.on&&G.players[NET.myPid])||turnP;
@@ -188,7 +188,7 @@ async function zoom(p,type,x){
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'お宝（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }
-  else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`購入価格 ${fmt(x.price)}円<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
+  else if(type==='house')o={head:'家カード',color:'#c98a00',title:esc(x.n),text:`<img src="${housePortrait(x)}" width="130" alt=""><br>購入価格 ${fmt(x.price)}円<br>ゴールでの売却額：${esc(x.sellt)}<br><small>${esc(x.look)}</small>`};
   else o={head:'株券',color:'#2fb36f',title:`株券 ${x}`,text:'誰かがこの数字を出すたび、配当 5,000円。<br>ゴールで 10,000円 で買い取られます。'};
   const actions=[];                                                           // [ボタン名, 実行する処理]
   const canUse=type==='item'&&G.awaiting===p&&!p.cpu&&usableItems(p).includes(x.c);

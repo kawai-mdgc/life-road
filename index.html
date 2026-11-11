@@ -32,6 +32,11 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
 .prow .dot{width:26px;height:26px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 5px #0004;flex:none}
 .prow input{flex:1;min-width:0;font:inherit;padding:8px;border-radius:10px;border:2px solid #ddd}
 .prow button{padding:7px 12px;min-width:76px}
+#avGender button{margin:2px;padding:6px 10px;font-size:.85rem}
+.sw span{display:inline-block;width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 5px #0004;margin:3px;cursor:pointer}
+.sw span.sel{outline:3px solid #3b2f4a}.sw span.dis{opacity:.2;pointer-events:none}
+.prow.selrow{background:#fff3c4;border-radius:12px}
+.prow button[data-av]{padding:7px 10px;min-width:0}
 #rulesTxt{font-size:.8rem;text-align:left;margin-top:8px;line-height:1.6;color:#665}
 
 /* ---- HUD ---- */
@@ -104,27 +109,30 @@ button.pink{background:var(--pink)}button.gold{background:#f2a900}button.green{b
 <div id="titleScr">
  <div id="titleBox">
   <h1 id="logo">LIFE ROAD</h1>
-  <div id="sub">🚗 誕生から引退まで、190マスの人生すごろく 🚗</div>
-  <div class="panel" id="setupBox">
-   <div style="font-weight:900">遊ぶ人数</div>
-   <div class="cnt" id="cnt"></div>
-   <div id="prows"></div>
-   <button id="startBtn" class="pink" style="margin-top:10px;font-size:1.2rem;padding:12px 40px">スタート！</button>
-   <button id="olOpen" class="green" style="margin-top:10px;margin-left:6px;font-size:1.05rem;padding:12px 22px">🌐 オンライン対戦</button>
-   <div id="rulesTxt">
-    ルーレット(1〜10)を回して車を進め、ゴール時の<b>総資産</b>がいちばん多い人が勝ち。<br>
-    ・黄=給料日(通過でもOK) ・緑=ラッキー ・赤=ピンチ ・青=イベント ・金=STOP(必ず止まる)<br>
-    ・お金が足りないと自動で<b>約束手形</b>(20,000借りて25,000返す)。 ・ドラッグで回転／ホイール・ピンチでズーム。
+  <div id="sub">🚗 みんなで遊ぶ、オンライン人生すごろく 🚗</div>
+  <div class="panel" id="avatarBox" style="margin-bottom:10px">
+   <div style="font-weight:900;margin-bottom:4px">🎨 アバターを選ぼう <span id="avWho" style="font-weight:700;color:#887"></span></div>
+   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">
+    <img id="avPrev" width="200" height="142" alt="アバターのプレビュー" style="background:#eaf6ff99;border-radius:14px">
+    <div style="flex:1;min-width:210px;text-align:left">
+     <div style="font-size:.8rem;font-weight:800">せいべつ</div><div id="avGender" class="gbtn"></div>
+     <div style="font-size:.8rem;font-weight:800;margin-top:6px">服の色</div><div id="swCloth" class="sw"></div>
+     <div style="font-size:.8rem;font-weight:800;margin-top:6px">車の色</div><div id="swCar" class="sw"></div>
+    </div>
    </div>
   </div>
-  <div class="panel hidden" id="onlineBox">
+  <div class="panel" id="onlineBox">
    <div id="olMenu">
     <div style="font-weight:900;font-size:1.1rem;margin-bottom:8px">🌐 オンライン対戦</div>
     <div class="prow"><span>名前</span><input id="olName" type="text" maxlength="8" value="あなた"></div>
-    <button id="olHost" class="pink" style="margin:8px 0;width:100%">ルームを作る（ホスト）</button>
+    <button id="olHost" class="pink" style="margin:8px 0;width:100%">ルームを作る（友だちを招待）</button>
     <div class="prow"><input id="olCode" type="text" inputmode="numeric" maxlength="6" placeholder="6桁のルームコード"><button id="olJoin" class="gold">参加</button></div>
-    <button id="olBack" class="alt" style="margin-top:6px">← もどる</button>
     <div id="olMsg" style="color:#c4202a;font-size:.85rem;margin-top:6px"></div>
+    <div id="rulesTxt">
+     ルーレット(1〜10)を回して車を進め、ゴール時の<b>総資産</b>がいちばん多い人が勝ち（2〜6人）。<br>
+     ・黄=給料日(通過でもOK) ・緑=ラッキー ・赤=ピンチ ・青=イベント ・金=STOP(必ず止まる)<br>
+     ・お金が足りないと自動で<b>約束手形</b>(20,000借りて25,000返す)。 ・ドラッグで回転／ホイール・ピンチでズーム。
+    </div>
    </div>
    <div id="olLobby" class="hidden">
     <div id="olTitle" style="font-weight:900;font-size:1.1rem"></div>
@@ -515,8 +523,8 @@ function prevKey(p,key){
 }
 
 /* ---------- プレイヤー ---------- */
-function newPlayer(id,name,cpu,color){
-  return{id,name,cpu,color,pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
+function newPlayer(id,name,cpu,color,cloth,gender){
+  return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
     finished:false,rank:0,lastRoll:0,report:[]};
@@ -1062,7 +1070,7 @@ async function takeTurn(p){
 }
 
 function setupGame(list){
-  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color));
+  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));
   G.cur=0;G.order=[];G.over=false;G.turnNo=0;
   G.stockOwner=Array(11).fill(null);G.houseTaken=Array(HOUSES.length).fill(false);
   buildItemDeck();buildJobDecks();
@@ -1437,6 +1445,23 @@ function makeDoll(o){
   mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,12)),mat(body,90),0,.17,0,g);
   mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,14,12)),mat(o.skin||0xffd9b3,60),0,.47,0,g);
   [-.05,.05].forEach(z=>mesh(G_('deye',()=>new THREE.SphereGeometry(.018,6,6)),mat(0x222222),.12,.5,z,g));
+  if(look.body!==undefined&&o.color!==undefined)mesh(G_('dscarf',()=>new THREE.TorusGeometry(.105,.03,6,14)),mat(o.color,90),0,.335,0,g).rotation.x=Math.PI/2;   // 制服でも選んだ服の色がマフラーで見える
+  if(o.gender){                                                   // せいべつ：髪型とスカート
+    const hc=o.hair??0x4a3426,hm=mat(hc,40);
+    mesh(G_('hcap',()=>new THREE.SphereGeometry(.142,14,8,0,Math.PI*2,0,Math.PI*.4)),hm,-.005,.48,0,g);
+    mesh(G_('hback',()=>new THREE.SphereGeometry(.142,14,8,Math.PI+.95,Math.PI*2-1.9,Math.PI*.38,Math.PI*.36)),hm,-.005,.48,0,g);
+    if(o.gender==='f'){
+      mesh(G_('hlong',()=>new THREE.BoxGeometry(.07,.24,.25)),hm,-.115,.38,0,g);
+      [-.125,.125].forEach(z=>mesh(G_('hside',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.02,.4,z,g));
+      mesh(G_('dskirt',()=>new THREE.CylinderGeometry(.1,.21,.13,14)),mat(body,90),0,.08,0,g);
+      mesh(G_('hribbon',()=>new THREE.SphereGeometry(.035,6,6)),mat(0xff6fa5,80),-.02,.62,.1,g);
+    }else if(o.gender==='m'){
+      mesh(G_('hfront',()=>new THREE.BoxGeometry(.05,.04,.16)),hm,.1,.6,0,g);
+    }else{
+      mesh(G_('htuft',()=>new THREE.ConeGeometry(.04,.1,6)),hm,0,.64,0,g);
+      mesh(G_('hside2',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.08,.42,.1,g);
+    }
+  }
   const part=(s)=>{const a=s.split(':');return[a[0],a[1]?parseInt(a[1]):null]};
   if(look.hat){
     const[h,c]=part(look.hat);
@@ -1507,7 +1532,7 @@ function makeCar(p){
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
@@ -1518,11 +1543,11 @@ function refreshCar(p){
   for(let i=0;i<p.pets;i++)list.push({k:'pet'});
   list.slice(0,PIN_MAX).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.color,job:p.job&&!p.retired?p.job.n:null,scale:.95});
-    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
-    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,scale:.88});
-    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],scale:.7});
-    else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],scale:.55});
+    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
+    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
+    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
+    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
+    else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
     else d=makePet(.9);
     d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
@@ -1706,15 +1731,35 @@ V.flash=key=>{const t=TILE[key];if(!t)return;anim(600,k=>{t.g.scale.set(1+Math.s
 
 /* ---------- 職業カードの肖像（別WebGLで1枚ずつ描画してキャッシュ） ---------- */
 let portR=null,portScene=null,portCam=null;const portCache={};
-function portrait(job,color=0x3f8cff){
-  const k=job?job.n:'-';if(portCache[k])return portCache[k];
+function portrait(job,p){
+  const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
+  const k=(job?job.n:'-')+'|'+cloth+'|'+gender;if(portCache[k])return portCache[k];
   try{
     if(!portR){portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
       portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
       portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0)}
-    const d=makeDoll({color,job:k==='-'?null:k,scale:1});d.rotation.y=-.6;portScene.add(d);
+    const d=makeDoll({color:cloth,gender,job:job?job.n:null,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+/* アバター選択のプレビュー：選んだ服・せいべつの人形が選んだ色の車に乗っている */
+let prevR=null,prevScene=null,prevCam=null;
+function renderAvatar(av){
+  try{
+    if(!prevR){prevR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});prevR.setSize(240,170);prevScene=new THREE.Scene();
+      prevScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(2,4,4);prevScene.add(dl);
+      prevCam=new THREE.PerspectiveCamera(30,240/170,.1,50);prevCam.position.set(2.3,1.5,3.4);prevCam.lookAt(.05,.45,0)}
+    const g=new THREE.Group();
+    mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(av.car,100),0,.32,0,g);mesh(new THREE.BoxGeometry(.5,.16,.76),mat(av.car,100),.6,.5,0,g);
+    mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,g);mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,g);
+    [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,g));
+    [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const t=mesh(new THREE.CylinderGeometry(.17,.17,.14,14),mat(0x222222,30),a[0],.17,a[1],g);t.rotation.x=Math.PI/2});
+    mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),.25,.485,-.1,g);
+    const d=makeDoll({color:av.cloth,gender:av.gender,scale:1.7});d.position.set(.25,.49,-.1);g.add(d);
+    g.rotation.y=-.35;prevScene.add(g);
+    prevR.setClearColor(0x000000,0);prevR.render(prevScene,prevCam);prevScene.remove(g);
+    return prevR.domElement.toDataURL('image/png');
   }catch(e){return ''}
 }
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
@@ -1819,7 +1864,13 @@ function updateCamera(dt,cur){
 V.focus=p=>{Cam.focus=p};
 V.setCamDefault=()=>{Cam.title=false;Cam.userDist=24;Cam.userEl=.95;sDist=130};
 // ===== UI：カード表示・HUD・手持ちカード・タイトル・結果 =====
-const PCOL=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5];
+const CAR_COLS=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5,0xff7a1a,0x17c3d4,0x8ac926,0x2b2b3a];
+const CLOTH_COLS=[0xff5a5f,0x3f8cff,0x37c486,0xffc933,0x8e6bff,0xff8fc0,0xff9a3d,0x4dd0e1,0xb6e04a,0x3b2f4a,0xffffff,0x8b5a2b];
+const PCOL=CAR_COLS.slice(0,6);
+const GENDERS=[['m','👦 男の子'],['f','👧 女の子'],['n','🧑 ひみつ']];
+const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length]});
+const cleanAv=(a,i=0)=>({gender:'mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n',cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length]});
+let AV=[],selRow=0;
 const DEF_NAME=['あなた','タロウ','ハナ','ケン','ミキ','ソラ'];
 const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳'};
 let cardOpen=false,logOn=false;
@@ -1835,7 +1886,7 @@ function cardLocal(o,p){
     head.textContent=(o.head||'')+(o.spec&&p?`（${p.name}）`:'');head.style.background=o.color||'#3f8cff';
     $('#cardTitle').innerHTML=o.title||'';
     let t=o.text||'';
-    if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p?p.color:0x3f8cff)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
+    if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
     $('#cardText').innerHTML=t;
     const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
     const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
@@ -1904,7 +1955,7 @@ V.hud=()=>{
 function renderHand(p){
   const h=$('#hand');h.innerHTML='';
   const add=(cls,inner,fn)=>{const d=document.createElement('div');d.className='hc '+cls;d.innerHTML=inner;d.onclick=fn;h.appendChild(d)};
-  if(p.job&&!p.retired)add('job '+(p.job.deck==='s'?'sp':''),`<img src="${portrait(p.job,p.color)}"><div class="tt">${esc(p.job.n)}</div>`,()=>zoom(p,'job'));
+  if(p.job&&!p.retired)add('job '+(p.job.deck==='s'?'sp':''),`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,()=>zoom(p,'job'));
   p.items.forEach(it=>add(it.ty,`<div class="ic">${ITEM_ICON[it.c]||'🎁'}</div><div class="tt">${esc(it.n)}</div>`,()=>zoom(p,'item',it)));
   p.houses.forEach(hs=>add('house',houseCardHtml(hs),()=>zoom(p,'house',hs)));
   p.stocks.forEach(n=>add('stock',`<div class="big">${n}</div><div class="tt">株券 ${n}</div>`,()=>zoom(p,'stock',n)));
@@ -1913,7 +1964,7 @@ function renderHand(p){
 async function zoom(p,type,x){
   if(cardOpen)return;
   let o;
-  if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p.color)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
+  if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'アイテム（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }
@@ -1932,7 +1983,7 @@ V.results=async()=>{
   const r=[...G.players].sort((a,b)=>b.final-a.final);
   Sound.fanfare();
   const medal=['🥇','🥈','🥉'];
-  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}</td><td>${fmt(p.final)}</td></tr>`).join('');
+  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}${p.left?'（退出）':''}</td><td>${fmt(p.final)}</td></tr>`).join('');
   const det=r.map(p=>`<details style="text-align:left;font-size:.8rem"><summary>${esc(p.name)} の内訳</summary><table class="tbl">${p.report.map(x=>`<tr><td>${esc(x[0])}</td><td class="${x[1]<0?'minus':''}">${fmt(x[1])}</td></tr>`).join('')}</table></details>`).join('');
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
@@ -1948,19 +1999,20 @@ $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textCon
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
 /* ---------- タイトル画面 ---------- */
-let pcount=4;
-function buildTitle(){
-  $('#cnt').innerHTML=[2,3,4,5,6].map(n=>`<button class="${n===pcount?'on':''}" data-n="${n}">${n}人</button>`).join('');
-  $('#cnt').querySelectorAll('button').forEach(b=>b.onclick=()=>{pcount=+b.dataset.n;buildTitle()});
-  const old=[...$('#prows').children].map(r=>({name:r.querySelector('input').value,cpu:r.querySelector('button').dataset.cpu==='1'}));
-  $('#prows').innerHTML='';
-  for(let i=0;i<pcount;i++){
-    const o=old[i]||{name:DEF_NAME[i],cpu:i>0},d=document.createElement('div');d.className='prow';
-    d.innerHTML=`<span class="dot" style="background:${hex(PCOL[i])}"></span><input type="text" maxlength="8" value="${esc(o.name)}"><button data-cpu="${o.cpu?1:0}" class="${o.cpu?'alt':'green'}">${o.cpu?'🤖 CPU':'🙂 人間'}</button>`;
-    const b=d.querySelector('button');
-    b.onclick=()=>{const c=b.dataset.cpu==='1'?0:1;b.dataset.cpu=c;b.textContent=c?'🤖 CPU':'🙂 人間';b.className=c?'alt':'green'};
-    $('#prows').appendChild(d);
-  }
+function renderAvatarEditor(){
+  const av=AV[0];
+  $('#avWho').textContent='（あなた）';
+  $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
+  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;renderAvatarEditor()});
+  $('#swCloth').innerHTML=CLOTH_COLS.map(c=>`<span data-c="${c}" class="${av.cloth===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+  $('#swCar').innerHTML=CAR_COLS.map(c=>`<span data-c="${c}" class="${av.car===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+  $('#swCloth').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.cloth=+e.dataset.c;renderAvatarEditor()});
+  $('#swCar').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.car=+e.dataset.c;renderAvatarEditor()});
+  $('#avPrev').src=renderAvatar(av);
+}
+function buildTitle(){                                   // 最初にアバターを選ぶ（初期値はランダム）
+  AV[0]={gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
+  renderAvatarEditor();
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
@@ -1984,13 +2036,9 @@ window.addEventListener('load',()=>{
     $('#sub').innerHTML='⚠ このブラウザでは3D(WebGL)を使えません。別のブラウザでお試しください。<br><small>'+esc(e.message)+'</small>';
     console.error(e);return;
   }
-  $('#startBtn').onclick=()=>{
-    const list=[...$('#prows').children].map((r,i)=>({name:r.querySelector('input').value.trim()||DEF_NAME[i],cpu:r.querySelector('button').dataset.cpu==='1',color:PCOL[i]}));
-    startGame(list);
-  };
   if(AUTO){
     const n=+((location.search.match(/n=(\d)/)||[])[1]||4);
-    startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:PCOL[i]})));
+    startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:CAR_COLS[i],cloth:defAv(i).cloth,gender:defAv(i).gender})));
   }
 });
 // ===== オンライン対戦（PeerJS / WebRTC P2P・ルームコード方式）=====
@@ -2069,9 +2117,11 @@ function hostRecv(c,m){
   if(!m||typeof m!=='object')return;
   if(m.t==='join'){
     if(NET.started){c.conn.send({t:'full',why:'ゲームはすでに始まっています'});return}
-    const i=NET.slots.findIndex((s,k)=>k>0&&s.kind==='open');
-    if(i<0){c.conn.send({t:'full',why:'ルームが満員です'});return}
-    c.slot=i;NET.slots[i]={kind:'human',name:String(m.name||'ゲスト').slice(0,8)};
+    let i=NET.slots.findIndex((s,k)=>k>0&&s.kind==='open');
+    if(i<0){if(NET.slots.length>=6){c.conn.send({t:'full',why:'ルームが満員です（最大6人）'});return}i=NET.slots.length;NET.slots.push({kind:'open'})}
+    const av=cleanAv(m.av,i),taken=new Set(NET.slots.filter(x=>x.av).map(x=>x.av.car));
+    if(taken.has(av.car))av.car=CAR_COLS.find(c=>!taken.has(c));       // 車の色が重なったら空いている色に
+    c.slot=i;NET.slots[i]={kind:'human',name:String(m.name||'ゲスト').slice(0,8),av};
     c.conn.send({t:'welcome',slot:i});lobbyUpdate();return;
   }
   if(!NET.started||c.pid===undefined)return;
@@ -2089,8 +2139,9 @@ function hostLeft(c){
     lobbyUpdate();return;
   }
   if(c.pid===undefined)return;
-  const p=G.players[c.pid];if(!p)return;
-  p.cpu=true;V.toast(`${p.name} が退出したのでCPUに交代します`);V.log(`${p.name} が退出（CPU交代）`);
+  const p=G.players[c.pid];if(!p||p.finished)return;
+  p.left=true;p.finished=true;p.final=assetsOf(p);p.report.push(['退出時の総資産（見込み）',p.final]);
+  V.toast(`${p.name} が退出しました`);V.log(`${p.name} が退出`);
   for(const rid in NET.pend){const q=NET.pend[rid];if(q.pid===c.pid)resolvePend(rid,q.pick)}
   V.hud();
 }
@@ -2099,24 +2150,18 @@ function hostLeft(c){
 const $ol=id=>$('#'+id);
 function olMsg(t){$ol('olMsg').textContent=t||'';$ol('olMsg2').textContent=t||''}
 function slotRows(slots,me){
-  return slots.map((s,i)=>{
-    const tag={host:'ホスト',human:i===me?'あなた':'参加中',open:'CPU（空き）',cpu:'CPU'}[s.kind];
-    const nm=s.kind==='open'||s.kind==='cpu'?`CPU ${DEF_NAME[i]}`:esc(s.name);
-    return `<div class="slotrow"><span class="dot" style="background:${hex(PCOL[i])}"></span><b>${nm}</b><span class="tag" style="background:${s.kind==='human'||s.kind==='host'?'#bdf0c9':'#eee'}">${tag}</span></div>`;
-  }).join('');
+  return slots.map((s,i)=>s.kind==='open'?'':`<div class="slotrow"><span class="dot" style="background:${hex(s.av.car)}"></span><b>${esc(s.name)}</b><span class="tag" style="background:#bdf0c9">${i===me?'あなた':s.kind==='host'?'ホスト':'参加中'}</span></div>`).join('');
 }
 function lobbyUpdate(){
   if(!NET.isHost)return;
+  const joined=NET.slots.filter(s=>s.kind!=='open').length;
   $ol('olSlots').innerHTML=slotRows(NET.slots,0);
-  const joined=NET.slots.filter(s=>s.kind==='human'||s.kind==='host').length;
-  $ol('olCtl').innerHTML=`<div class="prow" style="justify-content:center"><span>人数</span><button class="alt" id="olMinus">−</button><b id="olN">${NET.slots.length}</b><button class="alt" id="olPlus">＋</button></div><button id="olStart" class="pink" style="width:100%;margin-top:6px;font-size:1.1rem">この人数でスタート（空きはCPU）</button>`;
-  $ol('olMinus').onclick=()=>{if(NET.slots.length>Math.max(2,NET.slots.reduce((m,s,i)=>(s.kind==='human'?i+1:m),1))){NET.slots.pop();lobbyUpdate()}};
-  $ol('olPlus').onclick=()=>{if(NET.slots.length<6){NET.slots.push({kind:'open',name:''});lobbyUpdate()}};
+  $ol('olCtl').innerHTML=`<button id="olStart" class="pink" style="width:100%;margin-top:6px;font-size:1.1rem" ${joined<2?'disabled':''}>${joined<2?'2人以上でスタートできます':`この${joined}人でスタート`}</button>`;
   $ol('olStart').onclick=hostStart;
-  olMsg(`参加者 ${joined}人（ホスト含む）。他の人にコード ${NET.code} を伝えてください。`);
+  olMsg(`参加者 ${joined}人（最大6人）。友だちにコード ${NET.code} を伝えてください。`);
   const lob={t:'lobby',slots:NET.slots};NET.conns.forEach(c=>{if(c.slot)sendTo(c,{...lob,me:c.slot})});
 }
-function showLobby(title){$ol('olMenu').classList.add('hidden');$ol('olLobby').classList.remove('hidden');$ol('olTitle').innerHTML=title}
+function showLobby(title){$('#avatarBox').classList.add('hidden');$ol('olMenu').classList.add('hidden');$ol('olLobby').classList.remove('hidden');$ol('olTitle').innerHTML=title}
 function openPeer(id){
   return new Promise((res,rej)=>{
     let p;try{p=id?new Peer(id,{config:ICE,debug:0}):new Peer(undefined,{config:ICE,debug:0})}catch(e){rej(e);return}
@@ -2134,7 +2179,7 @@ async function hostRoom(){
   }
   if(!peer){olMsg('ルームを作れませんでした。もう一度お試しください。');return}
   NET.peer=peer;NET.code=code;NET.isHost=true;NET.on=false;NET.started=false;NET.myPid=0;NET.conns=[];
-  NET.slots=[{kind:'host',name:NET.name},{kind:'open',name:''},{kind:'open',name:''},{kind:'open',name:''}];
+  NET.slots=[{kind:'host',name:NET.name,av:cleanAv(AV[0],0)}];
   peer.on('connection',conn=>{
     const c={conn,slot:0,pid:undefined};NET.conns.push(c);
     conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',()=>hostLeft(c));
@@ -2144,9 +2189,12 @@ async function hostRoom(){
   lobbyUpdate();
 }
 function hostStart(){
+  const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
+  if(humans.length<2)return;
   NET.started=true;NET.on=true;
-  const list=NET.slots.map((s,i)=>({name:s.kind==='open'||s.kind==='cpu'?DEF_NAME[i]+'(CPU)':s.name,cpu:!(s.kind==='host'||s.kind==='human'),color:PCOL[i]}));
-  NET.conns.forEach(c=>{if(c.slot&&NET.slots[c.slot]&&NET.slots[c.slot].kind==='human'){c.pid=c.slot;sendTo(c,{t:'start',list,you:c.slot})}else{c.conn.close()}});
+  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
+  const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
+  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
   startGame(list);
 }
@@ -2164,7 +2212,7 @@ async function joinRoom(){
   NET.hostConn=conn;let opened=false;
   const to=setTimeout(()=>{if(!opened){olMsg('ルームが見つかりません（コードの確認、またはホストの回線を確認）');try{conn.close()}catch(e){}}},12000);
   peer.on('error',e=>{if(e.type==='peer-unavailable'){clearTimeout(to);olMsg('そのコードのルームはありません')}else olMsg('通信エラー：'+(e.type||e.message))});
-  conn.on('open',()=>{opened=true;clearTimeout(to);conn.send({t:'join',name:NET.name})});
+  conn.on('open',()=>{opened=true;clearTimeout(to);conn.send({t:'join',name:NET.name,av:cleanAv(AV[0],0)})});
   conn.on('data',clientRecv);
   conn.on('close',()=>{if(NET.started&&!G.over){cardLocal({head:'接続エラー',color:'#e8454c',title:'ホストとの接続が切れました',text:'ゲームを終了します。',btns:['最初に戻る']},null).then(()=>location.reload())}else if(!NET.started)olMsg('ホストとの接続が切れました')});
 }
@@ -2182,7 +2230,7 @@ function clientRecv(m){
     case 'lobby':$ol('olSlots').innerHTML=slotRows(m.slots,m.me);break;
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
-      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color));G.cur=0;G.over=false;
+      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));G.cur=0;G.over=false;
       enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
@@ -2213,13 +2261,11 @@ function clientRecv(m){
 
 /* ---------- タイトル画面のつなぎこみ ---------- */
 window.addEventListener('load',()=>{
-  $ol('olOpen').onclick=()=>{$('#setupBox').classList.add('hidden');$ol('onlineBox').classList.remove('hidden');olMsg('')};
-  $ol('olBack').onclick=()=>{$ol('onlineBox').classList.add('hidden');$('#setupBox').classList.remove('hidden')};
   $ol('olHost').onclick=()=>{Sound.resume();hostRoom()};
   $ol('olJoin').onclick=()=>{Sound.resume();joinRoom()};
   $ol('olLeave').onclick=()=>location.reload();
   const m=location.search.match(/[?&]room=(\d{6})/);      // ?room=123456 で参加画面にコードを入れておく
-  if(m){$ol('olOpen').click();$ol('olCode').value=m[1]}
+  if(m)$ol('olCode').value=m[1]
 });
 
 </script>

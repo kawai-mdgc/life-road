@@ -74,9 +74,11 @@ function hostRecv(c,m){
   if(!m||typeof m!=='object')return;
   if(m.t==='join'){
     if(NET.started){c.conn.send({t:'full',why:'ゲームはすでに始まっています'});return}
-    const i=NET.slots.findIndex((s,k)=>k>0&&s.kind==='open');
-    if(i<0){c.conn.send({t:'full',why:'ルームが満員です'});return}
-    c.slot=i;NET.slots[i]={kind:'human',name:String(m.name||'ゲスト').slice(0,8)};
+    let i=NET.slots.findIndex((s,k)=>k>0&&s.kind==='open');
+    if(i<0){if(NET.slots.length>=6){c.conn.send({t:'full',why:'ルームが満員です（最大6人）'});return}i=NET.slots.length;NET.slots.push({kind:'open'})}
+    const av=cleanAv(m.av,i),taken=new Set(NET.slots.filter(x=>x.av).map(x=>x.av.car));
+    if(taken.has(av.car))av.car=CAR_COLS.find(c=>!taken.has(c));       // 車の色が重なったら空いている色に
+    c.slot=i;NET.slots[i]={kind:'human',name:String(m.name||'ゲスト').slice(0,8),av};
     c.conn.send({t:'welcome',slot:i});lobbyUpdate();return;
   }
   if(!NET.started||c.pid===undefined)return;
@@ -94,8 +96,9 @@ function hostLeft(c){
     lobbyUpdate();return;
   }
   if(c.pid===undefined)return;
-  const p=G.players[c.pid];if(!p)return;
-  p.cpu=true;V.toast(`${p.name} が退出したのでCPUに交代します`);V.log(`${p.name} が退出（CPU交代）`);
+  const p=G.players[c.pid];if(!p||p.finished)return;
+  p.left=true;p.finished=true;p.final=assetsOf(p);p.report.push(['退出時の総資産（見込み）',p.final]);
+  V.toast(`${p.name} が退出しました`);V.log(`${p.name} が退出`);
   for(const rid in NET.pend){const q=NET.pend[rid];if(q.pid===c.pid)resolvePend(rid,q.pick)}
   V.hud();
 }
@@ -104,24 +107,18 @@ function hostLeft(c){
 const $ol=id=>$('#'+id);
 function olMsg(t){$ol('olMsg').textContent=t||'';$ol('olMsg2').textContent=t||''}
 function slotRows(slots,me){
-  return slots.map((s,i)=>{
-    const tag={host:'ホスト',human:i===me?'あなた':'参加中',open:'CPU（空き）',cpu:'CPU'}[s.kind];
-    const nm=s.kind==='open'||s.kind==='cpu'?`CPU ${DEF_NAME[i]}`:esc(s.name);
-    return `<div class="slotrow"><span class="dot" style="background:${hex(PCOL[i])}"></span><b>${nm}</b><span class="tag" style="background:${s.kind==='human'||s.kind==='host'?'#bdf0c9':'#eee'}">${tag}</span></div>`;
-  }).join('');
+  return slots.map((s,i)=>s.kind==='open'?'':`<div class="slotrow"><span class="dot" style="background:${hex(s.av.car)}"></span><b>${esc(s.name)}</b><span class="tag" style="background:#bdf0c9">${i===me?'あなた':s.kind==='host'?'ホスト':'参加中'}</span></div>`).join('');
 }
 function lobbyUpdate(){
   if(!NET.isHost)return;
+  const joined=NET.slots.filter(s=>s.kind!=='open').length;
   $ol('olSlots').innerHTML=slotRows(NET.slots,0);
-  const joined=NET.slots.filter(s=>s.kind==='human'||s.kind==='host').length;
-  $ol('olCtl').innerHTML=`<div class="prow" style="justify-content:center"><span>人数</span><button class="alt" id="olMinus">−</button><b id="olN">${NET.slots.length}</b><button class="alt" id="olPlus">＋</button></div><button id="olStart" class="pink" style="width:100%;margin-top:6px;font-size:1.1rem">この人数でスタート（空きはCPU）</button>`;
-  $ol('olMinus').onclick=()=>{if(NET.slots.length>Math.max(2,NET.slots.reduce((m,s,i)=>(s.kind==='human'?i+1:m),1))){NET.slots.pop();lobbyUpdate()}};
-  $ol('olPlus').onclick=()=>{if(NET.slots.length<6){NET.slots.push({kind:'open',name:''});lobbyUpdate()}};
+  $ol('olCtl').innerHTML=`<button id="olStart" class="pink" style="width:100%;margin-top:6px;font-size:1.1rem" ${joined<2?'disabled':''}>${joined<2?'2人以上でスタートできます':`この${joined}人でスタート`}</button>`;
   $ol('olStart').onclick=hostStart;
-  olMsg(`参加者 ${joined}人（ホスト含む）。他の人にコード ${NET.code} を伝えてください。`);
+  olMsg(`参加者 ${joined}人（最大6人）。友だちにコード ${NET.code} を伝えてください。`);
   const lob={t:'lobby',slots:NET.slots};NET.conns.forEach(c=>{if(c.slot)sendTo(c,{...lob,me:c.slot})});
 }
-function showLobby(title){$ol('olMenu').classList.add('hidden');$ol('olLobby').classList.remove('hidden');$ol('olTitle').innerHTML=title}
+function showLobby(title){$('#avatarBox').classList.add('hidden');$ol('olMenu').classList.add('hidden');$ol('olLobby').classList.remove('hidden');$ol('olTitle').innerHTML=title}
 function openPeer(id){
   return new Promise((res,rej)=>{
     let p;try{p=id?new Peer(id,{config:ICE,debug:0}):new Peer(undefined,{config:ICE,debug:0})}catch(e){rej(e);return}
@@ -139,7 +136,7 @@ async function hostRoom(){
   }
   if(!peer){olMsg('ルームを作れませんでした。もう一度お試しください。');return}
   NET.peer=peer;NET.code=code;NET.isHost=true;NET.on=false;NET.started=false;NET.myPid=0;NET.conns=[];
-  NET.slots=[{kind:'host',name:NET.name},{kind:'open',name:''},{kind:'open',name:''},{kind:'open',name:''}];
+  NET.slots=[{kind:'host',name:NET.name,av:cleanAv(AV[0],0)}];
   peer.on('connection',conn=>{
     const c={conn,slot:0,pid:undefined};NET.conns.push(c);
     conn.on('data',m=>hostRecv(c,m));conn.on('close',()=>hostLeft(c));conn.on('error',()=>hostLeft(c));
@@ -149,9 +146,12 @@ async function hostRoom(){
   lobbyUpdate();
 }
 function hostStart(){
+  const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
+  if(humans.length<2)return;
   NET.started=true;NET.on=true;
-  const list=NET.slots.map((s,i)=>({name:s.kind==='open'||s.kind==='cpu'?DEF_NAME[i]+'(CPU)':s.name,cpu:!(s.kind==='host'||s.kind==='human'),color:PCOL[i]}));
-  NET.conns.forEach(c=>{if(c.slot&&NET.slots[c.slot]&&NET.slots[c.slot].kind==='human'){c.pid=c.slot;sendTo(c,{t:'start',list,you:c.slot})}else{c.conn.close()}});
+  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
+  const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
+  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
   startGame(list);
 }
@@ -169,7 +169,7 @@ async function joinRoom(){
   NET.hostConn=conn;let opened=false;
   const to=setTimeout(()=>{if(!opened){olMsg('ルームが見つかりません（コードの確認、またはホストの回線を確認）');try{conn.close()}catch(e){}}},12000);
   peer.on('error',e=>{if(e.type==='peer-unavailable'){clearTimeout(to);olMsg('そのコードのルームはありません')}else olMsg('通信エラー：'+(e.type||e.message))});
-  conn.on('open',()=>{opened=true;clearTimeout(to);conn.send({t:'join',name:NET.name})});
+  conn.on('open',()=>{opened=true;clearTimeout(to);conn.send({t:'join',name:NET.name,av:cleanAv(AV[0],0)})});
   conn.on('data',clientRecv);
   conn.on('close',()=>{if(NET.started&&!G.over){cardLocal({head:'接続エラー',color:'#e8454c',title:'ホストとの接続が切れました',text:'ゲームを終了します。',btns:['最初に戻る']},null).then(()=>location.reload())}else if(!NET.started)olMsg('ホストとの接続が切れました')});
 }
@@ -187,7 +187,7 @@ function clientRecv(m){
     case 'lobby':$ol('olSlots').innerHTML=slotRows(m.slots,m.me);break;
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
-      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color));G.cur=0;G.over=false;
+      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));G.cur=0;G.over=false;
       enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
@@ -218,11 +218,9 @@ function clientRecv(m){
 
 /* ---------- タイトル画面のつなぎこみ ---------- */
 window.addEventListener('load',()=>{
-  $ol('olOpen').onclick=()=>{$('#setupBox').classList.add('hidden');$ol('onlineBox').classList.remove('hidden');olMsg('')};
-  $ol('olBack').onclick=()=>{$ol('onlineBox').classList.add('hidden');$('#setupBox').classList.remove('hidden')};
   $ol('olHost').onclick=()=>{Sound.resume();hostRoom()};
   $ol('olJoin').onclick=()=>{Sound.resume();joinRoom()};
   $ol('olLeave').onclick=()=>location.reload();
   const m=location.search.match(/[?&]room=(\d{6})/);      // ?room=123456 で参加画面にコードを入れておく
-  if(m){$ol('olOpen').click();$ol('olCode').value=m[1]}
+  if(m)$ol('olCode').value=m[1]
 });

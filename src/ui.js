@@ -1,5 +1,11 @@
 // ===== UI：カード表示・HUD・手持ちカード・タイトル・結果 =====
-const PCOL=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5];
+const CAR_COLS=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5,0xff7a1a,0x17c3d4,0x8ac926,0x2b2b3a];
+const CLOTH_COLS=[0xff5a5f,0x3f8cff,0x37c486,0xffc933,0x8e6bff,0xff8fc0,0xff9a3d,0x4dd0e1,0xb6e04a,0x3b2f4a,0xffffff,0x8b5a2b];
+const PCOL=CAR_COLS.slice(0,6);
+const GENDERS=[['m','👦 男の子'],['f','👧 女の子'],['n','🧑 ひみつ']];
+const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length]});
+const cleanAv=(a,i=0)=>({gender:'mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n',cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length]});
+let AV=[],selRow=0;
 const DEF_NAME=['あなた','タロウ','ハナ','ケン','ミキ','ソラ'];
 const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳'};
 let cardOpen=false,logOn=false;
@@ -15,7 +21,7 @@ function cardLocal(o,p){
     head.textContent=(o.head||'')+(o.spec&&p?`（${p.name}）`:'');head.style.background=o.color||'#3f8cff';
     $('#cardTitle').innerHTML=o.title||'';
     let t=o.text||'';
-    if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p?p.color:0x3f8cff)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
+    if(o.jobs)t='<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px">'+o.jobs.map(j=>`<img src="${portrait(j,p)}" width="86" style="border-radius:10px;background:#eaf6ff">`).join('')+'</div>'+t;
     $('#cardText').innerHTML=t;
     const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
     const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
@@ -84,7 +90,7 @@ V.hud=()=>{
 function renderHand(p){
   const h=$('#hand');h.innerHTML='';
   const add=(cls,inner,fn)=>{const d=document.createElement('div');d.className='hc '+cls;d.innerHTML=inner;d.onclick=fn;h.appendChild(d)};
-  if(p.job&&!p.retired)add('job '+(p.job.deck==='s'?'sp':''),`<img src="${portrait(p.job,p.color)}"><div class="tt">${esc(p.job.n)}</div>`,()=>zoom(p,'job'));
+  if(p.job&&!p.retired)add('job '+(p.job.deck==='s'?'sp':''),`<img src="${portrait(p.job,p)}"><div class="tt">${esc(p.job.n)}</div>`,()=>zoom(p,'job'));
   p.items.forEach(it=>add(it.ty,`<div class="ic">${ITEM_ICON[it.c]||'🎁'}</div><div class="tt">${esc(it.n)}</div>`,()=>zoom(p,'item',it)));
   p.houses.forEach(hs=>add('house',houseCardHtml(hs),()=>zoom(p,'house',hs)));
   p.stocks.forEach(n=>add('stock',`<div class="big">${n}</div><div class="tt">株券 ${n}</div>`,()=>zoom(p,'stock',n)));
@@ -93,7 +99,7 @@ function renderHand(p){
 async function zoom(p,type,x){
   if(cardOpen)return;
   let o;
-  if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p.color)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
+  if(type==='job')o={head:'職業カード',color:p.job.deck==='s'?'#c98a00':'#3f8cff',title:esc(p.job.n),text:`<img src="${portrait(p.job,p)}" width="120"><br>給料 ${fmt(p.job.sal)} LD（昇進×${p.promo}で ${fmt(salaryOf(p))} LD）<br>特殊能力：${esc(p.job.abt)}<br><small>${esc(p.job.look)}</small>`};
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'アイテム（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }
@@ -112,7 +118,7 @@ V.results=async()=>{
   const r=[...G.players].sort((a,b)=>b.final-a.final);
   Sound.fanfare();
   const medal=['🥇','🥈','🥉'];
-  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}</td><td>${fmt(p.final)}</td></tr>`).join('');
+  const rows=r.map((p,i)=>`<tr><td>${medal[i]||(i+1)+'位'}</td><td><span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.cpu?'🤖':''}${p.left?'（退出）':''}</td><td>${fmt(p.final)}</td></tr>`).join('');
   const det=r.map(p=>`<details style="text-align:left;font-size:.8rem"><summary>${esc(p.name)} の内訳</summary><table class="tbl">${p.report.map(x=>`<tr><td>${esc(x[0])}</td><td class="${x[1]<0?'minus':''}">${fmt(x[1])}</td></tr>`).join('')}</table></details>`).join('');
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
@@ -128,19 +134,20 @@ $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textCon
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
 /* ---------- タイトル画面 ---------- */
-let pcount=4;
-function buildTitle(){
-  $('#cnt').innerHTML=[2,3,4,5,6].map(n=>`<button class="${n===pcount?'on':''}" data-n="${n}">${n}人</button>`).join('');
-  $('#cnt').querySelectorAll('button').forEach(b=>b.onclick=()=>{pcount=+b.dataset.n;buildTitle()});
-  const old=[...$('#prows').children].map(r=>({name:r.querySelector('input').value,cpu:r.querySelector('button').dataset.cpu==='1'}));
-  $('#prows').innerHTML='';
-  for(let i=0;i<pcount;i++){
-    const o=old[i]||{name:DEF_NAME[i],cpu:i>0},d=document.createElement('div');d.className='prow';
-    d.innerHTML=`<span class="dot" style="background:${hex(PCOL[i])}"></span><input type="text" maxlength="8" value="${esc(o.name)}"><button data-cpu="${o.cpu?1:0}" class="${o.cpu?'alt':'green'}">${o.cpu?'🤖 CPU':'🙂 人間'}</button>`;
-    const b=d.querySelector('button');
-    b.onclick=()=>{const c=b.dataset.cpu==='1'?0:1;b.dataset.cpu=c;b.textContent=c?'🤖 CPU':'🙂 人間';b.className=c?'alt':'green'};
-    $('#prows').appendChild(d);
-  }
+function renderAvatarEditor(){
+  const av=AV[0];
+  $('#avWho').textContent='（あなた）';
+  $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
+  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;renderAvatarEditor()});
+  $('#swCloth').innerHTML=CLOTH_COLS.map(c=>`<span data-c="${c}" class="${av.cloth===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+  $('#swCar').innerHTML=CAR_COLS.map(c=>`<span data-c="${c}" class="${av.car===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+  $('#swCloth').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.cloth=+e.dataset.c;renderAvatarEditor()});
+  $('#swCar').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.car=+e.dataset.c;renderAvatarEditor()});
+  $('#avPrev').src=renderAvatar(av);
+}
+function buildTitle(){                                   // 最初にアバターを選ぶ（初期値はランダム）
+  AV[0]={gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
+  renderAvatarEditor();
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
@@ -164,12 +171,8 @@ window.addEventListener('load',()=>{
     $('#sub').innerHTML='⚠ このブラウザでは3D(WebGL)を使えません。別のブラウザでお試しください。<br><small>'+esc(e.message)+'</small>';
     console.error(e);return;
   }
-  $('#startBtn').onclick=()=>{
-    const list=[...$('#prows').children].map((r,i)=>({name:r.querySelector('input').value.trim()||DEF_NAME[i],cpu:r.querySelector('button').dataset.cpu==='1',color:PCOL[i]}));
-    startGame(list);
-  };
   if(AUTO){
     const n=+((location.search.match(/n=(\d)/)||[])[1]||4);
-    startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:PCOL[i]})));
+    startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:CAR_COLS[i],cloth:defAv(i).cloth,gender:defAv(i).gender})));
   }
 });

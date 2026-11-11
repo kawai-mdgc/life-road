@@ -42,8 +42,8 @@ function prevKey(p,key){
 }
 
 /* ---------- プレイヤー ---------- */
-function newPlayer(id,name,cpu,color){
-  return{id,name,cpu,color,pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
+function newPlayer(id,name,cpu,color,cloth,gender){
+  return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
     finished:false,rank:0,lastRoll:0,report:[]};
@@ -589,7 +589,7 @@ async function takeTurn(p){
 }
 
 function setupGame(list){
-  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color));
+  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));
   G.cur=0;G.order=[];G.over=false;G.turnNo=0;
   G.stockOwner=Array(11).fill(null);G.houseTaken=Array(HOUSES.length).fill(false);
   buildItemDeck();buildJobDecks();

@@ -216,6 +216,23 @@ function makeDoll(o){
   mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,12)),mat(body,90),0,.17,0,g);
   mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,14,12)),mat(o.skin||0xffd9b3,60),0,.47,0,g);
   [-.05,.05].forEach(z=>mesh(G_('deye',()=>new THREE.SphereGeometry(.018,6,6)),mat(0x222222),.12,.5,z,g));
+  if(look.body!==undefined&&o.color!==undefined)mesh(G_('dscarf',()=>new THREE.TorusGeometry(.105,.03,6,14)),mat(o.color,90),0,.335,0,g).rotation.x=Math.PI/2;   // 制服でも選んだ服の色がマフラーで見える
+  if(o.gender){                                                   // せいべつ：髪型とスカート
+    const hc=o.hair??0x4a3426,hm=mat(hc,40);
+    mesh(G_('hcap',()=>new THREE.SphereGeometry(.142,14,8,0,Math.PI*2,0,Math.PI*.4)),hm,-.005,.48,0,g);
+    mesh(G_('hback',()=>new THREE.SphereGeometry(.142,14,8,Math.PI+.95,Math.PI*2-1.9,Math.PI*.38,Math.PI*.36)),hm,-.005,.48,0,g);
+    if(o.gender==='f'){
+      mesh(G_('hlong',()=>new THREE.BoxGeometry(.07,.24,.25)),hm,-.115,.38,0,g);
+      [-.125,.125].forEach(z=>mesh(G_('hside',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.02,.4,z,g));
+      mesh(G_('dskirt',()=>new THREE.CylinderGeometry(.1,.21,.13,14)),mat(body,90),0,.08,0,g);
+      mesh(G_('hribbon',()=>new THREE.SphereGeometry(.035,6,6)),mat(0xff6fa5,80),-.02,.62,.1,g);
+    }else if(o.gender==='m'){
+      mesh(G_('hfront',()=>new THREE.BoxGeometry(.05,.04,.16)),hm,.1,.6,0,g);
+    }else{
+      mesh(G_('htuft',()=>new THREE.ConeGeometry(.04,.1,6)),hm,0,.64,0,g);
+      mesh(G_('hside2',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.08,.42,.1,g);
+    }
+  }
   const part=(s)=>{const a=s.split(':');return[a[0],a[1]?parseInt(a[1]):null]};
   if(look.hat){
     const[h,c]=part(look.hat);
@@ -286,7 +303,7 @@ function makeCar(p){
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
-  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
+  const vint=p.items.some(i=>i.c==='vcar'),sig=[p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
   while(car.styleG.children.length)car.styleG.remove(car.styleG.children[0]);
@@ -297,11 +314,11 @@ function refreshCar(p){
   for(let i=0;i<p.pets;i++)list.push({k:'pet'});
   list.slice(0,PIN_MAX).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.color,job:p.job&&!p.retired?p.job.n:null,scale:.95});
-    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
-    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,scale:.88});
-    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],scale:.7});
-    else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],scale:.55});
+    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired?p.job.n:null,scale:.95});
+    else if(e.k==='spouse'){d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
+    else if(e.k==='lover')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',scale:.88});
+    else if(e.k==='kid')d=makeDoll({color:KID_COL[e.i%5],gender:e.i%2?'f':'m',scale:.7});
+    else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
     else d=makePet(.9);
     d.position.set(SEATS[i][0],0,SEATS[i][1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
   });
@@ -485,14 +502,34 @@ V.flash=key=>{const t=TILE[key];if(!t)return;anim(600,k=>{t.g.scale.set(1+Math.s
 
 /* ---------- 職業カードの肖像（別WebGLで1枚ずつ描画してキャッシュ） ---------- */
 let portR=null,portScene=null,portCam=null;const portCache={};
-function portrait(job,color=0x3f8cff){
-  const k=job?job.n:'-';if(portCache[k])return portCache[k];
+function portrait(job,p){
+  const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
+  const k=(job?job.n:'-')+'|'+cloth+'|'+gender;if(portCache[k])return portCache[k];
   try{
     if(!portR){portR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});portR.setSize(150,130);portScene=new THREE.Scene();
       portScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);portScene.add(dl);
       portCam=new THREE.PerspectiveCamera(30,150/130,.1,50);portCam.position.set(1.4,.9,2.6);portCam.lookAt(0,.4,0)}
-    const d=makeDoll({color,job:k==='-'?null:k,scale:1});d.rotation.y=-.6;portScene.add(d);
+    const d=makeDoll({color:cloth,gender,job:job?job.n:null,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
+  }catch(e){return ''}
+}
+/* アバター選択のプレビュー：選んだ服・せいべつの人形が選んだ色の車に乗っている */
+let prevR=null,prevScene=null,prevCam=null;
+function renderAvatar(av){
+  try{
+    if(!prevR){prevR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});prevR.setSize(240,170);prevScene=new THREE.Scene();
+      prevScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(2,4,4);prevScene.add(dl);
+      prevCam=new THREE.PerspectiveCamera(30,240/170,.1,50);prevCam.position.set(2.3,1.5,3.4);prevCam.lookAt(.05,.45,0)}
+    const g=new THREE.Group();
+    mesh(new THREE.BoxGeometry(1.5,.3,.8),mat(av.car,100),0,.32,0,g);mesh(new THREE.BoxGeometry(.5,.16,.76),mat(av.car,100),.6,.5,0,g);
+    mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0xffffff,100),.78,.28,0,g);mesh(new THREE.BoxGeometry(.1,.18,.7),mat(0x666666,100),-.78,.28,0,g);
+    [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,g));
+    [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const t=mesh(new THREE.CylinderGeometry(.17,.17,.14,14),mat(0x222222,30),a[0],.17,a[1],g);t.rotation.x=Math.PI/2});
+    mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),.25,.485,-.1,g);
+    const d=makeDoll({color:av.cloth,gender:av.gender,scale:1.7});d.position.set(.25,.49,-.1);g.add(d);
+    g.rotation.y=-.35;prevScene.add(g);
+    prevR.setClearColor(0x000000,0);prevR.render(prevScene,prevCam);prevScene.remove(g);
+    return prevR.domElement.toDataURL('image/png');
   }catch(e){return ''}
 }

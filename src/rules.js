@@ -555,19 +555,20 @@ function doDivorce(p){p.spouse=false;p.spouseInfo=null;p.spouseJobless=0;V.pins(
 const ARRESTS=[
   {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
   {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
-async function arrest(p,force){
+async function arrest(p,force,dashForce){
   const r=force||pickOf(ARRESTS);
-  V.banner('🚨 警察が来た！');
-  await V.policeDispatch(p);                            // 警察署から、警官の乗ったパトカーがそのマスまで来る
+  const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
+  V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');
+  await V.policeDispatch(p,dash);                            // 警察署から、警官の乗ったパトカーがそのマスまで来る
   Sound.bad();
-  const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`パトカーに乗せられる前に、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、パトカーで警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
+  const i=await ask(p,{head:'🚨 逮捕！',color:'#e8454c',title:`「${r.why}」で逮捕されました`,text:`${dash?'モッズコートの警察官に捕まった！ 連れていかれる前に':'パトカーに乗せられる前に'}、どうするか決めよう<br><small>保釈金を払えば、その場で釈放。払わない場合は、${dash?'走って連行され':'パトカーで'}警察署の留置所へ行き<b>${r.rest}回休み</b>です</small>`,btns:[`保釈金 ${fmt(r.bail)}円を払う`,`${r.rest}回休み（留置所へ）`],pick:p.cash>=r.bail*1.5?0:1,col:true});
   if(i===0){
     say(p,`${p.name} は「${r.why}」で逮捕… 保釈金 ${fmt(r.bail)}円を払って釈放`);
-    await pay(p,r.bail,{discount:false});await V.policeLeave(p);
+    await pay(p,r.bail,{discount:false});await V.policeLeave(p,dash);
   }else{
-    say(p,`${p.name} は「${r.why}」で逮捕… パトカーで留置所へ（${r.rest}回休み）`);
+    say(p,`${p.name} は「${r.why}」で逮捕… ${dash?'走って連行され':'パトカーで'}留置所へ（${r.rest}回休み）`);
     p.skip=Math.max(p.skip,r.rest);p.inJail=true;
-    await V.policeTake(p);
+    await V.policeTake(p,dash);
   }
 }
 const LIFE={
@@ -610,6 +611,7 @@ async function lifeEvent(p,force){
   const pool=[];for(const[k,d]of Object.entries(LIFE)){if(d.ok(p))for(let i=0;i<d.w;i++)pool.push(k)}
   if(!pool.length)pool.push('cold');
   const k=force&&LIFE[force]?force:pickOf(pool);
+  if(!force&&!LIFE[k].ok(p))return;                              // 条件に合わない出来事は起きない（子どもがいなければ「グレた」は出ない）
   await LIFE[k].run(p);V.hud();
 }
 // アイテムマスの一部を「人生のできごと」マスに置き換え（リアルな出来事）

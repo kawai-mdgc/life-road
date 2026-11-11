@@ -253,8 +253,23 @@ async function moveObj(g,a,b,ms){                        // 一定の速さで�
   const d=b.clone().sub(a);if(d.lengthSq()>.0001)g.rotation.y=Math.atan2(-d.z,d.x);
   await anim(ms,k=>{g.position.lerpVectors(a,b,ease(k));if(g.wheels)g.wheels.forEach(w=>w.rotation.z-=.4)});
 }
-V.policeDispatch=async p=>{                              // 警察署 → 逮捕されるプレイヤーのマスまで
+function ensureRunner(){                                  // モッズコートの警察官（ダッシュ用・ふだんは非表示）
+  if(patrol.runner)return patrol.runner;
+  const r=makeDoll({color:0x5f6b3f,job:'モッズ警察官',gender:'m',scale:1.25});r.visible=false;worldG.add(r);patrol.runner=r;return r;
+}
+async function runObj(o,a,b,ms){                          // ダッシュ：体を前に傾けて、はずみながら走る
+  const d=b.clone().sub(a);if(d.lengthSq()>.0001)o.rotation.y=Math.atan2(-d.z,d.x);
+  await anim(ms,k=>{o.position.lerpVectors(a,b,k);o.position.y=a.y+Math.abs(Math.sin(k*Math.PI*ms/110))*.18;o.rotation.z=-.22;if(Math.floor(k*ms/220)!==o.userData.stp){o.userData.stp=Math.floor(k*ms/220);Sound.step()}});
+  o.rotation.z=0;
+}
+V.policeDispatch=async(p,dash)=>{                         // 警察署 → 逮捕されるプレイヤーのマスまで
   const c=cars[p.id];if(!c||!patrol)return;
+  if(dash){                                                // ごくまれに：モッズコートの警察官がダッシュで来る
+    const r=ensureRunner();r.visible=true;r.position.copy(PATROL_HOME).setY(.3);
+    const target=c.g.position.clone().add(new V3(1.6,0,1.1)).setY(.3);
+    Cam.followObj=r;await runObj(r,r.position.clone(),target,1500);
+    await anim(500,k=>{r.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.3});Cam.followObj=null;return;
+  }
   patrol.siren=true;Sound.siren();
   const target=c.g.position.clone().add(new V3(2.1,0,1.4)).setY(.3);
   Cam.followObj=patrol.g;
@@ -262,14 +277,26 @@ V.policeDispatch=async p=>{                              // 警察署 → 逮捕
   await anim(600,k=>{patrol.off.position.y=.46+Math.abs(Math.sin(k*Math.PI*2))*.25});          // 警官：逮捕だ！
   Cam.followObj=null;
 };
-V.policeLeave=async p=>{                                 // 保釈金：そのまま払って終わり。パトカーは署へ戻る
+V.policeLeave=async(p,dash)=>{                            // 保釈金：そのまま払って終わり。警察は署へ戻る
   if(!patrol)return;
+  if(dash){const r=ensureRunner();await runObj(r,r.position.clone(),PATROL_HOME.clone().setY(.3),1500);r.visible=false;return}
   await moveObj(patrol.g,patrol.g.position.clone(),PATROL_HOME.clone(),1800);
   patrol.siren=false;
 };
-V.policeTake=async p=>{                                  // 連行：パトカーに乗せ、署の隣の檻へ
+V.policeTake=async(p,dash)=>{                             // 連行：署の隣の檻へ
   const c=cars[p.id];if(!c||!patrol)return;
-  p.inJail=true;c.anim=true;Cam.followObj=patrol.g;
+  p.inJail=true;c.anim=true;
+  if(dash){                                                // ダッシュ警官が、そのまま車を連れて走って署へ
+    const r=ensureRunner();Cam.followObj=r;
+    const a=r.position.clone(),b=JAIL_GATE.clone(),start=c.g.position.clone(),dir=b.clone().sub(a).normalize();
+    const d=b.clone().sub(a);r.rotation.y=Math.atan2(-d.z,d.x);c.g.rotation.y=r.rotation.y;
+    await anim(2100,k=>{r.position.lerpVectors(a,b,k);r.position.y=.3+Math.abs(Math.sin(k*Math.PI*19))*.18;r.rotation.z=-.22;
+      c.g.position.lerpVectors(start,r.position.clone().addScaledVector(dir,-1.8),Math.min(1,k*1.4)).setY(.3)});
+    r.rotation.z=0;layoutAll();const to=c.target.clone();
+    await anim(800,k=>c.g.position.lerpVectors(c.g.position.clone(),to,.25+k*.75));c.g.position.copy(to);
+    c.anim=false;await runObj(r,r.position.clone(),PATROL_HOME.clone().setY(.3),1400);r.visible=false;Cam.followObj=null;return;
+  }
+  Cam.followObj=patrol.g;
   const a=c.g.position.clone(),pp=patrol.g.position.clone();
   await anim(500,k=>c.g.position.lerpVectors(a,pp,ease(k)));
   c.g.visible=false;                                      // パトカーの中
@@ -281,10 +308,18 @@ V.policeTake=async p=>{                                  // 連行：パトカ�
   await moveObj(patrol.g,JAIL_GATE.clone(),PATROL_HOME.clone(),1300);
   patrol.siren=false;
 };
-V.release=async p=>{                                     // 釈放：檻から自分のマスへ戻る
-  const c=cars[p.id];if(!c)return;
-  p.inJail=false;c.anim=true;const a=c.g.position.clone();layoutAll();const b=c.target.clone();
-  await anim(1400,k=>c.g.position.lerpVectors(a,b,ease(k)));c.anim=false;
+V.release=async p=>{                                      // 釈放：警察がパトカーで、元いたマスまで送ってくれる
+  const c=cars[p.id];if(!c||!patrol)return;
+  p.inJail=false;c.anim=true;Cam.followObj=patrol.g;
+  await moveObj(patrol.g,patrol.g.position.clone(),JAIL_GATE.clone(),1500);                   // 檻まで迎えに来る
+  const a=c.g.position.clone();
+  await anim(600,k=>c.g.position.lerpVectors(a,JAIL_GATE,ease(k)));c.g.visible=false;       // パトカーに乗る
+  layoutAll();const to=c.target.clone(),drop=to.clone().add(new V3(2.1,0,1.4)).setY(.3);
+  await moveObj(patrol.g,JAIL_GATE.clone(),drop,2700);                                        // 元のマスへ送り届ける
+  c.g.position.copy(to);c.g.visible=true;
+  await anim(500,k=>{c.g.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.25});
+  Cam.followObj=null;await moveObj(patrol.g,drop,PATROL_HOME.clone(),1900);
+  c.anim=false;
 };
 function updatePolice(dt){
   if(!patrol)return;
@@ -297,7 +332,7 @@ function updatePolice(dt){
 const LOOK={
  '会社員':{body:0x2a3b6e,acc:['tie','bag']},'販売員':{body:0xffffff,acc:['apron:0xff9a3d']},'コック':{body:0xffffff,hat:'toque'},
  '美容師':{body:0x222222,acc:['pouch']},'大工':{body:0xd98c2b,hat:'helmet:0xffd23f',acc:['belt']},'バス運転手':{body:0x2e5aa8,hat:'peaked:0x1d2f58',acc:['glove']},
- '農家':{body:0x3d6fb5,hat:'straw'},'警察官':{body:0x2a4a9a,hat:'peaked:0x16286a',acc:['badge']},'消防士':{body:0xd6402b,hat:'helmet:0xe8302b'},
+ '農家':{body:0x3d6fb5,hat:'straw'},'警察官':{body:0x2a4a9a,hat:'peaked:0x16286a',acc:['badge']},'モッズ警察官':{body:0x5f6b3f,acc:['mod','badge']},'消防士':{body:0xd6402b,hat:'helmet:0xe8302b'},
  '保育士':{body:0xffffff,acc:['apron:0xff9ec4']},'動画配信者':{body:0x7a5cff,acc:['phones']},'医者':{body:0xffffff,acc:['stetho']},
  '弁護士':{body:0x333344,acc:['badge','bag']},'パイロット':{body:0x1d2f58,hat:'peaked:0x1d2f58',acc:['epaulet']},'エンジニア':{body:0x4a8f5a,acc:['laptop']},
  '教師':{body:0xb9926b,acc:['pointer']},'研究者':{body:0xffffff,acc:['glasses']},'建築家':{body:0x222222,acc:['roll']},'獣医':{body:0x5cb85c,acc:['badge']},
@@ -345,6 +380,12 @@ function makeDoll(o){
     if(a==='glove'){mesh(new THREE.SphereGeometry(.045,6,6),mat(0xffffff),.02,.14,.17,g);mesh(new THREE.SphereGeometry(.045,6,6),mat(0xffffff),.02,.14,-.17,g)}
     if(a==='badge')mesh(new THREE.CylinderGeometry(.035,.035,.02,10),mat(0xffd23f,120),.13,.26,.05,g).rotation.z=Math.PI/2;
     if(a==='phones'){const t=mesh(new THREE.TorusGeometry(.14,.025,6,14,Math.PI),mat(0x222222),0,.52,0,g);t.rotation.y=Math.PI/2}
+    if(a==='mod'){                                                  // モッズコート：オリーブ色の長いコート＋ファーつきフード
+      mesh(new THREE.CylinderGeometry(.12,.23,.34,14),mat(0x5f6b3f,50),0,.1,0,g);
+      const hd=mesh(new THREE.SphereGeometry(.17,12,8,Math.PI*.55,Math.PI*.9,0,Math.PI*.8),mat(0x5f6b3f,50),-.07,.52,0,g);hd.rotation.y=Math.PI;
+      const fur=mesh(new THREE.TorusGeometry(.125,.035,6,16),mat(0xd9c7a0,20),.045,.49,0,g);fur.rotation.y=Math.PI/2;
+      [-.13,.13].forEach(z=>mesh(new THREE.BoxGeometry(.05,.06,.07),mat(0x4e5a32,50),.16,.1,z*.85,g));
+    }
     if(a==='stetho'){const t=mesh(new THREE.TorusGeometry(.09,.015,6,12),mat(0x222222),.1,.3,0,g);t.rotation.y=Math.PI/2}
     if(a==='epaulet'){[-.1,.1].forEach(z=>mesh(new THREE.BoxGeometry(.05,.02,.06),mat(0xffd23f,120),0,.33,z,g))}
     if(a==='laptop')mesh(new THREE.BoxGeometry(.12,.02,.16),mat(0x888899),.1,.12,.15,g);

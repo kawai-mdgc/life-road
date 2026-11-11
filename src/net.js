@@ -23,7 +23,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',p=>[p.id]);ev('policeLeave',p=>[p.id]);ev('policeTake',p=>[p.id]);ev('release',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -229,9 +229,9 @@ function clientRecv(m){
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
         case 'turnIntro':V.turnIntro(G.players[a[0]],a[1]);break;
-        case 'policeDispatch':V.policeDispatch(G.players[a[0]]);break;
-        case 'policeLeave':V.policeLeave(G.players[a[0]]);break;
-        case 'policeTake':V.policeTake(G.players[a[0]]);break;
+        case 'policeDispatch':V.policeDispatch(G.players[a[0]],a[1]);break;
+        case 'policeLeave':V.policeLeave(G.players[a[0]],a[1]);break;
+        case 'policeTake':V.policeTake(G.players[a[0]],a[1]);break;
         case 'release':V.release(G.players[a[0]]);break;
         case 'confetti':if(a[0])V.confetti(a[0]);break;
         default:if(V[m.n])V[m.n](...a);

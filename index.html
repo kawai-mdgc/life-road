@@ -612,7 +612,7 @@ function prevKey(p,key){
 
 /* ---------- 年齢（盤上の位置から決める） ---------- */
 const AGE20=[0,3,5,6,7,8,9,10,10,11,12,13,14,15,15,16,18,18,18,18];   // マス1〜20の年齢（17=18歳で免許）
-const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,80]];
+const AGE_A=[[1,0],[20,18],[21,22],[50,30],[80,42],[81,45],[110,55],[135,64],[136,65],[150,100]];   // ゴールは100歳
 function ageOfKey(key){
   const s=SQ[key];let n;
   if(s.r==='main'&&s.n<=20)return AGE20[s.n-1];
@@ -621,7 +621,7 @@ function ageOfKey(key){
   for(let i=1;i<AGE_A.length;i++){
     if(n<=AGE_A[i][0]){const[a0,g0]=AGE_A[i-1],[a1,g1]=AGE_A[i];return Math.floor(g0+(g1-g0)*(n-a0)/(a1-a0))}
   }
-  return 80;
+  return 100;
 }
 
 /* ---------- 幸福度と履歴（最後にグラフで見られる） ---------- */
@@ -646,16 +646,16 @@ function recordHist(p){
 
 /* ---------- 乗り物：ベビーカー → 自転車 → 車（免許）→ 車椅子（免許返納） ---------- */
 const VORDER={stroller:0,bike:1,car:2,chair:3,echair:3,scooter:3};
-const OLD_LIMITS=[1200000,1700000];            // 70歳時点の総資産：未満→手動車椅子／未満→電動車椅子／それ以上→シニアカー
+const OLD_LIMITS=[1200000,1700000];            // 80歳時点の総資産：未満→手動車椅子／未満→電動車椅子／それ以上→シニアカー
 const oldVehicleOf=p=>{const a=assetsOf(p);return a<OLD_LIMITS[0]?'chair':a<OLD_LIMITS[1]?'echair':'scooter'};
-const vehicleOfAge=(a,p)=>a<5?'stroller':a<18?'bike':a<70?'car':(p.oldVeh||'chair');
+const vehicleOfAge=(a,p)=>a<5?'stroller':a<18?'bike':a<80?'car':(p.oldVeh||'chair');
 const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業して、自転車に乗れるように！'],car:['🚗 免許を取って車に！','18歳！ 免許を取って、車に乗りかえ！'],
   chair:['🧓 免許返納… 手動車椅子に','老年期に突入。免許を返納して、手動車椅子に（収入が多くなかったので）'],
   echair:['🧓 免許返納… 電動車椅子に','老年期に突入。免許を返納して、電動車椅子に（まずまずの収入）'],
   scooter:['🧓 免許返納… シニアカーに！','老年期に突入。免許を返納して、シニアカーに（ゆとりのある老後）']};
 async function checkVehicle(p){
   const age=ageOfKey(p.pos);
-  if(age>=70&&!p.oldVeh)p.oldVeh=oldVehicleOf(p);          // 70歳になった時点の収入で決まる
+  if(age>=80&&!p.oldVeh)p.oldVeh=oldVehicleOf(p);          // 80歳になった時点の収入で決まる
   const v=vehicleOfAge(age,p);
   if(v===p.vstage)return;
   const up=VORDER[v]>VORDER[p.vstage];p.vstage=v;
@@ -890,7 +890,7 @@ const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペー
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
-  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,70),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
     inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
 const genSpouse=(g,p)=>genPerson(g,p,'spouse');

@@ -691,7 +691,7 @@ function assetsOf(p){   // 現在の総資産（見込み）
 function say(p,msg){V.toast(msg);V.log(msg)}
 
 /* ---------- お金 ---------- */
-const CHASE_ON=3,CHASE_OFF=1;                          // 手形が3枚以上で取り立て屋が来て、1枚以下になるまでついてくる
+const CHASE_ON=3,CHASE_OFF=2;                          // 手形が3枚以上で取り立て屋が来て、2枚以下に返済すると引き上げる
 async function checkChase(p){
   if(p.finished){if(p.chased){p.chased=false;await V.thugsLeave(p)}return}
   if(!p.chased&&p.notes>=CHASE_ON){

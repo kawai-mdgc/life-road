@@ -65,11 +65,38 @@ V.turnIntro=async(p,label='ターン！')=>{
   b.classList.add('hidden');
 };
 
+/* ---------- いま何のルーレットか／ガラガラの確定演出 ---------- */
+V.roulLabel=(label,pid)=>{const e=$('#roulLabel');if(!label){e.classList.add('hidden');return}
+  const p=G.players[pid];e.innerHTML=`${p?`<span class="rl-n" style="background:${hex(p.color)}">${esc(p.name)}</span>`:''}<span>${esc(label)}</span>`;e.classList.remove('hidden')};
+V.garaFx=on=>$('#garaFx').classList.toggle('hidden',!on);
+
+/* ---------- ほかのプレイヤーの情報 ---------- */
+function showPlayerInfo(p){
+  if(!p||cardOpen)return;
+  const fam=[p.spouseInfo?`💍 ${esc(p.spouseInfo.name)}（${p.spouseInfo.age}歳・${esc(p.spouseInfo.job)}）`:p.loverInfo?`💗 恋人 ${esc(p.loverInfo.name)}`:'👤 独身',
+    p.kidList.length?'👶 '+p.kidList.map(k=>esc(k.name)+(k.gender==='f'?'♀':'♂')).join('・'):'',p.grand?`🧒 孫 ${p.grand}人`:'',p.petList.length?'🐾 '+p.petList.map(x=>esc(x.name)+'（'+esc(x.breed)+'）').join('・'):''].filter(Boolean).join('<br>');
+  const cols=p.items.filter(i=>i.ty==='col'),oth=p.items.filter(i=>i.ty!=='col');
+  const row=(a,b)=>`<tr><td>${a}</td><td style="text-align:left">${b}</td></tr>`;
+  cardLocal({head:'プレイヤーの情報',color:hex(p.color),wide:true,title:`${esc(p.name)}（${ageOfKey(p.pos)}歳）`,
+    text:`<img src="${renderAvatar({cloth:p.cloth,gender:p.gender,car:p.color})}" width="150" alt=""><table class="tbl">
+      ${row('現在地',`マス ${esc(p.pos)}${p.finished?'（ゴール済み）':''}${p.inJail?'／留置所':''}${p.skip?'／💤休み':''}`)}
+      ${row('現金',`${fmt(p.cash)}円`)}${row('総資産（見込み）',`${fmt(p.settled?p.final:assetsOf(p))}円`)}
+      ${row('約束手形',p.notes?`<span class="minus">${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）${p.chased?' 🕶取り立て中':''}</span>`:'なし')}
+      ${row('職業',p.retired?'退職（年金）':p.job?`${p.jobRank?'✨':''}${esc(rankName(p))}（給料 ${fmt(salaryOf(p))}円）${p.jobless?' 🥲失業中':''}`:'学生')}
+      ${row('家族',fam)}${row('幸福度',`😊 ${happinessOf(p)}`)}
+      ${row('家',p.houses.length?p.houses.map(h=>esc(h.n)).join('・'):'なし')}
+      ${row('お宝',cols.length?cols.map(i=>(ITEM_ICON[i.c]||'')+esc(i.n)).join('・'):'なし')}
+      ${row('アイテム',oth.length?oth.map(i=>(ITEM_ICON[i.c]||'')+esc(i.n)).join('・'):'なし')}
+      ${row('株券・宝くじ',`株券 ${p.stocks.length?p.stocks.join('・'):'なし'} ／ 宝くじ ${p.tickets.length?p.tickets.join('・')+'番':'なし'}`)}
+    </table>`,btns:['閉じる'],cpu:false},p);
+}
+
 /* ---------- ルーレットボタン ---------- */
 V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
   if(p.cpu||AUTO){setTimeout(res,(phase==='stop'?400+rnd(900):650)/SPD);return}
   const b=$('#spinBtn');
-  if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:purpose==='bonus'?`🎁 ${p.name}：ボーナスルーレット！`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
+  if(purpose==='gara'){b.textContent=`🎊 ${p.name}：ガラガラを回す！`;b.className='go'}
+  else if(phase==='start'){b.textContent=purpose==='move'?`🎯 ${p.name}：ルーレットを回す`:purpose==='bonus'?`🎁 ${p.name}：ボーナスルーレット！`:`🎰 ${p.name}：勝負のルーレット！`;b.className='go'}
   else{b.textContent='✋ ストップ！';b.className='stop';V.toast('好きなタイミングでストップを押そう！')}
   const go=()=>{b.classList.add('hidden');b.onclick=null;removeEventListener('keydown',key);Sound.resume();res()};
   const key=e=>{if((e.code==='Space'||e.code==='Enter')&&!cardOpen){e.preventDefault();go()}};
@@ -83,8 +110,9 @@ V.hud=()=>{
   const turnP=G.players[G.cur],cur=(NET.on&&G.players[NET.myPid])||turnP;
   G.players.forEach(refreshCar);updateStacks();
   // 左：プレイヤー一覧（総資産ランキング順）
-  const ord=[...G.players].sort((a,b)=>(b.finished?b.final:assetsOf(b))-(a.finished?a.final:assetsOf(a)));
-  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''} ${p.finished?'fin':''}"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.finished?p.final:assetsOf(p))}</span></div>`).join('');
+  const ord=[...G.players].sort((a,b)=>(b.settled?b.final:assetsOf(b))-(a.settled?a.final:assetsOf(a)));
+  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''}" data-pid="${p.id}" title="タップで情報を見る"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}${p.finished?'🏁':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.settled?p.final:assetsOf(p))}</span></div>`).join('');
+  $('#plist').querySelectorAll('.pl').forEach(e=>e.onclick=()=>showPlayerInfo(G.players[+e.dataset.pid]));
   // 右上：手番プレイヤー
   const m=$('#money');
   $('#hudName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} ${cur.cpu?'🤖':''} <span class="age">🎂 ${ageOfKey(cur.pos)}歳 ${{stroller:'🍼',bike:'🚲',car:'🚗',chair:'🧑‍🦽',echair:'🦼',scooter:'🛵'}[cur.vstage]||''}</span> <span class="hp">😊${happinessOf(cur)}</span>`;
@@ -122,7 +150,7 @@ function renderHand(p){
   const bd=breakdown(p.cash);
   group('💰 財布',[{cls:'wallet',html:`<div class="wt">${fmt(p.cash)}円</div><div class="wb">${bd.map(([d,n])=>`<div class="wi ${n?'':'zero'}"><img src="${billURL(d)}" alt=""><b>×${n}</b></div>`).join('')}</div>`,fn:()=>zoom(p,'wallet')}]);
   // 💼 職業カード
-  group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':'')+(p.jobRank?' ranked':''),html:`<img src="${portrait(p.job,p)}"><div class="tt">${p.jobRank?'✨':''}${esc(rankName(p))}</div>${p.jobRank?'<span class="cnt">ランクアップ後</span>':''}`,fn:()=>zoom(p,'job')}
+  group('💼 職業',[p.job&&!p.retired?{cls:'job '+(p.job.deck==='s'?'sp':'')+(p.jobRank?' ranked':''),html:`<img src="${portrait(p.job,p)}" style="${p.jobless?'filter:grayscale(1) opacity(.55)':''}"><div class="tt">${p.jobRank?'✨':''}${esc(rankName(p))}</div>${p.jobless?`<span class="cnt lost">失業中 あと${p.jobless}回</span>`:p.jobRank?'<span class="cnt">ランクアップ後</span>':''}`,fn:()=>zoom(p,'job')}
     :{cls:'empty',html:`<div class="ic">${p.retired?'🌴':'🎓'}</div><div class="tt">${p.retired?'退職':'学生'}</div>`,fn:()=>{}}]);
   // 🎟 宝くじ
   if(p.tickets.length)group('🎟 宝くじ',p.tickets.map(n=>({cls:'ticket',html:`<div class="big">${n}</div><div class="tt">宝くじ ${n}番</div>`,fn:()=>zoom(p,'ticket',n)})));
@@ -182,7 +210,7 @@ async function zoom(p,type,x){
     o={head:'職業カード',color:j.deck==='s'?'#c98a00':'#3f8cff',title:esc(rankName(p)),
       text:`<div class="rkrow">${side('ランクアップ前',j.n,j.sal,!ranked,portrait(j,p,0))}${r?`<div class="rkarr">▶</div>${side('ランクアップ後',r[0],Math.round(j.sal*r[1]),ranked,portrait(j,p,1))}`:''}</div>
         ${r?`<small>昇進のマス（29・68・91）に止まると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
-        今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
+        ${p.jobless?`<b class="minus">🥲 失業中：次の${p.jobless}回の給料日は、失業手当（給料の30%）だけ</b><br>`:''}今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
   }
   else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば当たり！ もう一度回して等級が決まります（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）。となり合う数字は前後賞 ${fmt(LOT_SIDE)}円`};
   else if(type==='item'){

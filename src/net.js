@@ -23,7 +23,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
-  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);ev('thugsArrive',p=>[p.id]);ev('thugsLeave',p=>[p.id]);
+  ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('garagara',(p,sq,r,hit,gr)=>[p.id,sq,r,hit,gr]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);ev('thugsArrive',p=>[p.id]);ev('thugsLeave',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
   V.hud=()=>{
@@ -100,7 +100,7 @@ function hostLeft(c){
   }
   if(c.pid===undefined)return;
   const p=G.players[c.pid];if(!p||p.finished)return;
-  p.left=true;p.finished=true;p.final=assetsOf(p);p.report.push(['退出時の総資産（見込み）',p.final]);
+  p.left=true;p.finished=true;p.settled=true;p.final=assetsOf(p);p.report.push(['退出時の総資産（見込み）',p.final]);
   V.toast(`${p.name} が退出しました`);V.log(`${p.name} が退出`);
   for(const rid in NET.pend){const q=NET.pend[rid];if(q.pid===c.pid)resolvePend(rid,q.pick)}
   V.hud();
@@ -224,12 +224,13 @@ function clientRecv(m){
     case 'ev':{
       const a=m.a||[];
       switch(m.n){
-        case 'step':{const p=G.players[a[0]];if(p){p.pos=a[1];V.step(p,a[1])}break}
+        case 'step':{const p=G.players[a[0]];if(p){p.pos=a[1];V.step(p,a[1]);V.hud()}break}
         case 'bills':V.bills(unPid(a[0]),unPid(a[1]),a[2]);break;
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
         case 'turnIntro':V.turnIntro(G.players[a[0]],a[1]);break;
+        case 'garagara':V.garagara(G.players[a[0]],a[1],a[2],a[3],a[4]);break;
         case 'policeDispatch':V.policeDispatch(G.players[a[0]],a[1]);break;
         case 'policeLeave':V.policeLeave(G.players[a[0]],a[1]);break;
         case 'policeTake':V.policeTake(G.players[a[0]],a[1]);break;

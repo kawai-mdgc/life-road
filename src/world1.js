@@ -134,16 +134,27 @@ function buildPath(){
   function branch(prefix,count,fromN,toN,side,out){
     const A=POS[fromN].clone(),B=POS[toN].clone(),f=HEAD[fromN].clone(),nrm=new V3(-f.z,0,f.x).multiplyScalar(side);
     const c=new THREE.CatmullRomCurve3([A,
-      A.clone().addScaledVector(nrm,out*.5).addScaledVector(f,-1.2),
-      A.clone().addScaledVector(nrm,out).addScaledVector(f,1.2),
-      B.clone().addScaledVector(nrm,out*.5).addScaledVector(f,1.2),B],false,'catmullrom',.5);
+      A.clone().addScaledVector(nrm,out*.5).addScaledVector(f,-1.8),
+      A.clone().addScaledVector(nrm,out).addScaledVector(f,-.9),
+      B.clone().addScaledVector(nrm,out).addScaledVector(f,.9),               // 折り返しを広げる（マスどうしが重ならないように）
+      B.clone().addScaledVector(nrm,out*.5).addScaledVector(f,1.8),B],false,'catmullrom',.5);
     c.arcLengthDivisions=800;branchCurves[prefix]=c;
     for(let j=1;j<=count;j++){const t=j/(count+1);POS[prefix+j]=c.getPointAt(t);HEAD[prefix+j]=c.getTangentAt(t).setY(0).normalize()}
     worldG.add(ribbon(c,120,2.9,0xfff4d6,.02),ribbon(c,120,3.4,{U:0xb6a2ff,W:0xffa66b,S:0x7fd6b0,R:0xff8aa8}[prefix],.01));
   }
   branch('U',12,20,21,-1,17);branch('W',8,20,21,1,12);
   branch('S',10,80,81,1,15);branch('R',10,80,81,-1,15);
+  // 追加コース：本線から外へふくらんで、少し先で合流する
+  function detour(prefix,count,fromN,toN,side,out,col){
+    const A=POS[fromN].clone(),B=POS[toN].clone(),f=B.clone().sub(A).setY(0).normalize(),nrm=new V3(-f.z,0,f.x).multiplyScalar(side),M=A.clone().add(B).multiplyScalar(.5);
+    const c=new THREE.CatmullRomCurve3([A,A.clone().addScaledVector(nrm,out*.6).addScaledVector(f,-out*.25),M.clone().addScaledVector(nrm,out),B.clone().addScaledVector(nrm,out*.6).addScaledVector(f,out*.25),B],false,'catmullrom',.5);
+    c.arcLengthDivisions=800;branchCurves[prefix]=c;
+    for(let j=1;j<=count;j++){const t=j/(count+1);POS[prefix+j]=c.getPointAt(t);HEAD[prefix+j]=c.getTangentAt(t).setY(0).normalize()}
+    worldG.add(ribbon(c,140,2.9,0xfff4d6,.02),ribbon(c,140,3.4,col,.01));
+  }
+  DETOURS.forEach(d=>detour(...d));
 }
+const DETOURS=[['D',8,86,90,1,12,0xf2c14e],['C',8,86,90,-1,14,0x7fb2f0],['G',8,120,124,1,14,0xb06ad9]];   // 置ける場所を総当たりで調べて決めた位置
 function buildTiles(){
   SQDATA.forEach(sq=>{
     const p=POS[sq.id],g=new THREE.Group();g.position.copy(p);

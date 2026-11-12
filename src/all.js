@@ -310,6 +310,11 @@ const STOCKS=[1,2,3,4,5,6,7,8,9,10].map(n=>({n,face:10000,div:5000}));
 // ===== ルールエンジン：マスの効果・職業能力・お金・手形・株・ゴール精算 =====
 const V={};                         // 表示層（world.js / ui.js が中身を差し込む）
 // 追加コース：ドリームトレジャー(D)・キャリアアップ(C)・ギャンブルエリア(G)。中身はあとで setSq で決める
+[['看護師',21000,'nurse','病気・ケガの赤マスが無効','ナース服、ナースキャップ','g'],['漁師',19000,'farm','給料日に偶数を出すと＋3,000','ねじりはちまき、長ぐつ','g'],
+ ['配達ドライバー',20000,'void_car','交通事故マスが無効','キャップ、作業ベスト','g'],['バリスタ',17000,'half_item','アイテムを買うマスで代金半額','茶色のエプロン','g'],
+ ['薬剤師',34000,'nurse','病気・ケガの赤マスが無効','白衣、薬のバッジ','s'],['声優',30000,'stream','給料日に9か10を出すと給料3倍','ヘッドホン','s'],
+ ['公認会計士',42000,'void_scam','詐欺マスが無効','スーツ、書類カバン','s'],['漫画家',28000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','ベレー帽、Gペン','s']]
+ .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
 const BR={U:[12,'20','21'],W:[8,'20','21'],S:[10,'80','81'],R:[10,'80','81'],D:[8,'86','90'],C:[8,'86','90'],G:[8,'120','124']};
 ['D','C','G'].forEach(r=>{for(let n=1;n<=BR[r][0];n++)SQDATA.push({id:r+n,r,n,c:'blue',k:'event',t:'',m:'0',a:null,x:null})});
 const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
@@ -331,7 +336,8 @@ const G={players:[],cur:0,order:[],stockOwner:Array(11).fill(null),deckG:[],deck
   houseTaken:Array(HOUSES.length).fill(false),turnNo:0,over:false,awaiting:null,logs:[]};
 
 /* ---------- 位置・経路 ---------- */
-const isStop=s=>s.c==='gold'||s.id==='W1'||s.id==='U12';   // STOPマス（就職マスW1・卒業U12も必ず止まる）
+const STOP_EXTRA=new Set(['W1','U12','29','68','91','41','C2','C4','C6']);          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
+const isStop=s=>s.c==='gold'||STOP_EXTRA.has(s.id);   // STOPマス（就職マスW1・卒業U12も必ず止まる）
 function chapterOf(key){
   const s=SQ[key]; if(s.r!=='main')return {U:0,W:0,S:2,R:2,D:3,C:3,G:4}[s.r];
   const n=s.n; return n<=20?0:n<=50?1:n<=80?2:n<=110?3:n<=135?4:5;
@@ -377,21 +383,7 @@ function ageOfKey(key){
 }
 
 /* ---------- 幸福度と履歴（最後にグラフで見られる） ---------- */
-function happinessOf(p){                                    // 幸福度：今の暮らし（家族・家・仕事・お金・借金）＋これまでの出来事の積み重ね
-  let h=36+(p.joy||0);
-  h+=p.spouse?10:p.lover?4:0;
-  h+=Math.min(12,p.kids*4)+Math.min(6,p.pets*3)+Math.min(4,p.grand*2);
-  h+=p.houses.length?6:0;
-  h+=p.job&&!p.retired?3+(p.jobRank?3:0):0;
-  if(p.affairInfo)h-=4;
-  if(p.jobless>0)h-=8;
-  if(p.spouseJobless>0)h-=3;
-  if(p.inJail)h-=10;
-  if(p.chased)h-=8;
-  h-=Math.min(15,p.notes*4);
-  h+=Math.min(14,Math.round(Math.log10(1+Math.max(0,assetsOf(p))/10000)*5));   // お金は多いほど少し幸せ（頭打ち）
-  return clamp(Math.round(h),0,100);
-}
+function happinessOf(p){return Math.round(clamp(p.happy===undefined?100:p.happy,0,100))}   // 幸せレベル：100から始まり、出来事で上下する
 function recordHist(p){
   if(!G.hist)G.hist={};
   (G.hist[p.id]||(G.hist[p.id]=[])).push({a:ageOfKey(p.pos),w:assetsOf(p),h:happinessOf(p)});
@@ -410,8 +402,10 @@ const vehicleStop=p=>{const a=ageOfKey(p.pos);return (a<5?'stroller':a<18?'bike'
 async function checkVehicle(p){
   const age=ageOfKey(p.pos);
   if(age>=80&&!p.oldVeh){                                    // 80歳：免許返納。乗り物は自分で選ぶ
-    const i=await ask(p,{head:'🧓 80歳：免許返納',color:'#8a6a4a',title:'これからの乗り物を選ぼう',text:'<small>足りない分は約束手形で買えます</small>',btns:OLD_VEH.map(v=>`${v[1]}（${v[2]?'−'+fmt(v[2])+'円':'無料'}）`),pick:p.cash>=500000||p.risk>.85?2:p.cash>=200000||p.risk>.6?1:0,col:true});
-    p.oldVeh=OLD_VEH[i][0];if(OLD_VEH[i][2])await pay(p,OLD_VEH[i][2]);
+    const a=assetsOf(p),d=a<600000?0:a<1200000?1:2,diff=i=>OLD_VEH[i][2]-OLD_VEH[d][2];   // 総資産で「標準」が決まる
+    const i=await ask(p,{head:'🧓 80歳：免許返納',color:'#8a6a4a',title:'これからの乗り物を選ぼう',text:`あなたの総資産だと、標準は<b>${OLD_VEH[d][1]}</b>です。<br><small>グレードを上げると差額を払い、下げると差額がもらえます（足りない分は約束手形）</small>`,
+      btns:OLD_VEH.map((v,k)=>`${v[1]}（${k===d?'標準・0円':diff(k)>0?'グレードアップ −'+fmt(diff(k))+'円':'グレードダウン +'+fmt(-diff(k))+'円'}）`),pick:p.risk>.8?Math.min(2,d+1):p.risk<.15?Math.max(0,d-1):d,col:true});
+    p.oldVeh=OLD_VEH[i][0];const c=diff(i);if(c>0)await pay(p,c,{discount:false});else if(c<0)await income(p,-c);
   }
   const v=vehicleOfAge(age,p);
   if(v===p.vstage)return;
@@ -421,11 +415,12 @@ async function checkVehicle(p){
 }
 
 /* ---------- プレイヤー ---------- */
-function newPlayer(id,name,cpu,color,cloth,gender){
-  return{id,name,cpu,color,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
+function newPlayer(id,name,cpu,color,cloth,gender,look){
+  look=look||{};
+  return{id,name,cpu,color,skin:look.skin,hair:look.hair,style:look.style,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,happy:100,bizTitle:'',settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -438,7 +433,7 @@ function mulCount(p,x){
     case 'pins':return pinsOf(p);case 'stocks':return p.stocks.length;default:return 1}
 }
 const SAL_MULT=.75;                                        // 難易度：給料を少し下げる
-const RANK_UP={'会社員':['課長',1.3],'販売員':['店長',1.3],'コック':['料理長',1.35],'美容師':['人気スタイリスト',1.35],'大工':['棟梁',1.3],'バス運転手':['運行主任',1.25],
+const RANK_UP={'看護師':['看護師長',1.3],'漁師':['船団の網元',1.35],'配達ドライバー':['配送センター長',1.25],'バリスタ':['カフェオーナー',1.4],'薬剤師':['薬局長',1.3],'声優':['人気声優',1.5],'公認会計士':['監査法人のパートナー',1.35],'漫画家':['大ヒット漫画家',1.5],'会社員':['課長',1.3],'販売員':['店長',1.3],'コック':['料理長',1.35],'美容師':['人気スタイリスト',1.35],'大工':['棟梁',1.3],'バス運転手':['運行主任',1.25],
  '農家':['大地主',1.3],'警察官':['警部',1.3],'消防士':['消防隊長',1.3],'保育士':['園長先生',1.3],'動画配信者':['登録者100万人の配信者',1.5],
  '医者':['院長',1.35],'弁護士':['敏腕パートナー弁護士',1.35],'パイロット':['機長',1.3],'エンジニア':['CTO',1.4],'教師':['校長先生',1.3],'研究者':['教授',1.3],
  '建築家':['巨匠建築家',1.4],'獣医':['動物病院の院長',1.35],'ゲームクリエイター':['ゲームディレクター',1.4],'プロスポーツ選手':['日本代表のスター選手',1.4],'宇宙飛行士':['船長（コマンダー）',1.3]};
@@ -463,7 +458,7 @@ async function checkChase(p){
     say(p,`${p.name}：約束手形が${p.notes}枚… 黒い車の取り立て屋が付きまといます（${CHASE_OFF}枚以下に返済するまで）`);
     await V.thugsArrive(p);
   }else if(p.chased&&p.notes<=CHASE_OFF){
-    p.chased=false;say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
+    p.chased=false;joy(p,4);say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
     await V.thugsLeave(p);
   }
 }
@@ -493,6 +488,7 @@ async function gifts(p,per,label){          // 全員からお祝い金（人数
   V.log(`${p.name}：${label} 全員からお祝い`);
 }
 async function payday(p,key,passing){
+  if(!p.spouse)joy(p,.3);                                  // 独身は、自由な時間と趣味でじわっと幸せ（既婚・子持ちと並べるように）
   let s=salaryOf(p),note='';
   const a=jobAb(p),r=p.lastRoll;
   if(!p.retired&&p.job){
@@ -528,7 +524,7 @@ async function repayNotes(p,n){            // 財布から、いつでも約束�
 /* ---------- 選択肢 / カード ---------- */
 const plain=t=>String(t||'').replace(/<[^>]*>/g,'').slice(0,34);
 function ask(p,o){if(o.title)G.ctx=plain(o.title);return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
-function joy(p,n){p.joy=clamp((p.joy||0)+n,-45,45)}        // 人生の出来事で上下する「気持ち」
+function joy(p,n){p.happy=clamp((p.happy===undefined?100:p.happy)+n,0,100)}        // 人生の出来事で上下する「気持ち」
 async function showSq(p,sq,note=''){
   const kindTxt={item:'アイテム',duel:'勝負',family:'家族',job:'職業',event:'イベント',lottery:'宝くじ'}[sq.k]||'';
   const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}（${ageOfKey(sq.id)}歳）　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
@@ -635,11 +631,12 @@ async function redSq(p,sq){
   if(p.redShield>0){p.redShield--;say(p,'人間ドックの効果で無効！');Sound.good();return}
   const ins=INS_FOR[sq.id];
   if(ins&&has(p,ins)){say(p,`${ITEM_BY_CODE[ins].n}で無効！`);Sound.good();return}
+  if(ins==='health'&&jobAb(p)==='nurse'){say(p,`${p.job.n}の特殊能力で無効！`);Sound.good();return}
   const ab=ABIL_VOID[sq.id];
   if(ab&&jobAb(p)===ab){say(p,`${p.job.n}の特殊能力で無効！`);Sound.good();return}
   if(KID_COST.has(sq.id)&&jobAb(p)==='teach'){amt=Math.ceil(amt/2);say(p,'教師の特殊能力で半額！')}
   if(sq.id==='90'&&jobAb(p)==='carp'){amt=Math.round(amt*.8);say(p,'大工の特殊能力で20%引き！')}
-  Sound.bad();await pay(p,amt);
+  Sound.bad();joy(p,-2);await pay(p,amt);
   for(const q of others(p)){     // 医者・弁護士の特殊能力（銀行から受け取る）
     if(jobAb(q)==='doc'&&HEALTH_CAT.has(sq.id)){say(q,`${q.name}（医者）が5,000円受け取る`);await income(q,5000)}
     if(jobAb(q)==='law'&&LAW_CAT.has(sq.id)){say(q,`${q.name}（弁護士）が5,000円受け取る`);await income(q,5000)}
@@ -693,11 +690,14 @@ const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カ
 const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社員','先生','農家','カメラマン','消防士','薬剤師','公務員','美容師','エンジニア','パティシエ'];
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
+const NAT_HAIR=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441],NAT_SKIN=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e],STYLE_BY={m:['short','spiky','buzz'],f:['long','bob','pony','bun','twin'],n:['short','bob','tuft']};
+const pic2=(p,c,kind)=>typeof portraitTogether==='function'?portraitTogether(p,c,kind):'';     // 記念の絵（自分と相手がならぶ）
+const picHtml=(p,c,kind)=>{const u=pic2(p,c,kind);return u?`<img src="${u}" width="280" style="max-width:100%;border-radius:14px;background:linear-gradient(#ffe6f1,#fff7d6)" alt=""><br>`:''};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
   return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
-    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
+    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],hair:pickOf(NAT_HAIR),skin:pickOf(NAT_SKIN),style:pickOf(STYLE_BY[g]||STYLE_BY.n),role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
 const genSpouse=(g,p)=>genPerson(g,p,'spouse');
 function spouseHtml(c,tag=''){
@@ -737,7 +737,8 @@ async function choosePet(p,baby){
   const si=await ask(p,{head:baby?'🐾 ペットに赤ちゃん！':'🐾 ペットをむかえよう',color:'#ff9a3d',title:baby?'生まれたのは、犬？ 猫？':'犬と猫、どっちにする？',text:'まず種類を選んでください',btns:['🐶 犬','🐱 猫'],pick:rnd(2),col:true});
   const cand=genPets(si===0?'dog':'cat',baby);
   const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
-  p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);
+  p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);Sound.good();
+  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet')+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
   say(p,`${p.name} の家に ${cand[ci].name}（${cand[ci].breed}）がやってきた！`);
 }
 async function stepAndLand(p){                 // 分岐を選んだら、すぐ最初のマスの支払い・収入を実行する
@@ -783,7 +784,8 @@ SP['20']=async p=>{
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
 SP['31']=async p=>{
   const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
-  p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);await famBonus(p,'31');
+  p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);Sound.good();
+  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover')+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
 };
 SP['34']=async p=>{
   const r=await spin(p,'duel');
@@ -822,7 +824,8 @@ async function tryMarry(p,again){                           // プロポーズ �
   const c=await choosePerson(p,{role:'spouse',head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',q:'どんな人と結婚する？',title2:'3人の中から、結婚相手を選ぼう',gender:had&&had.gender,include:had});
   p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
   say(p,`${p.name} は ${c.name} さんと結婚！`);
-  p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();
+  p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
+  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse')+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
@@ -837,7 +840,7 @@ async function baby(p,n,id){
   for(let i=0;i<n;i++){
     const g=Math.random()<.5?'f':'m',pool=shuffle([...(g==='f'?GIRL_N:BOY_N)].filter(n=>!p.kidList.some(k=>k.name===n))).slice(0,3);   // 兄弟で名前がかぶらない
     const ni=await ask(p,{head:`👶 ${n===2?(i+1)+'人目：':''}子ども誕生！`,color:'#ff9a3d',title:g==='f'?'女の子が生まれました！':'男の子が生まれました！',text:'名前をつけてあげよう',btns:pool,pick:rnd(3),col:true});
-    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),cloth:KID_COL[p.kidList.length%KID_COL.length]});
+    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),hair:p.spouseInfo&&Math.random()<.5?p.spouseInfo.hair:(NAT_HAIR.includes(p.hair)?p.hair:NAT_HAIR[1]),skin:p.skin,cloth:KID_COL[p.kidList.length%KID_COL.length]});
     p.kids=p.kidList.length;joy(p,6);
     say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);
   }
@@ -927,7 +930,15 @@ SP['W8']=async p=>{
   const r=await duelRoll(p,x=>x>=7);
   if(r>=7)await chooseJob(p,'s',1,'夜間学校：専門職に転職できる',true);else say(p,'試験に落ちた…');
 };
-SP['R1']=async p=>{await pay(p,30000);p.president=true;say(p,'起業！ 社長マーカーを獲得');V.hud()};
+const BIZ={'医者':'クリニックの院長（開業医）','看護師':'訪問看護ステーションの代表','コック':'オーナーシェフ','美容師':'サロンのオーナー','会社員':'ベンチャー企業の社長','販売員':'セレクトショップのオーナー','大工':'工務店の社長','農家':'農園のオーナー','漁師':'水産会社の社長',
+ 'バリスタ':'カフェのオーナー','エンジニア':'IT企業の社長','弁護士':'法律事務所の代表','建築家':'設計事務所の代表','獣医':'動物病院の院長','ゲームクリエイター':'ゲーム会社の社長','動画配信者':'配信事務所の社長','教師':'学習塾の経営者','保育士':'保育園の園長',
+ '研究者':'研究ベンチャーの社長','薬剤師':'薬局のオーナー','公認会計士':'会計事務所の代表','漫画家':'漫画スタジオの代表','声優':'声優事務所の社長','配達ドライバー':'運送会社の社長','バス運転手':'観光バス会社の社長','プロスポーツ選手':'スポーツジムのオーナー','パイロット':'航空ベンチャーの社長','宇宙飛行士':'宇宙ベンチャーの社長','警察官':'警備会社の社長','消防士':'防災会社の社長'};
+SP['R1']=async p=>{                                         // 起業：今の職業に合った形で独立する
+  p.bizTitle=p.job?(BIZ[p.job.n]||`${p.job.n}の会社の社長`):'会社の社長';
+  await ask(p,{head:'🚀 起業！',color:'#c98a00',title:`${p.job?p.job.n+'として独立！':'独立して起業！'}`,text:`<b>${p.bizTitle}</b> になりました<br><small>開業資金 −30,000円。挑戦ルートの最後の給料日は給料2倍</small>`,btns:['OK'],pick:0});
+  await pay(p,30000);p.president=true;joy(p,5);say(p,`${p.name}：起業して「${p.bizTitle}」に！`);V.hud();
+};
+{const q=SQ['R1'];q.t='起業！ 今の職業に合わせて独立する（開業資金。手形可）'}
 SP['R2']=async p=>{const r=await duelRoll(p);say(p,`新商品 出た数 ${r} × 5,000`);await income(p,r*5000)};
 SP['R4']=async p=>{await drawItem(p,2)};
 SP['R5']=async p=>{await betSquare(p,50000)};
@@ -942,13 +953,14 @@ function doDivorce(p){joy(p,-10);p.spouse=false;p.spouseInfo=null;p.spouseJobles
 const ARRESTS=[
   {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
   {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
-const ARREST_ROLL=['万引き','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
+const ARREST_ROLL=['無罪','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
 async function arrest(p,force,dashForce){
   const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
   let r=force;
   if(!r){                                                    // ① まず罪状が確定する（ルーレットの出目）
-    await ask(p,{head:'🚨 罪が発覚！',color:'#e8454c',title:'何をやらかした？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
+    await ask(p,{head:'🚨 罪が発覚！',color:'#e8454c',title:'何をやらかした？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1 人違いで無罪 ／ 2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
     const n=await spin(p,'duel');                            // 能力による出目補正はなし
+    if(ARREST_ROLL[n-1]==='無罪'){joy(p,2);say(p,`${p.name} の出目は ${n}… 人違いでした！ おわびに +5,000円`);await ask(p,{head:'🚨 警察',color:'#2fb36f',title:'人違いでした！',text:'警察からおわびの品 +5,000円',btns:['OK'],pick:0});await income(p,5000);return}
     r=ARRESTS.find(x=>x.why===ARREST_ROLL[n-1]);
     say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」で確定！`);
     await sleep(600);
@@ -967,7 +979,7 @@ async function arrest(p,force,dashForce){
   }
 }
 const LIFE={
-  arrest:{ok:p=>ageOfKey(p.pos)>=18&&!p.inJail,w:2,run:async p=>{await arrest(p)}},
+  arrest:{ok:p=>ageOfKey(p.pos)>=18&&!p.inJail,w:4,run:async p=>{await arrest(p)}},
   jobless:{ok:p=>p.job&&!p.retired,w:2,run:async p=>{
     await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:'会社が倒産…！ 失業しました',text:'次の2回の給料日は、<b>失業手当（給料の30%）</b>だけになります',btns:['OK'],pick:0});
     p.jobless=2;say(p,`${p.name} が失業… 次の2回の給料日は30%`)}},
@@ -1050,7 +1062,7 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
   if(auto){V.banner('🎊 宝くじ抽選会が始まる！');say(p,`${p.name}：抽選会を通過… 宝くじ ${p.tickets.join('・')} で自動参加`);await sleep(900)}
   else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ガラガラで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で当たり → 等級の抽選（1等 ${fmt(LOT_FIRST)}円）／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ガラガラを回す'],pick:0});
   G.ctx='宝くじ抽選会：当せん番号';
-  const r=await garagara(p,sqId,x=>p.tickets.includes(x),false);
+  const r=await garagara(p,sqId,()=>false,false);            // 番号の抽選では確定演出なし（確定演出は1等のときだけ）
   let total=0;const lines=[];
   const hit=p.tickets.includes(r);
   for(const t of p.tickets){
@@ -1063,11 +1075,12 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
     await ask(p,{head:'🎊 当たり！ 等級の抽選',color:'#e6a800',title:`${r}番が当たり！ もう一度回して等級を決める`,text:`<b>9〜10：1等 ${fmt(LOT_FIRST)}円</b>／6〜8：2等 ${fmt(LOT_SECOND)}円／1〜5：3等 ${fmt(LOT_THIRD)}円`,btns:['ガラガラを回す'],pick:0});
     const r2=await garagara(p,sqId,x=>x>=9,true),g=r2>=9?LOT_FIRST:r2>=6?LOT_SECOND:LOT_THIRD,nm=r2>=9?'1等':r2>=6?'2等':'3等';
     total+=g;lines.push(`等級の抽選：出目 ${r2} → <b class="plus">${nm} +${fmt(g)}円</b>`);
-    joy(p,r2>=9?15:4);
+
     if(r2>=9){V.banner('🎉 宝くじ1等！ 一攫千金！');V.confetti(p.pos)}
   }
   p.tickets=[];
   await ask(p,{head:'🎊 抽選結果',color:total?'#2fb36f':'#8a8aa0',title:`当せん番号は ${r}！`,text:lines.join('<br>')+(total?`<br><br>合計 <b class="plus">+${fmt(total)}円</b>`:'<br><br>残念…またチャレンジ！'),btns:['OK'],pick:0});
+  if(total)joy(p,Math.min(60,4+total/20000));                // 当せん金額が大きいほど、幸せレベルが爆発的に上がる
   if(total){say(p,`${p.name}：宝くじ当せん！ +${fmt(total)}円`);Sound.fanfare();await income(p,total)}else say(p,`${p.name}：宝くじははずれ…`);
   V.hud();
 }
@@ -1157,13 +1170,18 @@ setSq('122','blue','duel','老後資金を増やしたい：暗号資産に手�
 SP['122']=async p=>venture(p,{head:'🪙 暗号資産',title:'老後資金を、暗号資産で増やす？',desc:'1〜4：暴落して全損／5：半分に／6：元本／7：×1.5／8：×2／9：×3／<b>10：×5</b>',stakes:[0,50000,100000,200000],table:[0,0,0,0,.5,1,1.5,2,3,5]});
 
 /* ---------- 結婚のチャンスは何回かある ---------- */
-SP['51']=async p=>tryMarry(p,false);
+SP['51']=async p=>p.spouse?anniversary(p):tryMarry(p,false);
+async function anniversary(p){                             // すでに結婚していたら：結婚記念日でお祝い金
+  joy(p,5);Sound.good();say(p,`${p.name}：結婚記念日！ お祝い金 +10,000円`);
+  await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}結婚記念日！`,text:'みんなからお祝い金 <b class="plus">+10,000円</b>（幸せレベルもアップ）',btns:['OK'],pick:0});
+  await income(p,10000);
+}
 async function partyOrAnniv(p){
-  if(p.spouse){joy(p,3);say(p,`${p.name}：結婚記念日。夫婦でお祝い（−5,000円）`);await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}お祝い`,text:'記念日のディナー −5,000円（幸福度アップ）',btns:['OK'],pick:0});await pay(p,5000);return}
+  if(p.spouse)return anniversary(p);
   await ask(p,{head:'💘 婚活パーティー',color:'#ff6fa5',title:'すてきな出会いがあった！',text:'プロポーズのチャンスです',btns:['OK'],pick:0});
   await tryMarry(p,true);
 }
-['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日','?');SP[id]=partyOrAnniv});
+['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日でお祝い金','?');SP[id]=partyOrAnniv});
 
 /* ---------- ハプニング（人生のできごと）を増やす。後半は大きな出費も ---------- */
 ['28','112','137','138','143','144','148','S9','W7'].forEach(id=>{setSq(id,'blue','event','人生のできごと（何が起こるかはお楽しみ）','?');SP[id]=async p=>lifeEvent(p)});
@@ -1183,7 +1201,13 @@ Object.assign(LIFE,{
     const i=await ask(p,{head:'🏠 人生のできごと',color:'#3f8cff',title:`${k.name}が「家を買いたい」と相談に来た`,text:'頭金 100,000円を援助する？<br><small>援助すると幸福度アップ。足りない分は約束手形</small>',btns:['援助する（−100,000円）','ことわる'],pick:p.risk>.4?0:1,col:true});
     if(i===0){joy(p,8);say(p,`${k.name}の家の頭金を援助 −100,000円`);await pay(p,100000,{discount:false})}else{joy(p,-3);say(p,'援助はことわった…')}}}
 });
-const LIFE_JOY={jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
+['71','114','134'].forEach(id=>{setSq(id,'red','','警察に呼び止められた！（ルーレットで罪状が決まる。1なら人違い）','?');SP[id]=async p=>arrest(p)});
+Object.assign(LIFE,{
+  solo:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=20,w:2,run:async p=>{await ask(p,{head:'🌏 人生のできごと',color:'#2fb36f',title:'ひとり旅で、一生の思い出ができた！',text:'自由な時間を満喫。幸せレベルが大きくアップ',btns:['OK'],pick:0});say(p,`${p.name}：ひとり旅で最高の思い出`)}},
+  hobby:{ok:p=>!p.spouse,w:2,run:async p=>{await ask(p,{head:'🎸 人生のできごと',color:'#2fb36f',title:'趣味の仲間ができた！',text:'好きなことに夢中になれる毎日。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：趣味の仲間ができた`)}},
+  friend:{ok:()=>true,w:1,run:async p=>{await ask(p,{head:'🍻 人生のできごと',color:'#2fb36f',title:'なつかしい友だちと再会！',text:'昔話に花が咲いた。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：旧友と再会`)}}
+});
+const LIFE_JOY={solo:12,hobby:9,friend:6,jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
 
 /* ---------- 追加コース（分かれ道で選ぶ） ---------- */
 async function treasure(p,n){const pool=ITEMS.filter(x=>x.ty==='col');for(let i=0;i<n;i++)await handleItem(p,{...pickOf(pool)})}
@@ -1246,7 +1270,7 @@ async function landEffect(p,sq){
     case 'yellow':return payday(p,sq.id,false);
     case 'green':{
       const a=sq.a*(sq.x?mulCount(p,sq.x):1);
-      if(a>0){Sound.good();return income(p,a)}return;
+      if(a>0){Sound.good();joy(p,3);return income(p,a)}return;
     }
     case 'red':return redSq(p,sq);
     case 'blue':if(sq.k==='item')return drawItem(p,1);return;
@@ -1449,11 +1473,12 @@ async function takeTurn(p){
     await land(p);
     V.hud();
   }while(p.again&&!p.finished&&++guard<5);
+  joy(p,-1.3);                                             // 何もなければ、少しずつ下がっていく
   recordHist(p);
 }
 
 function setupGame(list){
-  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));
+  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));
   G.cur=0;G.order=[];G.over=false;G.turnNo=0;
   G.stockOwner=Array(11).fill(null);G.houseTaken=Array(HOUSES.length).fill(false);
   G.hist={};G.econ=null;buildItemDeck();buildJobDecks();G.players.forEach(recordHist);
@@ -1975,6 +2000,16 @@ function buildScenery(){
    mesh(new THREE.BoxGeometry(1.2,.9,8.6),mat(0xf7c331),0,6.2,0,g);
    const bn=mesh(new THREE.PlaneGeometry(6,1.6),new THREE.MeshBasicMaterial({transparent:true,side:THREE.DoubleSide,map:canvasTex(256,64,(c,w,hh)=>{c.fillStyle='#ff6f9c';rr(c,0,0,w,hh,14);c.fill();c.fillStyle='#fff';c.font=`900 40px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('G O A L',w/2,hh/2+2)})}),0,7.4,0,g);bn.rotation.y=Math.PI/2;bn.material.side=THREE.FrontSide;bn.position.x=.02;
    const bn2=mesh(bn.geometry,bn.material,-.02,7.4,0,g);bn2.rotation.y=-Math.PI/2;                         // 裏から見ても文字が読める
+   // ---- 天国ふう：雲の床・天使の輪・光のすじ・天使 ----
+   const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x8a8a99}),puff=(x,y,z,r,par=g)=>{const m=mesh(G_('hvpuff',()=>new THREE.SphereGeometry(1,10,8)),cl,x,y,z,par);m.scale.set(r,r*.55,r);m.userData.flat=1;return m};
+   for(let i=0;i<26;i++){const sd=i%2?1:-1,z=sd*(2.3+Math.random()*2.3),x=-3.6+Math.random()*7.2;if(Math.hypot(x,z)<4.9)puff(x,.2+Math.random()*.3,z,.7+Math.random()*.6)}
+   [-3.4,3.4].forEach(sd=>{puff(0,6.9,sd,1.2);puff(.5,6.8,sd*1.2,.8)});
+   const halo=mesh(new THREE.TorusGeometry(2.6,.16,8,36),mat(0xffe27a,140,{emissive:0xb38a00}),0,9.6,0,g);halo.rotation.x=Math.PI/2;
+   [[0,0,2.6],[-.6,-2.2,1.5],[.6,2.2,1.5]].forEach(([x,z,r])=>{const b=mesh(new THREE.CylinderGeometry(r*.25,r,17,14,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide,fog:false}),x,8.5,z,g);b.userData.flat=1});
+   [-1,1].forEach(sd=>{const a=makeDoll({color:0xffffff,gender:sd>0?'f':'m',hair:0xf0e0a0,pose:'up',scale:2});a.position.set(0,7.5,sd*3.4);a.rotation.y=sd>0?.4:-.4;
+     [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.13,a);wg.scale.set(.35,1.3,.9);wg.rotation.x=w*-.5});
+     const h=mesh(new THREE.TorusGeometry(.09,.015,6,16),mat(0xffe27a,140,{emissive:0xb38a00}),0,.7,0,a);h.rotation.x=Math.PI/2;g.add(a)});
+   for(let n=146;n<=149;n++){const q=POS[n],hh=HEAD[n];if(!q||!hh)continue;[-1,1].forEach(sd=>[-.6,.6].forEach(f=>{const x=q.x-hh.z*sd*1.75+hh.x*f,z=q.z+hh.x*sd*1.75+hh.z*f;puff(x,.12,z,.55+Math.random()*.25,worldG)}))}   // 最後の数マスは、道の両わきに雲
    worldG.add(g)}
   buildMansions();                                                         // マンションは先に建てておく（買うと一室がポンと立つ）
   // 遠景の山：陸の側（北・東・西）だけに、重ならないように並べる。海の側には置かない
@@ -2283,6 +2318,7 @@ function updatePolice(dt){
 }
 
 /* ---------- 人形（ピン） ---------- */
+const lookOf=c=>c?{color:c.cloth,gender:c.gender,skin:c.skin,hair:c.hair,style:c.style}:{};
 const LOOK={
  '会社員':{body:0x2a3b6e,acc:['tie','bag']},'販売員':{body:0xffffff,acc:['apron:0xff9a3d']},'コック':{body:0xffffff,hat:'toque'},
  '美容師':{body:0x222222,acc:['pouch']},'大工':{body:0xd98c2b,hat:'helmet:0xffd23f',acc:['belt']},'バス運転手':{body:0x2e5aa8,hat:'peaked:0x1d2f58',acc:['glove']},
@@ -2290,38 +2326,53 @@ const LOOK={
  '保育士':{body:0xffffff,acc:['apron:0xff9ec4']},'動画配信者':{body:0x7a5cff,acc:['phones']},'医者':{body:0xffffff,acc:['stetho']},
  '弁護士':{body:0x333344,acc:['badge','bag']},'パイロット':{body:0x1d2f58,hat:'peaked:0x1d2f58',acc:['epaulet']},'エンジニア':{body:0x4a8f5a,acc:['laptop']},
  '教師':{body:0xb9926b,acc:['pointer']},'研究者':{body:0xffffff,acc:['glasses']},'建築家':{body:0x222222,acc:['roll']},'獣医':{body:0x5cb85c,acc:['badge']},
+ '看護師':{body:0xffd6e4,hat:'nursecap',acc:['stetho']},'漁師':{body:0x2f6fa8,hat:'band',acc:['fish']},'配達ドライバー':{body:0x3a8f5a,hat:'peaked:0x2a6a40',acc:['box']},
+ 'バリスタ':{body:0xffffff,acc:['apron:0x5a3a22','cup']},'薬剤師':{body:0xffffff,acc:['glasses','pill']},'声優':{body:0xff7ab0,acc:['phones','mic']},
+ '公認会計士':{body:0x3a3a4a,acc:['tie','glasses','calc']},'漫画家':{body:0xf2c94c,hat:'beret:0x8a2a2a',acc:['pen']},
  'ゲームクリエイター':{body:0x3fb5d9,acc:['pad']},'プロスポーツ選手':{body:0xff6a2b,acc:['ball']},'宇宙飛行士':{body:0xf4f4f4,hat:'visor'}
 };
 function makeDoll(o){
   const g=new THREE.Group(),look=o.job?LOOK[o.job]||{}:{};
   const body=look.body??o.color;
-  mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,18)),mat(body,90),0,.17,0,g);
-  mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,20,16)),mat(o.skin||0xffd9b3,60),0,.47,0,g);
+  const male=o.gender==='m',skin=o.skin||0xffd9b3;
+  if(male){mesh(G_('dbodyM',()=>new THREE.CylinderGeometry(.15,.125,.34,18)),mat(body,90),0,.17,0,g);                     // 男性：肩幅が広く、まっすぐな体つき
+    mesh(G_('dshould',()=>new THREE.SphereGeometry(.15,14,8,0,Math.PI*2,0,Math.PI*.5)),mat(body,90),0,.33,0,g).scale.set(1,.28,1.12)}
+  else mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,18)),mat(body,90),0,.17,0,g);
+  mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,20,16)),mat(skin,60),0,.47,0,g);
   [-.05,.05].forEach(z=>{                                         // 顔：つやのある目・ほっぺ・にっこり口
     mesh(G_('deye',()=>new THREE.SphereGeometry(.021,8,8)),mat(0x2a2233,140),.118,.495,z,g);
     mesh(G_('dglint',()=>new THREE.SphereGeometry(.007,5,5)),mat(0xffffff,140,{emissive:0xffffff}),.137,.502,z+.006,g);
-    mesh(G_('dcheek',()=>new THREE.SphereGeometry(.022,6,6)),mat(0xff9aa8,30),.108,.455,z*1.7,g).scale.set(.5,.7,1);
+    if(!male)mesh(G_('dcheek',()=>new THREE.SphereGeometry(.022,6,6)),mat(0xff9aa8,30),.108,.455,z*1.7,g).scale.set(.5,.7,1);
+    if(male){const b=mesh(G_('dbrow',()=>new THREE.BoxGeometry(.012,.014,.05)),mat(o.old?0xdddde2:0x2a2018,30),.122,.535,z*1.05,g);b.rotation.x=z>0?.25:-.25}   // 男性：きりっとした眉
+    else if(o.gender==='f')mesh(G_('dlash',()=>new THREE.BoxGeometry(.008,.008,.03)),mat(0x2a2233,30),.128,.52,z*1.35,g);                                    // 女性：まつげ
   });
-  {const sm=mesh(G_('dsmile',()=>new THREE.TorusGeometry(.03,.007,5,10,Math.PI)),mat(0x8a3a3a,40),.124,.452,0,g);sm.rotation.set(Math.PI,Math.PI/2,0)}
+  {const sm=mesh(G_('dsmile',()=>new THREE.TorusGeometry(.03,.007,5,10,Math.PI)),mat(0x8a3a3a,40),.124,.452,0,g);sm.rotation.set(o.sad?0:Math.PI,Math.PI/2,0);if(o.sad)sm.position.y=.428}
   [-1,1].forEach(sd=>{                                            // うで（服の色）と手
-    const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.2,sd*.135,g);a.rotation.x=sd*-.28;
-    mesh(G_('dhand',()=>new THREE.SphereGeometry(.033,8,6)),mat(o.skin||0xffd9b3,60),.01,.115,sd*.16,g);
+    const up=o.pose==='up'||(o.pose==='wave'&&sd>0),w=male?.03:0;
+    if(up){const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.39,sd*(.17+w),g);a.rotation.x=sd*.55;
+      mesh(G_('dhand',()=>new THREE.SphereGeometry(.033,8,6)),mat(skin,60),.01,.475,sd*(.22+w),g);return}
+    const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.2,sd*(.135+w),g);a.rotation.x=sd*-.28;
+    mesh(G_('dhand',()=>new THREE.SphereGeometry(.033,8,6)),mat(skin,60),.01,.115,sd*(.16+w),g);
   });
   if(look.body!==undefined&&o.color!==undefined)mesh(G_('dscarf',()=>new THREE.TorusGeometry(.105,.03,6,14)),mat(o.color,90),0,.335,0,g).rotation.x=Math.PI/2;   // 制服でも選んだ服の色がマフラーで見える
-  if(o.gender){                                                   // せいべつ：髪型とスカート
-    const hc=o.hair??0x4a3426,hm=mat(hc,40);
-    mesh(G_('hcap',()=>new THREE.SphereGeometry(.142,14,8,0,Math.PI*2,0,Math.PI*.4)),hm,-.005,.48,0,g);
-    mesh(G_('hback',()=>new THREE.SphereGeometry(.142,14,8,Math.PI+.95,Math.PI*2-1.9,Math.PI*.38,Math.PI*.36)),hm,-.005,.48,0,g);
+  if(o.gender){                                                   // 髪型（えらべる）・髪の色・スカート。75歳からは白髪
+    const hc=o.old?0xe9e9ee:(o.hair??0x4a3426),hm=mat(hc,40),st=o.style||(o.gender==='m'?'short':o.gender==='f'?'long':'tuft');
+    if(st==='buzz')mesh(G_('hbuzz',()=>new THREE.SphereGeometry(.135,14,8,0,Math.PI*2,0,Math.PI*.36)),hm,-.008,.475,0,g);
+    else{
+      mesh(G_('hcap',()=>new THREE.SphereGeometry(.142,14,8,0,Math.PI*2,0,Math.PI*.4)),hm,-.005,.48,0,g);
+      mesh(G_('hback',()=>new THREE.SphereGeometry(.142,14,8,Math.PI+.95,Math.PI*2-1.9,Math.PI*.38,Math.PI*.36)),hm,-.005,.48,0,g);
+    }
+    if(st==='short')mesh(G_('hfront',()=>new THREE.BoxGeometry(.05,.04,.16)),hm,.1,.6,0,g);
+    if(st==='spiky')[[.07,0],[0,.07],[0,-.07],[-.07,0],[0,0],[.04,.05],[.04,-.05]].forEach(([x,z],i)=>{const c=mesh(G_('hspike',()=>new THREE.ConeGeometry(.035,.11,5)),hm,x,.63-Math.abs(x)*.3-Math.abs(z)*.3,z,g);c.rotation.set(z*5,0,-x*5)});
+    if(st==='bob'){mesh(G_('hbob',()=>new THREE.BoxGeometry(.08,.15,.27)),hm,-.105,.43,0,g);[-.128,.128].forEach(z=>mesh(G_('hside',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.01,.41,z,g).scale.set(1,1.5,.8));mesh(G_('hfront',()=>new THREE.BoxGeometry(.05,.04,.16)),hm,.1,.585,0,g).scale.set(1,1,1.3)}
+    if(st==='long'){mesh(G_('hlong',()=>new THREE.BoxGeometry(.07,.24,.25)),hm,-.115,.38,0,g);[-.125,.125].forEach(z=>mesh(G_('hside',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.02,.4,z,g))}
+    if(st==='pony'){mesh(G_('hpony',()=>new THREE.SphereGeometry(.06,8,6)),hm,-.16,.55,0,g);const t=mesh(G_('hponyT',()=>new THREE.ConeGeometry(.05,.24,7)),hm,-.2,.41,0,g);t.rotation.z=Math.PI-.25}
+    if(st==='bun')mesh(G_('hbun',()=>new THREE.SphereGeometry(.065,10,8)),hm,-.03,.645,0,g);
+    if(st==='twin')[-1,1].forEach(sd=>{mesh(G_('htwin',()=>new THREE.SphereGeometry(.055,8,6)),hm,-.04,.45,sd*.17,g).scale.set(.9,1.9,.9);mesh(G_('htwinB',()=>new THREE.SphereGeometry(.028,6,6)),mat(0xff6fa5,80),-.03,.55,sd*.15,g)});
+    if(st==='tuft'){mesh(G_('htuft',()=>new THREE.ConeGeometry(.04,.1,6)),hm,0,.64,0,g);mesh(G_('hside2',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.08,.42,.1,g)}
     if(o.gender==='f'){
-      mesh(G_('hlong',()=>new THREE.BoxGeometry(.07,.24,.25)),hm,-.115,.38,0,g);
-      [-.125,.125].forEach(z=>mesh(G_('hside',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.02,.4,z,g));
       mesh(G_('dskirt',()=>new THREE.CylinderGeometry(.1,.21,.13,14)),mat(body,90),0,.08,0,g);
-      mesh(G_('hribbon',()=>new THREE.SphereGeometry(.035,6,6)),mat(0xff6fa5,80),-.02,.62,.1,g);
-    }else if(o.gender==='m'){
-      mesh(G_('hfront',()=>new THREE.BoxGeometry(.05,.04,.16)),hm,.1,.6,0,g);
-    }else{
-      mesh(G_('htuft',()=>new THREE.ConeGeometry(.04,.1,6)),hm,0,.64,0,g);
-      mesh(G_('hside2',()=>new THREE.SphereGeometry(.05,8,6)),hm,-.08,.42,.1,g);
+      if(st==='long'||st==='bob')mesh(G_('hribbon',()=>new THREE.SphereGeometry(.035,6,6)),mat(0xff6fa5,80),-.02,.62,.1,g);
     }
   }
   const part=(s)=>{const a=s.split(':');return[a[0],a[1]?parseInt(a[1]):null]};
@@ -2331,6 +2382,9 @@ function makeDoll(o){
     if(h==='helmet'){const m=mesh(new THREE.SphereGeometry(.15,12,8,0,Math.PI*2,0,Math.PI/2),mat(c,100),0,.52,0,g);mesh(new THREE.CylinderGeometry(.17,.17,.02,12),mat(c,100),0,.52,0,g)}
     if(h==='peaked'){mesh(new THREE.CylinderGeometry(.15,.15,.1,12),mat(c,70),0,.6,0,g);mesh(new THREE.BoxGeometry(.14,.02,.2),mat(0x111111),.1,.56,0,g)}
     if(h==='straw'){mesh(new THREE.CylinderGeometry(.28,.28,.02,16),mat(0xf0d48a,20),0,.57,0,g);mesh(new THREE.CylinderGeometry(.12,.13,.1,12),mat(0xf0d48a,20),0,.63,0,g)}
+    if(h==='nursecap'){mesh(new THREE.BoxGeometry(.1,.07,.2),mat(0xffffff,60),.03,.62,0,g);mesh(new THREE.BoxGeometry(.012,.04,.04),mat(0xe8454c),.085,.625,0,g);mesh(new THREE.BoxGeometry(.012,.014,.09),mat(0xe8454c),.085,.625,0,g)}
+    if(h==='band'){const t=mesh(new THREE.TorusGeometry(.135,.02,6,16),mat(0xffffff,40),0,.55,0,g);t.rotation.x=Math.PI/2;mesh(new THREE.SphereGeometry(.03,6,6),mat(0xffffff,40),-.14,.55,.03,g)}
+    if(h==='beret'){const m=mesh(new THREE.SphereGeometry(.16,12,8),mat(c,40),-.02,.61,.02,g);m.scale.set(1,.38,1);mesh(new THREE.CylinderGeometry(.012,.012,.05,5),mat(c,40),-.02,.68,.02,g)}
     if(h==='visor'){mesh(new THREE.SphereGeometry(.19,12,10),new THREE.MeshPhongMaterial({color:0xcfe9ff,transparent:true,opacity:.45,shininess:120}),0,.47,0,g)}
   }
   (look.acc||[]).forEach(s=>{
@@ -2357,6 +2411,13 @@ function makeDoll(o){
     if(a==='glasses')[-.05,.05].forEach(z=>mesh(new THREE.TorusGeometry(.03,.007,5,10),mat(0x111111),.13,.5,z,g).rotation.y=Math.PI/2);
     if(a==='roll')mesh(new THREE.CylinderGeometry(.03,.03,.2,8),mat(0xf3f0e0),.1,.18,-.15,g).rotation.x=Math.PI/2;
     if(a==='pad')mesh(new THREE.BoxGeometry(.08,.03,.14),mat(0x222222),.12,.14,.15,g);
+    if(a==='fish'){const f=mesh(new THREE.SphereGeometry(.06,8,6),mat(0x7fb8e0,120),.1,.12,.17,g);f.scale.set(1.9,.8,.5);mesh(new THREE.ConeGeometry(.045,.07,4),mat(0x7fb8e0,120),-.02,.12,.17,g).rotation.z=-Math.PI/2}
+    if(a==='box')mesh(new THREE.BoxGeometry(.14,.12,.14),mat(0xc9a36a,30),.13,.14,.0,g);
+    if(a==='cup'){mesh(new THREE.CylinderGeometry(.035,.028,.08,10),mat(0xffffff,80),.1,.15,.17,g);mesh(new THREE.CylinderGeometry(.03,.03,.01,10),mat(0x5a3a22,40),.1,.19,.17,g)}
+    if(a==='pill'){const c1=mesh(new THREE.SphereGeometry(.03,8,6),mat(0xe8454c,100),.135,.25,.04,g);c1.scale.set(.6,1,1.6);mesh(new THREE.SphereGeometry(.03,8,6),mat(0xffffff,100),.135,.25,.075,g).scale.set(.6,1,1.2)}
+    if(a==='mic'){mesh(new THREE.CylinderGeometry(.012,.012,.14,6),mat(0x333344),.1,.2,.17,g);mesh(new THREE.SphereGeometry(.035,8,6),mat(0x888899,120),.1,.29,.17,g)}
+    if(a==='calc')mesh(new THREE.BoxGeometry(.03,.12,.09),mat(0x222233,60),.11,.14,-.17,g);
+    if(a==='pen'){const q=mesh(new THREE.CylinderGeometry(.008,.008,.22,5),mat(0x222222),.1,.22,.17,g);q.rotation.z=-.5;mesh(new THREE.ConeGeometry(.012,.04,5),mat(0xdddddd,140),.155,.12,.17,g).rotation.z=Math.PI-.5}
     if(a==='ball')mesh(new THREE.SphereGeometry(.06,8,8),mat(0xffffff),.12,.1,.15,g);
   });
   if(o.rank){                                                   // ランクアップ後：金の肩章と金バッジ
@@ -2511,7 +2572,8 @@ const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
-  const sig=[st,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const old=ageOfKey(p.pos)>=75;
+  const sig=[st,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
@@ -2532,10 +2594,10 @@ function refreshCar(p){
   }
   list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({color:p.cloth,gender:p.gender,job:p.job&&!p.retired&&!p.jobless&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
-    else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:(p.gender==='f'?'m':'f'),scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
-    else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:lv?lv.cloth:0xffb6cf,gender:lv?lv.gender:(p.gender==='f'?'m':'f'),scale:.88})}
-    else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),scale:.7});
+    if(e.k==='driver')d=makeDoll({...lookOf(p),old,job:p.job&&!p.retired&&!p.jobless&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
+    else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',...lookOf(sp),old,scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
+    else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',...lookOf(lv),scale:.88})}
+    else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),skin:p.skin,hair:e.kid&&e.kid.hair,scale:.7});
     else if(e.k==='grand')d=makeDoll({color:KID_COL[(e.i+2)%5],gender:e.i%2?'m':'f',scale:.55});
     else d=makePet(.9,e.pt?e.pt.col:0xb5763a,e.pt?e.pt.species:'dog');
     const sl=set.slots[i];d.position.set(sl[0],sl[2],sl[1]);d.userData.ph=Math.random()*6;car.seatG.add(d);
@@ -2543,7 +2605,7 @@ function refreshCar(p){
   if(mateRides){
     const sp=p.spouseInfo,inc=sp?sp.inc:2,mt=inc>=3?'scooter':inc===2?'echair':'chair';
     const mv=buildOldVeh(mt,sp?sp.cloth:0xff8fb5);mv.scale.setScalar(.9);car.mateG.add(mv);
-    const d=makeDoll({color:sp?sp.cloth:0xff8fb5,gender:sp?sp.gender:'f',scale:.9});d.position.set(-.02,OLD_SEAT_Y[mt]*.9,0);d.userData.ph=1;car.mateG.add(d);
+    const d=makeDoll({color:0xff8fb5,gender:'f',...lookOf(sp),old,scale:.9});d.position.set(-.02,OLD_SEAT_Y[mt]*.9,0);d.userData.ph=1;car.mateG.add(d);
     car.wheels=car.wheels.concat(mv.wheels);
   }
   if(st==='car'){
@@ -2758,6 +2820,16 @@ function housePortrait(h){                                   // 家カードの�
     return portCache[k]=portR.domElement.toDataURL('image/png');
   }catch(e){return ''}
 }
+function fitText(c,txt,x,y,maxW,size,weight=900){            // 幅に収まるまで文字を小さくして描く
+  do{c.font=`${weight} ${size}px ${FONT}`;size-=2}while(c.measureText(txt).width>maxW&&size>10);
+  c.textAlign='center';c.textBaseline='middle';c.fillText(txt,x,y);
+}
+function nameSign(text,col,w=2.2,h=.8){                       // 表札・看板（両面から読める）
+  const g=new THREE.Group(),tex=canvasTex(512,Math.round(512*h/w),(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,0,0,W,H,26);c.fill();c.strokeStyle=hex(col);c.lineWidth=18;rr(c,9,9,W-18,H-18,20);c.stroke();c.fillStyle='#3b2f4a';fitText(c,text,W/2,H/2+4,W-70,Math.round(H*.5))});
+  mesh(new THREE.BoxGeometry(w,h,.08),mat(0x8a5a35,30),0,0,0,g);
+  [1,-1].forEach(sd=>{const m=mesh(new THREE.PlaneGeometry(w*.96,h*.92),new THREE.MeshBasicMaterial({map:tex,transparent:true}),0,0,sd*.046,g);if(sd<0)m.rotation.y=Math.PI});
+  return g;
+}
 /* ---------- 宝くじ売り場（屋台）と抽選会場（ガラガラ）：該当マスの隣に建てる ---------- */
 const lotteryDrums=[],lotterySites=[];
 function stripeTex(c1,c2){return canvasTex(128,32,(ctx,w,h)=>{for(let i=0;i<8;i++){ctx.fillStyle=i%2?c1:c2;ctx.fillRect(i*16,0,16,h)}})}
@@ -2768,9 +2840,10 @@ function buildLotteryShop(){
   box(3,2.4,.2,0xfff0b8,0,1.4,-.9);[-1.4,1.4].forEach(x=>box(.2,2.4,1.9,0xfff0b8,x,1.4,0));         // 後ろと横の壁
   box(3,1.0,1.0,0xe8454c,0,.7,.75);box(3.05,.12,1.1,0xffffff,0,1.26,.75);                           // カウンター
   const aw=mesh(new THREE.BoxGeometry(3.6,.14,2.5),new THREE.MeshPhongMaterial({map:stripeTex('#ffffff','#e8454c'),shininess:60}),0,2.75,.45,g);aw.rotation.x=.18;   // 赤白のひさし
-  mesh(new THREE.PlaneGeometry(3,.9),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,76,(c,w,h)=>{c.fillStyle='#e8454c';rr(c,0,0,w,h,12);c.fill();c.strokeStyle='#ffd23f';c.lineWidth=6;rr(c,5,5,w-10,h-10,10);c.stroke();c.fillStyle='#ffe27a';c.font=`900 38px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('宝くじ売り場',w/2,h/2+2)}),side:THREE.DoubleSide,transparent:true}),0,3.45,.9,g);
+  mesh(new THREE.PlaneGeometry(3,.9),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(512,152,(c,w,h)=>{c.fillStyle='#e8454c';rr(c,0,0,w,h,24);c.fill();c.strokeStyle='#ffd23f';c.lineWidth=12;rr(c,10,10,w-20,h-20,20);c.stroke();c.fillStyle='#ffe27a';fitText(c,'宝くじ売り場',w/2,h/2+4,w-80,84)}),side:THREE.DoubleSide,transparent:true}),0,3.45,.9,g);
   for(let i=0;i<4;i++)box(.5,.04,.3,0xffd23f,-.9+i*.5,1.34,.7,120);                                    // カウンターの上の宝くじ
-  const clerk=makeDoll({color:0xe8454c,gender:'f',scale:2.1});clerk.position.set(.3,.15,-.3);g.add(clerk);   // 店員（カウンターから顔が出る大きさ）
+  box(1.1,.75,.9,0x8a5a35,0,.55,-.2,30);                                                              // 店員が立つ台
+  const clerk=makeDoll({color:0xe8454c,gender:'f',hair:0x4a3426,style:'pony',pose:'wave',scale:2.3});clerk.position.set(0,.92,-.2);clerk.rotation.y=-Math.PI/2;g.add(clerk);   // 店員：正面を向いて立ち、手をふっている   // 店員（カウンターから顔が出る大きさ）
   [-1.5,1.5].forEach(x=>{mesh(new THREE.CylinderGeometry(.04,.04,2.4,6),mat(0xffffff),x,1.2,1.3,g);mesh(new THREE.PlaneGeometry(.7,.45),new THREE.MeshBasicMaterial({color:0xffd23f,side:THREE.DoubleSide}),x+.38,2.2,1.3,g)});
   return g;
 }
@@ -2782,9 +2855,9 @@ function buildLotteryDraw(){
   const body=mesh(new THREE.CylinderGeometry(.95,.95,1.5,8),mat(0xe8454c,100),0,0,0,drum);body.rotation.z=Math.PI/2;                      // ガラガラ
   for(let i=0;i<5;i++)mesh(new THREE.SphereGeometry(.14,8,6),mat([0xffd23f,0xffffff,0x4aa3ff,0x4cd68a,0xff9ec4][i],80),(Math.random()-.5)*.8,(Math.random()-.5)*.8,(Math.random()-.5)*.8,drum);
   mesh(new THREE.CylinderGeometry(.04,.04,.9,6),mat(0x333344),1.0,-.45,.0,drum);mesh(new THREE.SphereGeometry(.16,8,6),mat(0xffd23f,120),1.0,-.9,0,drum);   // ハンドル
-  mesh(new THREE.PlaneGeometry(4.2,1.1),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,68,(c,w,h)=>{c.fillStyle='#ff4f86';rr(c,0,0,w,h,12);c.fill();c.strokeStyle='#fff';c.lineWidth=5;rr(c,5,5,w-10,h-10,10);c.stroke();c.fillStyle='#fff';c.font=`900 38px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('🎊 宝くじ抽選会',w/2,h/2+2)}),side:THREE.DoubleSide,transparent:true}),0,4.3,0,g);
+  mesh(new THREE.PlaneGeometry(4.2,1.1),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(512,136,(c,w,h)=>{c.fillStyle='#ff4f86';rr(c,0,0,w,h,24);c.fill();c.strokeStyle='#fff';c.lineWidth=10;rr(c,10,10,w-20,h-20,20);c.stroke();c.fillStyle='#fff';fitText(c,'宝くじ抽選会',w/2,h/2+4,w-90,80)}),side:THREE.DoubleSide,transparent:true}),0,4.3,0,g);
   [[-2.2,.9],[2.2,.9],[-2.0,-.9],[2.0,-.9]].forEach((a,i)=>{mesh(new THREE.CylinderGeometry(.02,.02,2,5),mat(0xffffff),a[0],1.6,a[1],g);mesh(new THREE.SphereGeometry(.38,10,8),mat([0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a][i],100),a[0],2.9,a[1],g)});   // 風船
-  const mc=makeDoll({color:0x8e6bff,gender:'m',scale:1.2});mc.position.set(-1.5,.4,.7);g.add(mc);   // 司会
+  const mc=makeDoll({color:0x8e6bff,gender:'m',pose:'wave',scale:1.9});mc.position.set(-1.6,.4,.9);mc.rotation.y=-Math.PI/2;g.add(mc);   // 司会
   lotteryDrums.push(drum);
   return g;
 }
@@ -2841,6 +2914,7 @@ async function popRoom(p,h,mn){                               // マンション
   mesh(new THREE.BoxGeometry(sl.w*1.1,.1,.35),mat(p.color,80),0,-sl.h*.5-.02,.2,room);           // バルコニー（プレイヤーの色）
   mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
   mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
+  {const sg=nameSign(p.name,p.color,Math.min(1.5,sl.w*.95),.42);sg.position.set(0,-sl.h*.5+.24,.5);room.add(sg)}                       // バルコニーに表札
   room.scale.set(.001,.001,.001);mn.g.add(room);mn.g.updateMatrixWorld(true);
   const wpos=mn.g.localToWorld(new V3(sl.x,sl.y,sl.z+.4));
   const az0=Cam.userAz,hgt=mn.h.n==='タワーマンション'?14:7;
@@ -2858,6 +2932,8 @@ V.buildHouse=async(p,h)=>{
   const mn=mansions[h.n];if(mn)return popRoom(p,h,mn);
   const g=houseModel(h);
   mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xffffff),-2.4,1,2.6,g);mesh(new THREE.PlaneGeometry(.9,.55),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),-2.0,1.8,2.6,g);
+  {const sg=nameSign(`${p.name}の家`,p.color,2.6,.9);sg.position.set(0,1.25,0);const post=new THREE.Group();[-.9,.9].forEach(x=>mesh(new THREE.CylinderGeometry(.06,.06,1.3,6),mat(0x8a5a35,30),x,.5,0,post));post.add(sg);
+   const bb=new THREE.Box3().setFromObject(g);post.position.set(Math.min(bb.max.x-1.4,2.2),0,bb.max.z+.9);g.add(post)}        // 玄関の前に、名前の看板
   const box=new THREE.Box3().setFromObject(g),size=box.getSize(new V3()),hgt=Math.max(4,size.y);
   const sp=withSeed(WORLD_SEED+houseSlots.length*131+h.price%997,()=>houseSpot(h,size));     // 同じ順番なら、どの画面でも同じ場所に建つ
   g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;worldG.add(g);g.updateMatrixWorld(true);if(sp.e)sp.e.g=g;g.scale.set(.001,.001,.001);
@@ -2903,10 +2979,11 @@ let portR=null,portScene=null,portCam=null;const portCache={};
 function portrait(job,p,rank){
   const cloth=p?p.cloth:0x3f8cff,gender=p?p.gender:'n';
   if(rank===undefined)rank=(p&&p.job&&job&&p.job.n===job.n&&p.jobRank)?1:0;
-  const k=(job?job.n:'-')+'|'+cloth+'|'+gender+'|'+rank;if(portCache[k])return portCache[k];
+  const lk=p?[p.skin,p.hair,p.style].join('.'):'';
+  const k=(job?job.n:'-')+'|'+cloth+'|'+gender+'|'+rank+'|'+lk;if(portCache[k])return portCache[k];
   try{
     if(!portR)portraitInit();
-    const d=makeDoll({color:cloth,gender,job:job?job.n:null,rank,scale:1});d.rotation.y=-.6;portScene.add(d);
+    const d=makeDoll({...lookOf(p),color:cloth,gender,job:job?job.n:null,rank,scale:1});d.rotation.y=-.6;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
   }catch(e){return ''}
@@ -2924,7 +3001,7 @@ function renderAvatar(av){
     [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,g));
     [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>{const t=mesh(new THREE.CylinderGeometry(.17,.17,.14,14),mat(0x222222,30),a[0],.17,a[1],g);t.rotation.x=Math.PI/2});
     mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),.25,.485,-.1,g);
-    const d=makeDoll({color:av.cloth,gender:av.gender,scale:1.7});d.position.set(.25,.49,-.1);g.add(d);
+    const d=makeDoll({...lookOf(av),scale:1.7});d.position.set(.25,.49,-.1);g.add(d);
     g.rotation.y=-.35;prevScene.add(g);
     prevR.setClearColor(0x000000,0);prevR.render(prevScene,prevCam);prevScene.remove(g);
     return prevR.domElement.toDataURL('image/png');
@@ -2949,13 +3026,91 @@ function portraitInit(){
 let portCam2=null;
 
 function portraitBust(c){                       // プロフィール用：顔が大きく写る写真
-  const k='bust|'+c.cloth+'|'+c.gender;if(portCache[k])return portCache[k];
+  const k='bust|'+[c.cloth,c.gender,c.skin,c.hair,c.style,c.old?1:0].join('|');if(portCache[k])return portCache[k];
   try{
     if(!portR)portraitInit();
-    const d=makeDoll({color:c.cloth,gender:c.gender,scale:1});d.rotation.y=-.5;portScene.add(d);
+    const d=makeDoll({...lookOf(c),old:c.old,scale:1});d.rotation.y=-.5;portScene.add(d);
     portR.setClearColor(0x000000,0);portR.render(portScene,portCam2);portScene.remove(d);
     return portCache[k]=portR.domElement.toDataURL('image/png');
   }catch(e){return ''}
+}
+
+/* ---------- 記念の絵：自分と相手（配偶者・恋人・ペット）がならんで「わ〜い！」 ---------- */
+let pairR=null,pairScene=null,pairCam=null;
+function portraitTogether(p,c,kind){
+  try{
+    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setSize(300,200);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+      pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
+      pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
+    const g=new THREE.Group();
+    const me=makeDoll({...lookOf(p),pose:'up',job:kind==='spouse'?null:(p.job&&!p.retired?p.job.n:null),scale:1});me.position.set(0,.06,.2);me.rotation.z=-.08;g.add(me);
+    let you;if(kind==='pet'){you=makePet(1.5,c.col,c.species);you.position.set(.1,0,-.28);you.rotation.y=.2}
+    else{you=makeDoll({...lookOf(c),pose:'up',scale:1});you.position.set(0,.06,-.2);you.rotation.z=.08}
+    g.add(you);
+    if(kind==='spouse'){                                                                                 // ベールと蝶ネクタイ、ブーケ
+      const bride=(c.gender==='f'||p.gender!=='f')?you:me;
+      mesh(new THREE.ConeGeometry(.2,.3,12,1,true),new THREE.MeshPhongMaterial({color:0xffffff,transparent:true,opacity:.7,side:THREE.DoubleSide}),-.06,.5,0,bride);
+      mesh(new THREE.SphereGeometry(.07,8,6),mat(0xff8fc0,60),.14,.2,0,bride);[[0,.05],[.04,-.04],[-.03,-.03]].forEach(([y,z])=>mesh(new THREE.SphereGeometry(.03,6,6),mat(0xffe27a,60),.19,.2+y,z,bride));
+    }
+    const hc=kind==='pet'?0xffb347:0xff5a8a;                                                             // ハートと紙ふぶき
+    [[0,1.0,0,.11],[.0,.9,.42,.07],[0,.92,-.44,.07]].forEach(([x,y,z,r])=>{const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(hc,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(hc,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);g.add(h)});
+    const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];for(let i=0;i<26;i++){const m=mesh(new THREE.BoxGeometry(.01,.05,.03),mat(cs[i%5],60),-.3,.15+((i*37)%100)/100*1.0,-.75+((i*53)%100)/100*1.5,g);m.rotation.x=i}
+    pairScene.add(g);pairR.setClearColor(0x000000,0);pairR.render(pairScene,pairCam);pairScene.remove(g);
+    return pairR.domElement.toDataURL('image/png');
+  }catch(e){console.warn(e);return ''}
+}
+
+/* ---------- 結果発表：雲の上の表彰台（1〜3位は台の上で大よろこび、4位は横でにっこり、5位以下はうしろでしょんぼり） ---------- */
+let podium=null;
+function buildPodium(ranked){
+  if(podium)return podium;
+  const base=POS[150].clone();base.y=38;
+  const g=new THREE.Group();g.position.copy(base);worldG.add(g);
+  const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x8a8a99});
+  for(let i=0;i<34;i++){const a=i/34*6.283,r=3+((i*7)%10)*.75,m=mesh(new THREE.SphereGeometry(1,10,8),cl,Math.cos(a)*r*1.25,-.9-((i*3)%5)*.12,Math.sin(a)*r*.7,g);m.scale.set(2.2+(i%3)*.5,1,2+(i%4)*.4)}
+  mesh(new THREE.CylinderGeometry(9,9.5,.5,40),cl,0,-.45,0,g).scale.z=.62;
+  const blocks=[[0,1.7,0xffd23f,'1'],[-2.3,1.15,0xdfe6ee,'2'],[2.3,.8,0xd9905a,'3']];
+  blocks.forEach(([x,h,c,n])=>{mesh(new THREE.BoxGeometry(2.2,h,1.8),mat(c,120,{emissive:n==='1'?0x4a3800:0}),x,h/2-.2,0,g);
+    mesh(new THREE.PlaneGeometry(1.1,Math.min(1.1,h*.8)),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(128,128,cx=>{cx.fillStyle='#3b2f4a';fitText(cx,n,64,70,110,110)})}),x,h/2-.2,.91,g)});
+  const halo=mesh(new THREE.TorusGeometry(5.2,.14,8,48),mat(0xffe27a,140,{emissive:0xb38a00}),0,7.4,-.6,g);halo.rotation.x=Math.PI/2;
+  [[0,3.2],[-3.4,2],[3.4,2]].forEach(([x,r])=>{const b=mesh(new THREE.CylinderGeometry(r*.2,r,18,14,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide,fog:false}),x,8.4,-.4,g);b.userData.flat=1});
+  const actors=[];
+  const tag=(p,i,x,y,z)=>{const medal=['🥇','🥈','🥉'][i]||`${i+1}位`;
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,map:canvasTex(384,150,(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,4,4,W-8,H-8,26);c.fill();c.strokeStyle=hex(p.color);c.lineWidth=10;rr(c,8,8,W-16,H-16,22);c.stroke();c.fillStyle='#3b2f4a';fitText(c,`${medal} ${p.name}`,W/2,52,W-50,50);c.fillStyle='#b06a00';fitText(c,`${fmt(p.final)}円`,W/2,108,W-50,38)})}));
+    sp.scale.set(2.5,.98,1);sp.position.set(x,y,z);sp.renderOrder=9;g.add(sp)};
+  ranked.forEach((p,i)=>{
+    const top=i<3,low=i>=4,d=makeDoll({...lookOf(p),old:true&&ageOfKey(p.pos)>=75,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,pose:top?'up':i===3?'wave':null,sad:low,scale:2.5});
+    const holder=new THREE.Group();d.rotation.y=-Math.PI/2;holder.add(d);
+    let x,y,z;
+    if(top){x=blocks[i][0];y=blocks[i][1]-.2;z=0}
+    else if(i===3){x=4.6;y=-.2;z=.3}
+    else{const k=i-4;x=-4.6-k*2.1;y=-.2;z=-2.2;d.rotation.x=.34;d.position.z=.1;                 // うつむく
+      const gl=mesh(new THREE.SphereGeometry(.34,8,6),new THREE.MeshLambertMaterial({color:0x7f8aa8,transparent:true,opacity:.8}),0,2.15,0,holder);gl.scale.set(1.5,.6,1)}   // どんより雲
+    holder.position.set(x,y,z);g.add(holder);
+    if(i===0){const cr=new THREE.Group();mesh(new THREE.CylinderGeometry(.13,.11,.09,8,1,true),mat(0xffd23f,160,{emissive:0x664400,side:THREE.DoubleSide}),0,0,0,cr);for(let k=0;k<5;k++)mesh(new THREE.ConeGeometry(.03,.09,4),mat(0xffd23f,160,{emissive:0x664400}),Math.cos(k*1.257)*.115,.08,Math.sin(k*1.257)*.115,cr);cr.position.set(0,.66,0);d.add(cr)}
+    tag(p,i,x,y+(low?2.9:2.45),z+.05);
+    actors.push({holder,d,i,y,ph:i*1.3});
+  });
+  const t0=performance.now();
+  const timer=setInterval(()=>{const t=(performance.now()-t0)/1000;
+    actors.forEach(a=>{
+      if(a.i<3){const j=Math.abs(Math.sin(t*(4.4-a.i*.5)+a.ph));a.holder.position.y=a.y+j*(.75-a.i*.15);a.holder.rotation.y=Math.sin(t*2.2+a.ph)*.25;a.holder.scale.set(1+(1-j)*.05,1-(1-j)*.07+j*.03,1+(1-j)*.05)}
+      else if(a.i===3){a.holder.rotation.z=Math.sin(t*2)*.07;a.holder.position.y=a.y+Math.abs(Math.sin(t*2))*.08}
+      else{a.holder.rotation.y=Math.sin(t*.9+a.ph)*.1;a.d.rotation.x=.34+Math.sin(t*1.4+a.ph)*.04}
+    });
+    halo.rotation.z=t*.3;
+  },16);
+  const conf=setInterval(()=>{if(!document.hidden)V.confetti(new V3(base.x+(Math.random()-.5)*7,base.y+5.5,base.z+(Math.random()-.5)*2))},900);
+  return podium={g,base,actors,timer,conf};
+}
+function podiumPhoto(title){                                  // 記念撮影：いまの画面をそのまま1枚の画像にする
+  renderer.render(scene,camP);
+  const src=renderer.domElement,cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;
+  const c=cv.getContext('2d');c.drawImage(src,0,0);
+  const W=cv.width,H=cv.height,u=Math.max(18,Math.round(H*.05));
+  c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
+  c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
+  return cv.toDataURL('image/png');
 }
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
 const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,followEl:null,shake:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
@@ -3122,9 +3277,14 @@ function buildSky(){                                      // 空のグラデー�
 const CAR_COLS=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5,0xff7a1a,0x17c3d4,0x8ac926,0x2b2b3a];
 const CLOTH_COLS=[0xff5a5f,0x3f8cff,0x37c486,0xffc933,0x8e6bff,0xff8fc0,0xff9a3d,0x4dd0e1,0xb6e04a,0x3b2f4a,0xffffff,0x8b5a2b];
 const PCOL=CAR_COLS.slice(0,6);
+const SKIN_COLS=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e,0xa8703f,0x6e4424];
+const HAIR_COLS=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441,0xf0e0a0,0xe8454c,0xff8fc0,0x4a6fd0,0x37c486,0x9b6bff,0xdddddd];
+const HAIR_STYLES=[['short','ショート'],['spiky','ツンツン'],['buzz','ぼうず'],['bob','ボブ'],['long','ロング'],['pony','ポニー'],['bun','おだんご'],['twin','ツイン'],['tuft','ちょんまげ']];
+const DEF_STYLE={m:'short',f:'long',n:'tuft'};
 const GENDERS=[['m','👦 男の子'],['f','👧 女の子'],['n','🧑 ひみつ']];
-const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length]});
-const cleanAv=(a,i=0)=>({gender:'mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n',cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length]});
+const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length],skin:SKIN_COLS[1],hair:HAIR_COLS[i%4],style:DEF_STYLE[i%2?'f':'m']});
+const cleanAv=(a,i=0)=>{const g='mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n';return{gender:g,cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length],
+  skin:SKIN_COLS.includes(a&&a.skin)?a.skin:SKIN_COLS[1],hair:HAIR_COLS.includes(a&&a.hair)?a.hair:HAIR_COLS[1],style:HAIR_STYLES.some(x=>x[0]===(a&&a.style))?a.style:DEF_STYLE[g]}};
 let AV=[],selRow=0;
 const DEF_NAME=['あなた','タロウ','ハナ','ケン','ミキ','ソラ'];
 const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳',fossil:'🦖',meteor:'☄️',ukiyoe:'🌊',katana:'🗡️',wine:'🍷',goldcoin:'🪙',oldmap:'📜',figure:'🧸'};
@@ -3137,7 +3297,7 @@ function cardLocal(o,p){
   if(cardCloseFn)cardCloseFn();
   return new Promise(res=>{
     cardOpen=true;
-    const wrap=$('#cardWrap'),head=$('#cardHead');wrap.classList.toggle('spec',!!o.spec);
+    const wrap=$('#cardWrap'),head=$('#cardHead');wrap.classList.toggle('spec',!!o.spec);$('#card').classList.toggle('wide',!!o.wide);wrap.classList.toggle('specshow',!!(o.spec&&o.profile));
     head.textContent=(o.head||'')+(o.spec&&p?`（${p.name}）`:'');head.style.background=o.color||'#3f8cff';
     $('#cardTitle').innerHTML=o.title||'';
     let t=o.text||'';
@@ -3145,11 +3305,13 @@ function cardLocal(o,p){
     $('#cardText').innerHTML=t;
     const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
     const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
-    const done=i=>{if(!cardOpen)return;cardOpen=false;cardCloseFn=null;removeEventListener('keydown',key);wrap.classList.add('hidden');wrap.classList.remove('spec');Sound.click();res(i)};
+    const done=i=>{if(!cardOpen)return;cardOpen=false;cardCloseFn=null;removeEventListener('keydown',key);wrap.classList.add('hidden');wrap.classList.remove('spec','specshow');Sound.click();res(i)};
     const key=e=>{if((e.code==='Enter'||e.code==='Space')&&!o.cpu&&!o.spec&&(o.btns||['OK']).length===1){e.preventDefault();done(0)}};
     cardCloseFn=()=>done(-1);                       // 外部（観戦終了）から閉じる用
     wrap.classList.remove('hidden');
-    if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
+    if(o.spec){                                     // 観戦：押せない。プロフィールから選ぶ場面は、選択肢を全員に見せる
+      if(o.profile)(o.btns||[]).forEach((b,i)=>{const e=document.createElement('button');e.innerHTML=b;e.disabled=true;e.className=i<(o.profileN===undefined?99:o.profileN)?'prof':'alt';bx.appendChild(e)});
+      return}
     (o.btns||['OK']).forEach((b,i)=>{
       const e=document.createElement('button');e.innerHTML=b;e.className=(o.profile&&i<(o.profileN===undefined?99:o.profileN))?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
@@ -3175,7 +3337,8 @@ V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
 
 /* ---------- ターン開始（マリオパーティ風：なまえ ターン！ ＋ その人にズーム） ---------- */
-V.turnIntro=async(p,label='ターン！')=>{
+V.turnIntro=async(p,label)=>{
+  label=label||'ターン！';if(!p)return;        // 通信では未指定が null で届くので、ここで補う
   Cam.introUntil=performance.now()+1900/SPD;
   const b=$('#turnBanner');
   b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">${label}</span>`;
@@ -3198,7 +3361,7 @@ function showPlayerInfo(p){
   const cols=p.items.filter(i=>i.ty==='col'),oth=p.items.filter(i=>i.ty!=='col');
   const row=(a,b)=>`<tr><td>${a}</td><td style="text-align:left">${b}</td></tr>`;
   cardLocal({head:'プレイヤーの情報',color:hex(p.color),wide:true,title:`${esc(p.name)}（${ageOfKey(p.pos)}歳）`,
-    text:`<img src="${renderAvatar({cloth:p.cloth,gender:p.gender,car:p.color})}" width="150" alt=""><table class="tbl">
+    text:`<img src="${renderAvatar({cloth:p.cloth,gender:p.gender,car:p.color,skin:p.skin,hair:p.hair,style:p.style})}" width="150" alt=""><table class="tbl">
       ${row('現在地',`マス ${esc(p.pos)}${p.finished?'（ゴール済み）':''}${p.inJail?'／留置所':''}${p.skip?'／💤休み':''}`)}
       ${row('現金',`${fmt(p.cash)}円`)}${row('総資産（見込み）',`${fmt(p.settled?p.final:assetsOf(p))}円`)}
       ${row('約束手形',p.notes?`<span class="minus">${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）${p.chased?' 🕶取り立て中':''}</span>`:'なし')}
@@ -3241,7 +3404,7 @@ V.hud=()=>{
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
-  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
+  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?esc(cur.bizTitle||'社長'):'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?(cur.jobRank?'✨':'')+esc(rankName(cur))+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
   const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
@@ -3280,7 +3443,7 @@ function renderHand(p){
   if(p.loverInfo){const c=p.loverInfo;group('💗 恋人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'lover')}])}
   if(p.affairInfo){const c=p.affairInfo;group('🖤 愛人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'affair')}])}
   // 👶 子ども
-  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust({cloth:k.cloth,gender:k.gender})}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
+  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust(k)}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
   // 🐾 ペット
   if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
@@ -3321,7 +3484,7 @@ async function zoom(p,type,x){
   else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
   else if(type==='lover')o={head:'💗 恋人',color:'#ff6fa5',title:esc(p.loverInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.loverInfo)}</div>`};
   else if(type==='affair')o={head:'🖤 愛人',color:'#6a4fd0',title:esc(p.affairInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.affairInfo)}</div>`};
-  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust({cloth:x.cloth,gender:x.gender})}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
+  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust(x)}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
   else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job'){
@@ -3383,19 +3546,40 @@ V.results=async()=>{
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
   if(AUTO)return;
-  const pr=cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',wide:true,title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産</th><th>幸福度</th></tr>${rows}</table>
-    <div style="margin:6px 0 2px">😊 いちばん幸せだったのは <b>${esc(happy.name)}</b>（${lastH(happy)}）</div>
-    <div class="chartwrap"><b>😊 幸福度の推移</b><canvas id="chH" width="520" height="220"></canvas></div>
-    <div class="chartwrap"><b>💰 総資産の推移</b><canvas id="chW" width="520" height="220"></canvas></div>
-    <div style="font-size:.78rem;margin:4px 0">${legend}</div>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
-  setTimeout(()=>{
-    const cvH=$('#chH'),cvW=$('#chW');if(!cvH||!cvW)return;
-    drawChart(cvH,G.players,'h',0,100,v=>Math.round(v));
-    const mx=Math.max(100000,...G.players.map(p=>Math.max(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
-    const mn=Math.min(0,...G.players.map(p=>Math.min(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
-    drawChart(cvW,G.players,'w',mn,mx,v=>Math.round(v/10000)+'万');
-  },60);
-  await pr;
+  const detail=async()=>{                                   // くわしい結果（表とグラフ）。閉じると表彰台に戻る
+    const pr=cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',wide:true,title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産</th><th>幸福度</th></tr>${rows}</table>
+      <div style="margin:6px 0 2px">😊 いちばん幸せだったのは <b>${esc(happy.name)}</b>（${lastH(happy)}）</div>
+      <div class="chartwrap"><b>😊 幸福度の推移</b><canvas id="chH" width="520" height="220"></canvas></div>
+      <div class="chartwrap"><b>💰 総資産の推移</b><canvas id="chW" width="520" height="220"></canvas></div>
+      <div style="font-size:.78rem;margin:4px 0">${legend}</div>${det}`,btns:['表彰台にもどる'],cpu:false},null);
+    setTimeout(()=>{
+      const cvH=$('#chH'),cvW=$('#chW');if(!cvH||!cvW)return;
+      drawChart(cvH,G.players,'h',0,100,v=>Math.round(v));
+      const mx=Math.max(100000,...G.players.map(p=>Math.max(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+      const mn=Math.min(0,...G.players.map(p=>Math.min(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+      drawChart(cvW,G.players,'w',mn,mx,v=>Math.round(v/10000)+'万');
+    },60);
+    await pr;
+  };
+  // 表彰台へカメラを移す（ポップアップではなく、3Dの場面で発表）
+  if(cardCloseFn)cardCloseFn();closeGroupPopup();
+  if(Cam.is2D){Cam.set2D(false)}
+  ['#left','#hudR','#actions','#hand','#tools','#testPanel','#spinBtn','#roulLabel'].forEach(q=>{const e=$(q);if(e)e.classList.add('hidden')});
+  const pd=buildPodium(r);
+  Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(0,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
+  const fit=()=>{Cam.followDist=Math.max(15,(r.length>4?15.5:13.5)/Math.min(1.5,aspect()))};fit();addEventListener('resize',fit);
+  V.banner(`🏆 優勝：${r[0].name}！`);
+  const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
+  const bar=$('#podiumBar');bar.classList.remove('hidden');
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
+  if(canPhoto)$('#pdPhoto').onclick=async()=>{
+    Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
+    const url=podiumPhoto(`LIFE ROAD　🏆 ${r.slice(0,3).map((p,i)=>`${i+1}位 ${p.name}`).join('　')}`);
+    setTimeout(()=>fl.classList.add('hidden'),500);
+    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<img src="${url}" style="width:100%;border-radius:12px;border:6px solid #fff;box-shadow:0 4px 14px #0004" alt="記念写真"><br><a href="${url}" download="life-road-podium.png" class="dl">⬇ 画像を保存する</a><br><small>（スマホは画像を長押しでも保存できます）</small>`,btns:['閉じる'],cpu:false},null);
+  };
+  await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();
 };
 
@@ -3409,13 +3593,17 @@ $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!l
 let avCb=null;
 function loadMe(){
   try{const s=JSON.parse(localStorage.getItem('liferoad_me')||'null');if(s){const a=cleanAv(s,0);a.name=String(s.name||'あなた').slice(0,8);return a}}catch(e){}
-  return{name:'あなた',gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
+  const g='mf'[rnd(2)];return{name:'あなた',gender:g,cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)],skin:SKIN_COLS[1],hair:HAIR_COLS[rnd(4)],style:DEF_STYLE[g]};
 }
 function saveMe(){try{localStorage.setItem('liferoad_me',JSON.stringify(AV[0]))}catch(e){}}
 function renderAvatarEditor(){
   const av=AV[0];
   $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
-  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;renderAvatarEditor()});
+  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;av.style=DEF_STYLE[av.gender];renderAvatarEditor()});
+  $('#avStyle').innerHTML=HAIR_STYLES.map(g=>`<button data-g="${g[0]}" class="${av.style===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
+  $('#avStyle').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.style=b.dataset.g;renderAvatarEditor()});
+  [['swSkin',SKIN_COLS,'skin'],['swHair',HAIR_COLS,'hair']].forEach(([id,cols,key])=>{$('#'+id).innerHTML=cols.map(c=>`<span data-c="${c}" class="${av[key]===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+    $('#'+id).querySelectorAll('span').forEach(e=>e.onclick=()=>{av[key]=+e.dataset.c;renderAvatarEditor()})});
   $('#swCloth').innerHTML=CLOTH_COLS.map(c=>`<span data-c="${c}" class="${av.cloth===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
   $('#swCar').innerHTML=CAR_COLS.map(c=>`<span data-c="${c}" class="${av.car===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
   $('#swCloth').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.cloth=+e.dataset.c;renderAvatarEditor()});
@@ -3676,7 +3864,7 @@ function hostLeft(c){
 const $ol=id=>$('#'+id);
 function olMsg(t){$ol('olMsg').textContent=t||''}
 const avCache={};
-const avThumb=av=>{const k=av.gender+av.cloth+av.car;return avCache[k]||(avCache[k]=renderAvatar(av))};
+const avThumb=av=>{const k=[av.gender,av.cloth,av.car,av.skin,av.hair,av.style].join('|');return avCache[k]||(avCache[k]=renderAvatar(av))};
 function uniqueAv(av,i){                                   // 車の色が他の人と重なったら空いている色に
   const taken=new Set(NET.slots.map((x,k)=>x.kind!=='open'&&k!==i&&x.av?x.av.car:null));
   if(taken.has(av.car))av.car=CAR_COLS.find(c=>!taken.has(c));
@@ -3747,7 +3935,7 @@ function hostStart(){
   if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
   TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
-  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
+  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender,skin:o.s.av.skin,hair:o.s.av.hair,style:o.s.av.style}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
   NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
@@ -3798,7 +3986,7 @@ function clientRecv(m){
     case 'lobby':NET.lobby={slots:m.slots,me:m.me};renderLobby(m.slots,m.me,false);break;
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
-      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));G.cur=0;G.over=false;
+      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
       enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
@@ -3855,7 +4043,7 @@ window.addEventListener('load',()=>{
     else NET.send({t:'avatar',name:AV[0].name,av:cleanAv(AV[0],0)});
   });
   const m=location.search.match(/[?&]room=(\d{6})/);      // 招待リンク：コードを入力済みにする
-  if(m){$ol('olCode').value=m[1];olMsg('招待リンクのコードを入れました。アバターを確認して「ルームに参加する」を押してね');}
+  if(m){$ol('olCode').value=m[1];olMsg('招待リンクから、待機ルームに入っています…');Sound.resume();setTimeout(joinRoom,300)}   // 招待リンク：そのまま待機ルームへ（アバターは待機ルームで変えられる）
 });
 // ===== テストモード：確認用パネル（ホストが待機ルームでオンにしたときだけ・ホスト自身のプレイヤーだけに作用） =====
 let testBusy=false;

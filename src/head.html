@@ -124,7 +124,14 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#podiumBar{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 12px calc(12px + env(safe-area-inset-bottom));text-align:center;background:linear-gradient(#fff0,#fffc 40%)}
+#podiumBar .pdt{font-weight:900;font-size:clamp(1rem,3.4vw,1.4rem);color:#3b2f4a;text-shadow:0 2px 0 #fff,0 0 8px #fff;margin-bottom:6px}
+#podiumBar .pdb{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#podiumBar button{min-width:120px}
+#photoFlash{position:fixed;inset:0;z-index:90;background:#fff;pointer-events:none;animation:pflash .5s ease-out forwards}@keyframes pflash{from{opacity:1}to{opacity:0}}
+a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;background:#ff4f86;color:#fff;font-weight:900;text-decoration:none}
 #cardWrap.spec #cardBtns{display:none}
+#cardWrap.specshow #cardBtns{display:flex}#cardWrap.specshow #cardBtns button{opacity:1;cursor:default}
+.gbtn.sm{display:flex;flex-wrap:wrap;gap:4px}.gbtn.sm button{font-size:.72rem;padding:4px 8px;flex:none}
 .slotrow{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:10px;background:#faf6ee;margin:3px 0;text-align:left}
 .slotrow .dot{width:18px;height:18px;border-radius:50%;flex:none}
 .slotrow .tag{margin-left:auto;font-size:.75rem;font-weight:800;padding:2px 8px;border-radius:10px;background:#ddd}
@@ -243,6 +250,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  <button id="avIcon" title="アバター設定"><img id="avIconImg" width="54" height="38" alt=""><span id="avIconName"></span><small>⚙ アバター設定</small></button>
 </div>
 
+<div id="podiumBar" class="hidden"></div><div id="photoFlash" class="hidden"></div>
 <div id="avModal" class="hidden">
  <div class="panel" id="avatarBox">
   <div style="font-weight:900;font-size:1.1rem;margin-bottom:6px">🎨 アバター設定</div>
@@ -251,6 +259,9 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
    <img id="avPrev" width="200" height="142" alt="アバターのプレビュー" style="background:#eaf6ff99;border-radius:14px">
    <div style="flex:1;min-width:210px;text-align:left">
     <div style="font-size:.8rem;font-weight:800">せいべつ</div><div id="avGender" class="gbtn"></div>
+    <div style="font-size:.8rem;font-weight:800;margin-top:6px">髪型</div><div id="avStyle" class="gbtn sm"></div>
+    <div style="font-size:.8rem;font-weight:800;margin-top:6px">髪の色</div><div id="swHair" class="sw"></div>
+    <div style="font-size:.8rem;font-weight:800;margin-top:6px">肌の色</div><div id="swSkin" class="sw"></div>
     <div style="font-size:.8rem;font-weight:800;margin-top:6px">服の色</div><div id="swCloth" class="sw"></div>
     <div style="font-size:.8rem;font-weight:800;margin-top:6px">車の色</div><div id="swCar" class="sw"></div>
    </div>

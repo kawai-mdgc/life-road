@@ -1,6 +1,11 @@
 // ===== ルールエンジン：マスの効果・職業能力・お金・手形・株・ゴール精算 =====
 const V={};                         // 表示層（world.js / ui.js が中身を差し込む）
 // 追加コース：ドリームトレジャー(D)・キャリアアップ(C)・ギャンブルエリア(G)。中身はあとで setSq で決める
+[['看護師',21000,'nurse','病気・ケガの赤マスが無効','ナース服、ナースキャップ','g'],['漁師',19000,'farm','給料日に偶数を出すと＋3,000','ねじりはちまき、長ぐつ','g'],
+ ['配達ドライバー',20000,'void_car','交通事故マスが無効','キャップ、作業ベスト','g'],['バリスタ',17000,'half_item','アイテムを買うマスで代金半額','茶色のエプロン','g'],
+ ['薬剤師',34000,'nurse','病気・ケガの赤マスが無効','白衣、薬のバッジ','s'],['声優',30000,'stream','給料日に9か10を出すと給料3倍','ヘッドホン','s'],
+ ['公認会計士',42000,'void_scam','詐欺マスが無効','スーツ、書類カバン','s'],['漫画家',28000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','ベレー帽、Gペン','s']]
+ .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
 const BR={U:[12,'20','21'],W:[8,'20','21'],S:[10,'80','81'],R:[10,'80','81'],D:[8,'86','90'],C:[8,'86','90'],G:[8,'120','124']};
 ['D','C','G'].forEach(r=>{for(let n=1;n<=BR[r][0];n++)SQDATA.push({id:r+n,r,n,c:'blue',k:'event',t:'',m:'0',a:null,x:null})});
 const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
@@ -22,7 +27,8 @@ const G={players:[],cur:0,order:[],stockOwner:Array(11).fill(null),deckG:[],deck
   houseTaken:Array(HOUSES.length).fill(false),turnNo:0,over:false,awaiting:null,logs:[]};
 
 /* ---------- 位置・経路 ---------- */
-const isStop=s=>s.c==='gold'||s.id==='W1'||s.id==='U12';   // STOPマス（就職マスW1・卒業U12も必ず止まる）
+const STOP_EXTRA=new Set(['W1','U12','29','68','91','41','C2','C4','C6']);          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
+const isStop=s=>s.c==='gold'||STOP_EXTRA.has(s.id);   // STOPマス（就職マスW1・卒業U12も必ず止まる）
 function chapterOf(key){
   const s=SQ[key]; if(s.r!=='main')return {U:0,W:0,S:2,R:2,D:3,C:3,G:4}[s.r];
   const n=s.n; return n<=20?0:n<=50?1:n<=80?2:n<=110?3:n<=135?4:5;
@@ -68,21 +74,7 @@ function ageOfKey(key){
 }
 
 /* ---------- 幸福度と履歴（最後にグラフで見られる） ---------- */
-function happinessOf(p){                                    // 幸福度：今の暮らし（家族・家・仕事・お金・借金）＋これまでの出来事の積み重ね
-  let h=36+(p.joy||0);
-  h+=p.spouse?10:p.lover?4:0;
-  h+=Math.min(12,p.kids*4)+Math.min(6,p.pets*3)+Math.min(4,p.grand*2);
-  h+=p.houses.length?6:0;
-  h+=p.job&&!p.retired?3+(p.jobRank?3:0):0;
-  if(p.affairInfo)h-=4;
-  if(p.jobless>0)h-=8;
-  if(p.spouseJobless>0)h-=3;
-  if(p.inJail)h-=10;
-  if(p.chased)h-=8;
-  h-=Math.min(15,p.notes*4);
-  h+=Math.min(14,Math.round(Math.log10(1+Math.max(0,assetsOf(p))/10000)*5));   // お金は多いほど少し幸せ（頭打ち）
-  return clamp(Math.round(h),0,100);
-}
+function happinessOf(p){return Math.round(clamp(p.happy===undefined?100:p.happy,0,100))}   // 幸せレベル：100から始まり、出来事で上下する
 function recordHist(p){
   if(!G.hist)G.hist={};
   (G.hist[p.id]||(G.hist[p.id]=[])).push({a:ageOfKey(p.pos),w:assetsOf(p),h:happinessOf(p)});
@@ -101,8 +93,10 @@ const vehicleStop=p=>{const a=ageOfKey(p.pos);return (a<5?'stroller':a<18?'bike'
 async function checkVehicle(p){
   const age=ageOfKey(p.pos);
   if(age>=80&&!p.oldVeh){                                    // 80歳：免許返納。乗り物は自分で選ぶ
-    const i=await ask(p,{head:'🧓 80歳：免許返納',color:'#8a6a4a',title:'これからの乗り物を選ぼう',text:'<small>足りない分は約束手形で買えます</small>',btns:OLD_VEH.map(v=>`${v[1]}（${v[2]?'−'+fmt(v[2])+'円':'無料'}）`),pick:p.cash>=500000||p.risk>.85?2:p.cash>=200000||p.risk>.6?1:0,col:true});
-    p.oldVeh=OLD_VEH[i][0];if(OLD_VEH[i][2])await pay(p,OLD_VEH[i][2]);
+    const a=assetsOf(p),d=a<600000?0:a<1200000?1:2,diff=i=>OLD_VEH[i][2]-OLD_VEH[d][2];   // 総資産で「標準」が決まる
+    const i=await ask(p,{head:'🧓 80歳：免許返納',color:'#8a6a4a',title:'これからの乗り物を選ぼう',text:`あなたの総資産だと、標準は<b>${OLD_VEH[d][1]}</b>です。<br><small>グレードを上げると差額を払い、下げると差額がもらえます（足りない分は約束手形）</small>`,
+      btns:OLD_VEH.map((v,k)=>`${v[1]}（${k===d?'標準・0円':diff(k)>0?'グレードアップ −'+fmt(diff(k))+'円':'グレードダウン +'+fmt(-diff(k))+'円'}）`),pick:p.risk>.8?Math.min(2,d+1):p.risk<.15?Math.max(0,d-1):d,col:true});
+    p.oldVeh=OLD_VEH[i][0];const c=diff(i);if(c>0)await pay(p,c,{discount:false});else if(c<0)await income(p,-c);
   }
   const v=vehicleOfAge(age,p);
   if(v===p.vstage)return;
@@ -112,11 +106,12 @@ async function checkVehicle(p){
 }
 
 /* ---------- プレイヤー ---------- */
-function newPlayer(id,name,cpu,color,cloth,gender){
-  return{id,name,cpu,color,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
+function newPlayer(id,name,cpu,color,cloth,gender,look){
+  look=look||{};
+  return{id,name,cpu,color,skin:look.skin,hair:look.hair,style:look.style,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,happy:100,bizTitle:'',settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -129,7 +124,7 @@ function mulCount(p,x){
     case 'pins':return pinsOf(p);case 'stocks':return p.stocks.length;default:return 1}
 }
 const SAL_MULT=.75;                                        // 難易度：給料を少し下げる
-const RANK_UP={'会社員':['課長',1.3],'販売員':['店長',1.3],'コック':['料理長',1.35],'美容師':['人気スタイリスト',1.35],'大工':['棟梁',1.3],'バス運転手':['運行主任',1.25],
+const RANK_UP={'看護師':['看護師長',1.3],'漁師':['船団の網元',1.35],'配達ドライバー':['配送センター長',1.25],'バリスタ':['カフェオーナー',1.4],'薬剤師':['薬局長',1.3],'声優':['人気声優',1.5],'公認会計士':['監査法人のパートナー',1.35],'漫画家':['大ヒット漫画家',1.5],'会社員':['課長',1.3],'販売員':['店長',1.3],'コック':['料理長',1.35],'美容師':['人気スタイリスト',1.35],'大工':['棟梁',1.3],'バス運転手':['運行主任',1.25],
  '農家':['大地主',1.3],'警察官':['警部',1.3],'消防士':['消防隊長',1.3],'保育士':['園長先生',1.3],'動画配信者':['登録者100万人の配信者',1.5],
  '医者':['院長',1.35],'弁護士':['敏腕パートナー弁護士',1.35],'パイロット':['機長',1.3],'エンジニア':['CTO',1.4],'教師':['校長先生',1.3],'研究者':['教授',1.3],
  '建築家':['巨匠建築家',1.4],'獣医':['動物病院の院長',1.35],'ゲームクリエイター':['ゲームディレクター',1.4],'プロスポーツ選手':['日本代表のスター選手',1.4],'宇宙飛行士':['船長（コマンダー）',1.3]};
@@ -154,7 +149,7 @@ async function checkChase(p){
     say(p,`${p.name}：約束手形が${p.notes}枚… 黒い車の取り立て屋が付きまといます（${CHASE_OFF}枚以下に返済するまで）`);
     await V.thugsArrive(p);
   }else if(p.chased&&p.notes<=CHASE_OFF){
-    p.chased=false;say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
+    p.chased=false;joy(p,4);say(p,`${p.name}：手形を返して、取り立て屋は引き上げていった`);
     await V.thugsLeave(p);
   }
 }
@@ -184,6 +179,7 @@ async function gifts(p,per,label){          // 全員からお祝い金（人数
   V.log(`${p.name}：${label} 全員からお祝い`);
 }
 async function payday(p,key,passing){
+  if(!p.spouse)joy(p,.3);                                  // 独身は、自由な時間と趣味でじわっと幸せ（既婚・子持ちと並べるように）
   let s=salaryOf(p),note='';
   const a=jobAb(p),r=p.lastRoll;
   if(!p.retired&&p.job){
@@ -219,7 +215,7 @@ async function repayNotes(p,n){            // 財布から、いつでも約束�
 /* ---------- 選択肢 / カード ---------- */
 const plain=t=>String(t||'').replace(/<[^>]*>/g,'').slice(0,34);
 function ask(p,o){if(o.title)G.ctx=plain(o.title);return V.card(Object.assign({cpu:p.cpu,pick:0},o),p)}
-function joy(p,n){p.joy=clamp((p.joy||0)+n,-45,45)}        // 人生の出来事で上下する「気持ち」
+function joy(p,n){p.happy=clamp((p.happy===undefined?100:p.happy)+n,0,100)}        // 人生の出来事で上下する「気持ち」
 async function showSq(p,sq,note=''){
   const kindTxt={item:'アイテム',duel:'勝負',family:'家族',job:'職業',event:'イベント',lottery:'宝くじ'}[sq.k]||'';
   const head=`${sq.id.match(/^\d/)?'マス '+sq.id:'ルート '+sq.id}（${ageOfKey(sq.id)}歳）　${COLOR_NAME[sq.c]}${kindTxt?'・'+kindTxt:''}`;
@@ -326,11 +322,12 @@ async function redSq(p,sq){
   if(p.redShield>0){p.redShield--;say(p,'人間ドックの効果で無効！');Sound.good();return}
   const ins=INS_FOR[sq.id];
   if(ins&&has(p,ins)){say(p,`${ITEM_BY_CODE[ins].n}で無効！`);Sound.good();return}
+  if(ins==='health'&&jobAb(p)==='nurse'){say(p,`${p.job.n}の特殊能力で無効！`);Sound.good();return}
   const ab=ABIL_VOID[sq.id];
   if(ab&&jobAb(p)===ab){say(p,`${p.job.n}の特殊能力で無効！`);Sound.good();return}
   if(KID_COST.has(sq.id)&&jobAb(p)==='teach'){amt=Math.ceil(amt/2);say(p,'教師の特殊能力で半額！')}
   if(sq.id==='90'&&jobAb(p)==='carp'){amt=Math.round(amt*.8);say(p,'大工の特殊能力で20%引き！')}
-  Sound.bad();await pay(p,amt);
+  Sound.bad();joy(p,-2);await pay(p,amt);
   for(const q of others(p)){     // 医者・弁護士の特殊能力（銀行から受け取る）
     if(jobAb(q)==='doc'&&HEALTH_CAT.has(sq.id)){say(q,`${q.name}（医者）が5,000円受け取る`);await income(q,5000)}
     if(jobAb(q)==='law'&&LAW_CAT.has(sq.id)){say(q,`${q.name}（弁護士）が5,000円受け取る`);await income(q,5000)}
@@ -384,11 +381,14 @@ const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カ
 const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社員','先生','農家','カメラマン','消防士','薬剤師','公務員','美容師','エンジニア','パティシエ'];
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
+const NAT_HAIR=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441],NAT_SKIN=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e],STYLE_BY={m:['short','spiky','buzz'],f:['long','bob','pony','bun','twin'],n:['short','bob','tuft']};
+const pic2=(p,c,kind)=>typeof portraitTogether==='function'?portraitTogether(p,c,kind):'';     // 記念の絵（自分と相手がならぶ）
+const picHtml=(p,c,kind)=>{const u=pic2(p,c,kind);return u?`<img src="${u}" width="280" style="max-width:100%;border-radius:14px;background:linear-gradient(#ffe6f1,#fff7d6)" alt=""><br>`:''};
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
   return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
-    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
+    inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],hair:pickOf(NAT_HAIR),skin:pickOf(NAT_SKIN),style:pickOf(STYLE_BY[g]||STYLE_BY.n),role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
 const genSpouse=(g,p)=>genPerson(g,p,'spouse');
 function spouseHtml(c,tag=''){
@@ -428,7 +428,8 @@ async function choosePet(p,baby){
   const si=await ask(p,{head:baby?'🐾 ペットに赤ちゃん！':'🐾 ペットをむかえよう',color:'#ff9a3d',title:baby?'生まれたのは、犬？ 猫？':'犬と猫、どっちにする？',text:'まず種類を選んでください',btns:['🐶 犬','🐱 猫'],pick:rnd(2),col:true});
   const cand=genPets(si===0?'dog':'cat',baby);
   const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
-  p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);
+  p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);Sound.good();
+  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet')+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
   say(p,`${p.name} の家に ${cand[ci].name}（${cand[ci].breed}）がやってきた！`);
 }
 async function stepAndLand(p){                 // 分岐を選んだら、すぐ最初のマスの支払い・収入を実行する
@@ -474,7 +475,8 @@ SP['20']=async p=>{
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
 SP['31']=async p=>{
   const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
-  p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);await famBonus(p,'31');
+  p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);Sound.good();
+  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover')+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
 };
 SP['34']=async p=>{
   const r=await spin(p,'duel');
@@ -513,7 +515,8 @@ async function tryMarry(p,again){                           // プロポーズ �
   const c=await choosePerson(p,{role:'spouse',head:'💍 結婚！ 相手を選ぼう',color:'#ff6fa5',q:'どんな人と結婚する？',title2:'3人の中から、結婚相手を選ぼう',gender:had&&had.gender,include:had});
   p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
   say(p,`${p.name} は ${c.name} さんと結婚！`);
-  p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();
+  p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
+  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse')+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
@@ -528,7 +531,7 @@ async function baby(p,n,id){
   for(let i=0;i<n;i++){
     const g=Math.random()<.5?'f':'m',pool=shuffle([...(g==='f'?GIRL_N:BOY_N)].filter(n=>!p.kidList.some(k=>k.name===n))).slice(0,3);   // 兄弟で名前がかぶらない
     const ni=await ask(p,{head:`👶 ${n===2?(i+1)+'人目：':''}子ども誕生！`,color:'#ff9a3d',title:g==='f'?'女の子が生まれました！':'男の子が生まれました！',text:'名前をつけてあげよう',btns:pool,pick:rnd(3),col:true});
-    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),cloth:KID_COL[p.kidList.length%KID_COL.length]});
+    p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),hair:p.spouseInfo&&Math.random()<.5?p.spouseInfo.hair:(NAT_HAIR.includes(p.hair)?p.hair:NAT_HAIR[1]),skin:p.skin,cloth:KID_COL[p.kidList.length%KID_COL.length]});
     p.kids=p.kidList.length;joy(p,6);
     say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);
   }
@@ -618,7 +621,15 @@ SP['W8']=async p=>{
   const r=await duelRoll(p,x=>x>=7);
   if(r>=7)await chooseJob(p,'s',1,'夜間学校：専門職に転職できる',true);else say(p,'試験に落ちた…');
 };
-SP['R1']=async p=>{await pay(p,30000);p.president=true;say(p,'起業！ 社長マーカーを獲得');V.hud()};
+const BIZ={'医者':'クリニックの院長（開業医）','看護師':'訪問看護ステーションの代表','コック':'オーナーシェフ','美容師':'サロンのオーナー','会社員':'ベンチャー企業の社長','販売員':'セレクトショップのオーナー','大工':'工務店の社長','農家':'農園のオーナー','漁師':'水産会社の社長',
+ 'バリスタ':'カフェのオーナー','エンジニア':'IT企業の社長','弁護士':'法律事務所の代表','建築家':'設計事務所の代表','獣医':'動物病院の院長','ゲームクリエイター':'ゲーム会社の社長','動画配信者':'配信事務所の社長','教師':'学習塾の経営者','保育士':'保育園の園長',
+ '研究者':'研究ベンチャーの社長','薬剤師':'薬局のオーナー','公認会計士':'会計事務所の代表','漫画家':'漫画スタジオの代表','声優':'声優事務所の社長','配達ドライバー':'運送会社の社長','バス運転手':'観光バス会社の社長','プロスポーツ選手':'スポーツジムのオーナー','パイロット':'航空ベンチャーの社長','宇宙飛行士':'宇宙ベンチャーの社長','警察官':'警備会社の社長','消防士':'防災会社の社長'};
+SP['R1']=async p=>{                                         // 起業：今の職業に合った形で独立する
+  p.bizTitle=p.job?(BIZ[p.job.n]||`${p.job.n}の会社の社長`):'会社の社長';
+  await ask(p,{head:'🚀 起業！',color:'#c98a00',title:`${p.job?p.job.n+'として独立！':'独立して起業！'}`,text:`<b>${p.bizTitle}</b> になりました<br><small>開業資金 −30,000円。挑戦ルートの最後の給料日は給料2倍</small>`,btns:['OK'],pick:0});
+  await pay(p,30000);p.president=true;joy(p,5);say(p,`${p.name}：起業して「${p.bizTitle}」に！`);V.hud();
+};
+{const q=SQ['R1'];q.t='起業！ 今の職業に合わせて独立する（開業資金。手形可）'}
 SP['R2']=async p=>{const r=await duelRoll(p);say(p,`新商品 出た数 ${r} × 5,000`);await income(p,r*5000)};
 SP['R4']=async p=>{await drawItem(p,2)};
 SP['R5']=async p=>{await betSquare(p,50000)};
@@ -633,13 +644,14 @@ function doDivorce(p){joy(p,-10);p.spouse=false;p.spouseInfo=null;p.spouseJobles
 const ARRESTS=[
   {why:'飲酒運転',bail:30000,rest:1},{why:'万引き',bail:10000,rest:1},{why:'ネットでの誹謗中傷',bail:40000,rest:1},
   {why:'ケンカで相手にケガをさせた',bail:50000,rest:2},{why:'脱税',bail:100000,rest:2},{why:'詐欺',bail:150000,rest:3}];
-const ARREST_ROLL=['万引き','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
+const ARREST_ROLL=['無罪','万引き','ネットでの誹謗中傷','飲酒運転','飲酒運転','ケンカで相手にケガをさせた','ケンカで相手にケガをさせた','脱税','脱税','詐欺'];   // 出目1〜10 → 罪状（数字が大きいほど重い）
 async function arrest(p,force,dashForce){
   const dash=dashForce!==undefined?dashForce:Math.random()<.04;            // ごくまれに、モッズコートの警察官がダッシュで来る
   let r=force;
   if(!r){                                                    // ① まず罪状が確定する（ルーレットの出目）
-    await ask(p,{head:'🚨 罪が発覚！',color:'#e8454c',title:'何をやらかした？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1〜2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
+    await ask(p,{head:'🚨 罪が発覚！',color:'#e8454c',title:'何をやらかした？',text:'<b>ルーレットの出目で罪状が決まります</b><br><small>1 人違いで無罪 ／ 2 万引き ／ 3 ネットでの誹謗中傷 ／ 4〜5 飲酒運転 ／ 6〜7 ケンカ（ケガ） ／ 8〜9 脱税 ／ 10 詐欺<br>数字が大きいほど重い罪です</small>',btns:['ルーレットを回す'],pick:0});
     const n=await spin(p,'duel');                            // 能力による出目補正はなし
+    if(ARREST_ROLL[n-1]==='無罪'){joy(p,2);say(p,`${p.name} の出目は ${n}… 人違いでした！ おわびに +5,000円`);await ask(p,{head:'🚨 警察',color:'#2fb36f',title:'人違いでした！',text:'警察からおわびの品 +5,000円',btns:['OK'],pick:0});await income(p,5000);return}
     r=ARRESTS.find(x=>x.why===ARREST_ROLL[n-1]);
     say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」で確定！`);
     await sleep(600);
@@ -658,7 +670,7 @@ async function arrest(p,force,dashForce){
   }
 }
 const LIFE={
-  arrest:{ok:p=>ageOfKey(p.pos)>=18&&!p.inJail,w:2,run:async p=>{await arrest(p)}},
+  arrest:{ok:p=>ageOfKey(p.pos)>=18&&!p.inJail,w:4,run:async p=>{await arrest(p)}},
   jobless:{ok:p=>p.job&&!p.retired,w:2,run:async p=>{
     await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:'会社が倒産…！ 失業しました',text:'次の2回の給料日は、<b>失業手当（給料の30%）</b>だけになります',btns:['OK'],pick:0});
     p.jobless=2;say(p,`${p.name} が失業… 次の2回の給料日は30%`)}},
@@ -741,7 +753,7 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
   if(auto){V.banner('🎊 宝くじ抽選会が始まる！');say(p,`${p.name}：抽選会を通過… 宝くじ ${p.tickets.join('・')} で自動参加`);await sleep(900)}
   else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ガラガラで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で当たり → 等級の抽選（1等 ${fmt(LOT_FIRST)}円）／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ガラガラを回す'],pick:0});
   G.ctx='宝くじ抽選会：当せん番号';
-  const r=await garagara(p,sqId,x=>p.tickets.includes(x),false);
+  const r=await garagara(p,sqId,()=>false,false);            // 番号の抽選では確定演出なし（確定演出は1等のときだけ）
   let total=0;const lines=[];
   const hit=p.tickets.includes(r);
   for(const t of p.tickets){
@@ -754,11 +766,12 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
     await ask(p,{head:'🎊 当たり！ 等級の抽選',color:'#e6a800',title:`${r}番が当たり！ もう一度回して等級を決める`,text:`<b>9〜10：1等 ${fmt(LOT_FIRST)}円</b>／6〜8：2等 ${fmt(LOT_SECOND)}円／1〜5：3等 ${fmt(LOT_THIRD)}円`,btns:['ガラガラを回す'],pick:0});
     const r2=await garagara(p,sqId,x=>x>=9,true),g=r2>=9?LOT_FIRST:r2>=6?LOT_SECOND:LOT_THIRD,nm=r2>=9?'1等':r2>=6?'2等':'3等';
     total+=g;lines.push(`等級の抽選：出目 ${r2} → <b class="plus">${nm} +${fmt(g)}円</b>`);
-    joy(p,r2>=9?15:4);
+
     if(r2>=9){V.banner('🎉 宝くじ1等！ 一攫千金！');V.confetti(p.pos)}
   }
   p.tickets=[];
   await ask(p,{head:'🎊 抽選結果',color:total?'#2fb36f':'#8a8aa0',title:`当せん番号は ${r}！`,text:lines.join('<br>')+(total?`<br><br>合計 <b class="plus">+${fmt(total)}円</b>`:'<br><br>残念…またチャレンジ！'),btns:['OK'],pick:0});
+  if(total)joy(p,Math.min(60,4+total/20000));                // 当せん金額が大きいほど、幸せレベルが爆発的に上がる
   if(total){say(p,`${p.name}：宝くじ当せん！ +${fmt(total)}円`);Sound.fanfare();await income(p,total)}else say(p,`${p.name}：宝くじははずれ…`);
   V.hud();
 }
@@ -848,13 +861,18 @@ setSq('122','blue','duel','老後資金を増やしたい：暗号資産に手�
 SP['122']=async p=>venture(p,{head:'🪙 暗号資産',title:'老後資金を、暗号資産で増やす？',desc:'1〜4：暴落して全損／5：半分に／6：元本／7：×1.5／8：×2／9：×3／<b>10：×5</b>',stakes:[0,50000,100000,200000],table:[0,0,0,0,.5,1,1.5,2,3,5]});
 
 /* ---------- 結婚のチャンスは何回かある ---------- */
-SP['51']=async p=>tryMarry(p,false);
+SP['51']=async p=>p.spouse?anniversary(p):tryMarry(p,false);
+async function anniversary(p){                             // すでに結婚していたら：結婚記念日でお祝い金
+  joy(p,5);Sound.good();say(p,`${p.name}：結婚記念日！ お祝い金 +10,000円`);
+  await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}結婚記念日！`,text:'みんなからお祝い金 <b class="plus">+10,000円</b>（幸せレベルもアップ）',btns:['OK'],pick:0});
+  await income(p,10000);
+}
 async function partyOrAnniv(p){
-  if(p.spouse){joy(p,3);say(p,`${p.name}：結婚記念日。夫婦でお祝い（−5,000円）`);await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}お祝い`,text:'記念日のディナー −5,000円（幸福度アップ）',btns:['OK'],pick:0});await pay(p,5000);return}
+  if(p.spouse)return anniversary(p);
   await ask(p,{head:'💘 婚活パーティー',color:'#ff6fa5',title:'すてきな出会いがあった！',text:'プロポーズのチャンスです',btns:['OK'],pick:0});
   await tryMarry(p,true);
 }
-['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日','?');SP[id]=partyOrAnniv});
+['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日でお祝い金','?');SP[id]=partyOrAnniv});
 
 /* ---------- ハプニング（人生のできごと）を増やす。後半は大きな出費も ---------- */
 ['28','112','137','138','143','144','148','S9','W7'].forEach(id=>{setSq(id,'blue','event','人生のできごと（何が起こるかはお楽しみ）','?');SP[id]=async p=>lifeEvent(p)});
@@ -874,7 +892,13 @@ Object.assign(LIFE,{
     const i=await ask(p,{head:'🏠 人生のできごと',color:'#3f8cff',title:`${k.name}が「家を買いたい」と相談に来た`,text:'頭金 100,000円を援助する？<br><small>援助すると幸福度アップ。足りない分は約束手形</small>',btns:['援助する（−100,000円）','ことわる'],pick:p.risk>.4?0:1,col:true});
     if(i===0){joy(p,8);say(p,`${k.name}の家の頭金を援助 −100,000円`);await pay(p,100000,{discount:false})}else{joy(p,-3);say(p,'援助はことわった…')}}}
 });
-const LIFE_JOY={jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
+['71','114','134'].forEach(id=>{setSq(id,'red','','警察に呼び止められた！（ルーレットで罪状が決まる。1なら人違い）','?');SP[id]=async p=>arrest(p)});
+Object.assign(LIFE,{
+  solo:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=20,w:2,run:async p=>{await ask(p,{head:'🌏 人生のできごと',color:'#2fb36f',title:'ひとり旅で、一生の思い出ができた！',text:'自由な時間を満喫。幸せレベルが大きくアップ',btns:['OK'],pick:0});say(p,`${p.name}：ひとり旅で最高の思い出`)}},
+  hobby:{ok:p=>!p.spouse,w:2,run:async p=>{await ask(p,{head:'🎸 人生のできごと',color:'#2fb36f',title:'趣味の仲間ができた！',text:'好きなことに夢中になれる毎日。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：趣味の仲間ができた`)}},
+  friend:{ok:()=>true,w:1,run:async p=>{await ask(p,{head:'🍻 人生のできごと',color:'#2fb36f',title:'なつかしい友だちと再会！',text:'昔話に花が咲いた。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：旧友と再会`)}}
+});
+const LIFE_JOY={solo:12,hobby:9,friend:6,jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
 
 /* ---------- 追加コース（分かれ道で選ぶ） ---------- */
 async function treasure(p,n){const pool=ITEMS.filter(x=>x.ty==='col');for(let i=0;i<n;i++)await handleItem(p,{...pickOf(pool)})}
@@ -937,7 +961,7 @@ async function landEffect(p,sq){
     case 'yellow':return payday(p,sq.id,false);
     case 'green':{
       const a=sq.a*(sq.x?mulCount(p,sq.x):1);
-      if(a>0){Sound.good();return income(p,a)}return;
+      if(a>0){Sound.good();joy(p,3);return income(p,a)}return;
     }
     case 'red':return redSq(p,sq);
     case 'blue':if(sq.k==='item')return drawItem(p,1);return;
@@ -1140,11 +1164,12 @@ async function takeTurn(p){
     await land(p);
     V.hud();
   }while(p.again&&!p.finished&&++guard<5);
+  joy(p,-1.3);                                             // 何もなければ、少しずつ下がっていく
   recordHist(p);
 }
 
 function setupGame(list){
-  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));
+  G.players=list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));
   G.cur=0;G.order=[];G.over=false;G.turnNo=0;
   G.stockOwner=Array(11).fill(null);G.houseTaken=Array(HOUSES.length).fill(false);
   G.hist={};G.econ=null;buildItemDeck();buildJobDecks();G.players.forEach(recordHist);

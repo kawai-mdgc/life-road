@@ -111,7 +111,7 @@ function hostLeft(c){
 const $ol=id=>$('#'+id);
 function olMsg(t){$ol('olMsg').textContent=t||''}
 const avCache={};
-const avThumb=av=>{const k=av.gender+av.cloth+av.car;return avCache[k]||(avCache[k]=renderAvatar(av))};
+const avThumb=av=>{const k=[av.gender,av.cloth,av.car,av.skin,av.hair,av.style].join('|');return avCache[k]||(avCache[k]=renderAvatar(av))};
 function uniqueAv(av,i){                                   // 車の色が他の人と重なったら空いている色に
   const taken=new Set(NET.slots.map((x,k)=>x.kind!=='open'&&k!==i&&x.av?x.av.car:null));
   if(taken.has(av.car))av.car=CAR_COLS.find(c=>!taken.has(c));
@@ -182,7 +182,7 @@ function hostStart(){
   if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
   TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
-  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender}));
+  const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender,skin:o.s.av.skin,hair:o.s.av.hair,style:o.s.av.style}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
   NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
@@ -233,7 +233,7 @@ function clientRecv(m){
     case 'lobby':NET.lobby={slots:m.slots,me:m.me};renderLobby(m.slots,m.me,false);break;
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
-      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender));G.cur=0;G.over=false;
+      G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
       enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
@@ -290,5 +290,5 @@ window.addEventListener('load',()=>{
     else NET.send({t:'avatar',name:AV[0].name,av:cleanAv(AV[0],0)});
   });
   const m=location.search.match(/[?&]room=(\d{6})/);      // 招待リンク：コードを入力済みにする
-  if(m){$ol('olCode').value=m[1];olMsg('招待リンクのコードを入れました。アバターを確認して「ルームに参加する」を押してね');}
+  if(m){$ol('olCode').value=m[1];olMsg('招待リンクから、待機ルームに入っています…');Sound.resume();setTimeout(joinRoom,300)}   // 招待リンク：そのまま待機ルームへ（アバターは待機ルームで変えられる）
 });

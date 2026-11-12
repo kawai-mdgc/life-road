@@ -2,9 +2,14 @@
 const CAR_COLS=[0xe63946,0x1d7ae0,0x2fb36f,0xf4a100,0x8e44ad,0xff6fa5,0xff7a1a,0x17c3d4,0x8ac926,0x2b2b3a];
 const CLOTH_COLS=[0xff5a5f,0x3f8cff,0x37c486,0xffc933,0x8e6bff,0xff8fc0,0xff9a3d,0x4dd0e1,0xb6e04a,0x3b2f4a,0xffffff,0x8b5a2b];
 const PCOL=CAR_COLS.slice(0,6);
+const SKIN_COLS=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e,0xa8703f,0x6e4424];
+const HAIR_COLS=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441,0xf0e0a0,0xe8454c,0xff8fc0,0x4a6fd0,0x37c486,0x9b6bff,0xdddddd];
+const HAIR_STYLES=[['short','ショート'],['spiky','ツンツン'],['buzz','ぼうず'],['bob','ボブ'],['long','ロング'],['pony','ポニー'],['bun','おだんご'],['twin','ツイン'],['tuft','ちょんまげ']];
+const DEF_STYLE={m:'short',f:'long',n:'tuft'};
 const GENDERS=[['m','👦 男の子'],['f','👧 女の子'],['n','🧑 ひみつ']];
-const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length]});
-const cleanAv=(a,i=0)=>({gender:'mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n',cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length]});
+const defAv=i=>({gender:i%2?'f':'m',cloth:CLOTH_COLS[(i*5+1)%CLOTH_COLS.length],car:CAR_COLS[i%CAR_COLS.length],skin:SKIN_COLS[1],hair:HAIR_COLS[i%4],style:DEF_STYLE[i%2?'f':'m']});
+const cleanAv=(a,i=0)=>{const g='mfn'.includes(a&&a.gender)&&a&&a.gender?a.gender:'n';return{gender:g,cloth:CLOTH_COLS.includes(a&&a.cloth)?a.cloth:CLOTH_COLS[0],car:CAR_COLS.includes(a&&a.car)?a.car:CAR_COLS[i%CAR_COLS.length],
+  skin:SKIN_COLS.includes(a&&a.skin)?a.skin:SKIN_COLS[1],hair:HAIR_COLS.includes(a&&a.hair)?a.hair:HAIR_COLS[1],style:HAIR_STYLES.some(x=>x[0]===(a&&a.style))?a.style:DEF_STYLE[g]}};
 let AV=[],selRow=0;
 const DEF_NAME=['あなた','タロウ','ハナ','ケン','ミキ','ソラ'];
 const ITEM_ICON={health:'🏥',car:'🚗',fire:'🔥',sec:'🛡️',turbo:'🎟️',coin:'🪙',back:'⏪',nap:'😴',coupon:'🏷️',boost:'🎉',swap:'🔄',map:'🗺️',key:'🔑',watch:'⌚',neck:'💎',vcar:'🚙',paint:'🖼️',vase:'🏺',ball:'⚾',bonsai:'🌳',fossil:'🦖',meteor:'☄️',ukiyoe:'🌊',katana:'🗡️',wine:'🍷',goldcoin:'🪙',oldmap:'📜',figure:'🧸'};
@@ -17,7 +22,7 @@ function cardLocal(o,p){
   if(cardCloseFn)cardCloseFn();
   return new Promise(res=>{
     cardOpen=true;
-    const wrap=$('#cardWrap'),head=$('#cardHead');wrap.classList.toggle('spec',!!o.spec);
+    const wrap=$('#cardWrap'),head=$('#cardHead');wrap.classList.toggle('spec',!!o.spec);$('#card').classList.toggle('wide',!!o.wide);wrap.classList.toggle('specshow',!!(o.spec&&o.profile));
     head.textContent=(o.head||'')+(o.spec&&p?`（${p.name}）`:'');head.style.background=o.color||'#3f8cff';
     $('#cardTitle').innerHTML=o.title||'';
     let t=o.text||'';
@@ -25,11 +30,13 @@ function cardLocal(o,p){
     $('#cardText').innerHTML=t;
     const a=$('#cardAmt');a.textContent=o.amt||'';a.className=o.amtCls||'';
     const bx=$('#cardBtns');bx.innerHTML='';bx.className=o.col?'col':'';
-    const done=i=>{if(!cardOpen)return;cardOpen=false;cardCloseFn=null;removeEventListener('keydown',key);wrap.classList.add('hidden');wrap.classList.remove('spec');Sound.click();res(i)};
+    const done=i=>{if(!cardOpen)return;cardOpen=false;cardCloseFn=null;removeEventListener('keydown',key);wrap.classList.add('hidden');wrap.classList.remove('spec','specshow');Sound.click();res(i)};
     const key=e=>{if((e.code==='Enter'||e.code==='Space')&&!o.cpu&&!o.spec&&(o.btns||['OK']).length===1){e.preventDefault();done(0)}};
     cardCloseFn=()=>done(-1);                       // 外部（観戦終了）から閉じる用
     wrap.classList.remove('hidden');
-    if(o.spec){return}                              // 観戦：ボタンなし。他の人の操作が終わると閉じる
+    if(o.spec){                                     // 観戦：押せない。プロフィールから選ぶ場面は、選択肢を全員に見せる
+      if(o.profile)(o.btns||[]).forEach((b,i)=>{const e=document.createElement('button');e.innerHTML=b;e.disabled=true;e.className=i<(o.profileN===undefined?99:o.profileN)?'prof':'alt';bx.appendChild(e)});
+      return}
     (o.btns||['OK']).forEach((b,i)=>{
       const e=document.createElement('button');e.innerHTML=b;e.className=(o.profile&&i<(o.profileN===undefined?99:o.profileN))?'prof':(i>0?'alt':'');e.onclick=()=>done(i);bx.appendChild(e);
     });
@@ -55,7 +62,8 @@ V.banner=txt=>{const b=$('#banner');b.textContent=txt;b.classList.remove('hidden
 V.chapter=(ch,p)=>{if(p&&ch>(p.maxCh||0)){p.maxCh=ch;V.banner(CHAPTER_NAME[ch]);Sound.good()}};
 
 /* ---------- ターン開始（マリオパーティ風：なまえ ターン！ ＋ その人にズーム） ---------- */
-V.turnIntro=async(p,label='ターン！')=>{
+V.turnIntro=async(p,label)=>{
+  label=label||'ターン！';if(!p)return;        // 通信では未指定が null で届くので、ここで補う
   Cam.introUntil=performance.now()+1900/SPD;
   const b=$('#turnBanner');
   b.innerHTML=`<span class="tb-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="tb-t">${label}</span>`;
@@ -78,7 +86,7 @@ function showPlayerInfo(p){
   const cols=p.items.filter(i=>i.ty==='col'),oth=p.items.filter(i=>i.ty!=='col');
   const row=(a,b)=>`<tr><td>${a}</td><td style="text-align:left">${b}</td></tr>`;
   cardLocal({head:'プレイヤーの情報',color:hex(p.color),wide:true,title:`${esc(p.name)}（${ageOfKey(p.pos)}歳）`,
-    text:`<img src="${renderAvatar({cloth:p.cloth,gender:p.gender,car:p.color})}" width="150" alt=""><table class="tbl">
+    text:`<img src="${renderAvatar({cloth:p.cloth,gender:p.gender,car:p.color,skin:p.skin,hair:p.hair,style:p.style})}" width="150" alt=""><table class="tbl">
       ${row('現在地',`マス ${esc(p.pos)}${p.finished?'（ゴール済み）':''}${p.inJail?'／留置所':''}${p.skip?'／💤休み':''}`)}
       ${row('現金',`${fmt(p.cash)}円`)}${row('総資産（見込み）',`${fmt(p.settled?p.final:assetsOf(p))}円`)}
       ${row('約束手形',p.notes?`<span class="minus">${p.notes}枚（返済 ${fmt(p.notes*NOTE_BACK)}円）${p.chased?' 🕶取り立て中':''}</span>`:'なし')}
@@ -121,7 +129,7 @@ V.hud=()=>{
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
-  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?'社長':'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
+  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?esc(cur.bizTitle||'社長'):'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?(cur.jobRank?'✨':'')+esc(rankName(cur))+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
   const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
@@ -160,7 +168,7 @@ function renderHand(p){
   if(p.loverInfo){const c=p.loverInfo;group('💗 恋人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'lover')}])}
   if(p.affairInfo){const c=p.affairInfo;group('🖤 愛人',[{cls:'mate',html:`<img src="${portraitBust(c)}"><div class="tt">${esc(c.name)}</div>`,fn:()=>zoom(p,'affair')}])}
   // 👶 子ども
-  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust({cloth:k.cloth,gender:k.gender})}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
+  if(p.kidList.length)group('👶 子ども',p.kidList.map(k=>({cls:'mate',html:`<img src="${portraitBust(k)}"><div class="tt">${esc(k.name)}</div>`,fn:()=>zoom(p,'kid',k)})));
   // 🐾 ペット
   if(p.petList.length)group('🐾 ペット',p.petList.map(pt=>({cls:'mate',html:`<img src="${portraitPet(pt)}"><div class="tt">${esc(pt.name)}</div>`,fn:()=>zoom(p,'pet',pt)})));
   // 💎 お宝カード
@@ -201,7 +209,7 @@ async function zoom(p,type,x){
   else if(type==='spouse')o={head:'💍 配偶者',color:'#ff6fa5',title:esc(p.spouseInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.spouseInfo)}</div>`};
   else if(type==='lover')o={head:'💗 恋人',color:'#ff6fa5',title:esc(p.loverInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.loverInfo)}</div>`};
   else if(type==='affair')o={head:'🖤 愛人',color:'#6a4fd0',title:esc(p.affairInfo.name),text:`<div class="prof zoomprof">${spouseHtml(p.affairInfo)}</div>`};
-  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust({cloth:x.cloth,gender:x.gender})}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
+  else if(type==='kid')o={head:'👶 子ども',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof"><img class="pimg" src="${portraitBust(x)}" alt=""><div class="pi"><b>${esc(x.name)}</b>（${x.gender==='f'?'女の子':'男の子'}）<br>今 ${Math.max(0,ageOfKey(p.pos)-x.bornAge)}歳</div></div>`};
   else if(type==='pet')o={head:'🐾 ペット',color:'#ff9a3d',title:esc(x.name),text:`<div class="prof zoomprof">${petHtml(x)}</div>`};
   else if(type==='note')o={head:'約束手形',color:'#e8454c',title:`${p.notes}枚`,text:`1枚につき ${fmt(NOTE_LOAN)}円 を借りています。<br>返すときは1枚 ${fmt(NOTE_BACK)}円（ゴールで自動返済）。<br>合計の返済額：<b class="minus">${fmt(p.notes*NOTE_BACK)}円</b>`};
   else if(type==='job'){
@@ -263,19 +271,40 @@ V.results=async()=>{
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   window.__result={winner:r[0].name,ranking:r.map(p=>[p.name,p.final])};
   if(AUTO)return;
-  const pr=cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',wide:true,title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産</th><th>幸福度</th></tr>${rows}</table>
-    <div style="margin:6px 0 2px">😊 いちばん幸せだったのは <b>${esc(happy.name)}</b>（${lastH(happy)}）</div>
-    <div class="chartwrap"><b>😊 幸福度の推移</b><canvas id="chH" width="520" height="220"></canvas></div>
-    <div class="chartwrap"><b>💰 総資産の推移</b><canvas id="chW" width="520" height="220"></canvas></div>
-    <div style="font-size:.78rem;margin:4px 0">${legend}</div>${det}`,btns:['もう一度遊ぶ'],cpu:false},null);
-  setTimeout(()=>{
-    const cvH=$('#chH'),cvW=$('#chW');if(!cvH||!cvW)return;
-    drawChart(cvH,G.players,'h',0,100,v=>Math.round(v));
-    const mx=Math.max(100000,...G.players.map(p=>Math.max(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
-    const mn=Math.min(0,...G.players.map(p=>Math.min(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
-    drawChart(cvW,G.players,'w',mn,mx,v=>Math.round(v/10000)+'万');
-  },60);
-  await pr;
+  const detail=async()=>{                                   // くわしい結果（表とグラフ）。閉じると表彰台に戻る
+    const pr=cardLocal({head:'🏆 総資産ランキング',color:'#c98a00',wide:true,title:`${esc(r[0].name)} の優勝！`,text:`<table class="tbl"><tr><th>順位</th><th>名前</th><th>総資産</th><th>幸福度</th></tr>${rows}</table>
+      <div style="margin:6px 0 2px">😊 いちばん幸せだったのは <b>${esc(happy.name)}</b>（${lastH(happy)}）</div>
+      <div class="chartwrap"><b>😊 幸福度の推移</b><canvas id="chH" width="520" height="220"></canvas></div>
+      <div class="chartwrap"><b>💰 総資産の推移</b><canvas id="chW" width="520" height="220"></canvas></div>
+      <div style="font-size:.78rem;margin:4px 0">${legend}</div>${det}`,btns:['表彰台にもどる'],cpu:false},null);
+    setTimeout(()=>{
+      const cvH=$('#chH'),cvW=$('#chW');if(!cvH||!cvW)return;
+      drawChart(cvH,G.players,'h',0,100,v=>Math.round(v));
+      const mx=Math.max(100000,...G.players.map(p=>Math.max(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+      const mn=Math.min(0,...G.players.map(p=>Math.min(...(G.hist[p.id]||[{w:0}]).map(x=>x.w))));
+      drawChart(cvW,G.players,'w',mn,mx,v=>Math.round(v/10000)+'万');
+    },60);
+    await pr;
+  };
+  // 表彰台へカメラを移す（ポップアップではなく、3Dの場面で発表）
+  if(cardCloseFn)cardCloseFn();closeGroupPopup();
+  if(Cam.is2D){Cam.set2D(false)}
+  ['#left','#hudR','#actions','#hand','#tools','#testPanel','#spinBtn','#roulLabel'].forEach(q=>{const e=$(q);if(e)e.classList.add('hidden')});
+  const pd=buildPodium(r);
+  Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(0,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
+  const fit=()=>{Cam.followDist=Math.max(15,(r.length>4?15.5:13.5)/Math.min(1.5,aspect()))};fit();addEventListener('resize',fit);
+  V.banner(`🏆 優勝：${r[0].name}！`);
+  const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
+  const bar=$('#podiumBar');bar.classList.remove('hidden');
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
+  if(canPhoto)$('#pdPhoto').onclick=async()=>{
+    Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
+    const url=podiumPhoto(`LIFE ROAD　🏆 ${r.slice(0,3).map((p,i)=>`${i+1}位 ${p.name}`).join('　')}`);
+    setTimeout(()=>fl.classList.add('hidden'),500);
+    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<img src="${url}" style="width:100%;border-radius:12px;border:6px solid #fff;box-shadow:0 4px 14px #0004" alt="記念写真"><br><a href="${url}" download="life-road-podium.png" class="dl">⬇ 画像を保存する</a><br><small>（スマホは画像を長押しでも保存できます）</small>`,btns:['閉じる'],cpu:false},null);
+  };
+  await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();
 };
 
@@ -289,13 +318,17 @@ $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!l
 let avCb=null;
 function loadMe(){
   try{const s=JSON.parse(localStorage.getItem('liferoad_me')||'null');if(s){const a=cleanAv(s,0);a.name=String(s.name||'あなた').slice(0,8);return a}}catch(e){}
-  return{name:'あなた',gender:'mf'[rnd(2)],cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)]};
+  const g='mf'[rnd(2)];return{name:'あなた',gender:g,cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)],skin:SKIN_COLS[1],hair:HAIR_COLS[rnd(4)],style:DEF_STYLE[g]};
 }
 function saveMe(){try{localStorage.setItem('liferoad_me',JSON.stringify(AV[0]))}catch(e){}}
 function renderAvatarEditor(){
   const av=AV[0];
   $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
-  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;renderAvatarEditor()});
+  $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;av.style=DEF_STYLE[av.gender];renderAvatarEditor()});
+  $('#avStyle').innerHTML=HAIR_STYLES.map(g=>`<button data-g="${g[0]}" class="${av.style===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
+  $('#avStyle').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.style=b.dataset.g;renderAvatarEditor()});
+  [['swSkin',SKIN_COLS,'skin'],['swHair',HAIR_COLS,'hair']].forEach(([id,cols,key])=>{$('#'+id).innerHTML=cols.map(c=>`<span data-c="${c}" class="${av[key]===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
+    $('#'+id).querySelectorAll('span').forEach(e=>e.onclick=()=>{av[key]=+e.dataset.c;renderAvatarEditor()})});
   $('#swCloth').innerHTML=CLOTH_COLS.map(c=>`<span data-c="${c}" class="${av.cloth===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
   $('#swCar').innerHTML=CAR_COLS.map(c=>`<span data-c="${c}" class="${av.car===c?'sel':''}" style="background:${hex(c)}"></span>`).join('');
   $('#swCloth').querySelectorAll('span').forEach(e=>e.onclick=()=>{av.cloth=+e.dataset.c;renderAvatarEditor()});

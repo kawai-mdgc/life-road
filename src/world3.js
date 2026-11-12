@@ -1,23 +1,27 @@
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
 const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,followEl:null,shake:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
+const QLOW=Math.min(innerWidth,innerHeight)<700||(navigator.hardwareConcurrency||8)<=4;   // スマホなど：品質を落とす
+const FOG_N=150,FOG_F=560,linCol=h=>new THREE.Color(h).convertSRGBToLinear();
 let last=performance.now(),tAcc=0,skyCol=new THREE.Color(SKY[0]);
 
 function initWorld(){
   const el=$('#stage');
   renderer=new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,QLOW?1.5:2));              // 端末に応じて解像度を落とす
+  renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
   renderer.setSize(innerWidth,innerHeight);el.appendChild(renderer.domElement);
-  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;          // やわらかい影
-  scene=new THREE.Scene();scene.background=new THREE.Color(SKY[0]);scene.fog=new THREE.Fog(SKY[0],170,480);
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=QLOW?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;          // やわらかい影
+  scene=new THREE.Scene();scene.background=linCol(SKY[0]);scene.fog=new THREE.Fog(linCol(SKY[0]),FOG_N,FOG_F);skyCol.copy(scene.background);
   camP=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.5,900);
   camO=new THREE.OrthographicCamera(-1,1,1,-1,1,800);
-  hemi=new THREE.HemisphereLight(0xffffff,0x88aa77,.4);scene.add(hemi);
-  sun=new THREE.DirectionalLight(0xfff6e6,.72);sun.position.set(60,120,40);scene.add(sun);scene.add(sun.target);
-  sun.castShadow=true;const sm=Math.min(innerWidth,innerHeight)<700?1024:2048;sun.shadow.mapSize.set(sm,sm);
+  hemi=new THREE.HemisphereLight(0xdcefff,0x9cc48a,.34);scene.add(hemi);
+  sun=new THREE.DirectionalLight(0xfff0d4,.82);sun.position.set(60,120,40);scene.add(sun);scene.add(sun.target);
+  sun.castShadow=true;const sm=QLOW?1024:2048;sun.shadow.mapSize.set(sm,sm);
   const sc=sun.shadow.camera;sc.left=-46;sc.right=46;sc.top=46;sc.bottom=-46;sc.near=1;sc.far=220;sc.updateProjectionMatrix();sun.shadow.bias=-.0012;sun.shadow.normalBias=.04;
-  scene.add(new THREE.AmbientLight(0xffffff,.1));
+  scene.add(new THREE.AmbientLight(0xffffff,.05));
   buildSky();
-  buildPath();buildTiles();buildScenery();buildCenter();scene.add(worldG);
+  withSeed(WORLD_SEED,()=>{buildPath();buildTiles();buildScenery();buildCenter()});scene.add(worldG);   // 固定シード：毎回同じマップ
+  worldG.updateMatrixWorld(true);window.__worldCheck=checkWorld();
   worldG.updateMatrixWorld(true);occ.forEach(o=>{o.box=new THREE.Box3().setFromObject(o.g).expandByScalar(.5);o.hid=false});
   fitOrtho();
   addEventListener('resize',onResize);
@@ -42,7 +46,8 @@ function fitH(){return Math.max(64,118/aspect())}
 function onResize(){
   renderer.setSize(innerWidth,innerHeight);camP.aspect=aspect();camP.updateProjectionMatrix();Cam.H=fitH();fitOrtho();
 }
-Cam.set2D=on=>{Cam.is2D=on;Cam.H=fitH();Cam.zoom2=1;Cam.pan.set(0,0,0);fitOrtho()};
+Cam.set2D=on=>{scene.fog.near=on?9e4:FOG_N;scene.fog.far=on?1e5:FOG_F;if(skyDome)skyDome.visible=!on;      // 2D表示では霧とかすみを切る
+  Cam.is2D=on;Cam.H=fitH();Cam.zoom2=1;Cam.pan.set(0,0,0);fitOrtho()};
 
 /* ---------- 操作：ドラッグ回転・ホイール／ピンチでズーム（タッチ対応） ---------- */
 function bindInput(c){
@@ -114,7 +119,7 @@ function updateCamera(dt,cur){
   if(skyDome)skyDome.position.copy(camP.position);
   // 章ごとの空と光
   const ch=cur&&!Cam.title?chapterOf(cur.pos):0;
-  skyCol.lerp(new THREE.Color(SKY[ch]),dt*1.2);scene.background.copy(skyCol);scene.fog.color.copy(skyCol);
+  skyCol.lerp(linCol(SKY[ch]),dt*1.2);scene.background.copy(skyCol);scene.fog.color.copy(skyCol);
   sun.color.lerp(new THREE.Color(ch===5?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
 }
 V.focus=p=>{Cam.focus=p};
@@ -138,7 +143,8 @@ function updateOcclusion(){
 const Shadow={on:true,checked:false};
 function markShadows(){                                   // 新しく増えた物体にも、影を落とす／受ける設定を付ける
   scene.traverse(o=>{
-    if(!o.isMesh||o.userData.sm)return;o.userData.sm=1;
+    if(o.isSprite&&o.material)lin(o.material);
+    if(!o.isMesh||o.userData.sm)return;o.userData.sm=1;lin(o.material);linGeo(o.geometry);
     const m=o.material,ok=m&&(m.isMeshPhongMaterial||m.isMeshLambertMaterial)&&!m.transparent;
     o.castShadow=!!ok&&!o.userData.flat;o.receiveShadow=!!ok;
   });

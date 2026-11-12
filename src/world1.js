@@ -4,9 +4,10 @@ let renderer,scene,camP,camO,cam,sun,hemi;
 const POS={},HEAD={},TILE={};
 let curveMain=null;const branchCurves={};
 const worldG=new THREE.Group();
-const TILE_COL={yellow:0xffd23f,green:0x4cd68a,red:0xff5d6c,blue:0x4aa3ff,gold:0xf5b800};
-const SKY=[0x9fdcff,0xb9cfe6,0xbfe9ff,0xa9d3ff,0xffd2a1,0xff9a7d];
-const GROUND=[0xa7e08f,0xb9bcc8,0x9ad884,0xa3c996,0xe0a964,0xf1dba3];
+const TILE_COL={yellow:0xffd166,green:0x62d49a,red:0xff7f8a,blue:0x66b2ff,gold:0xf4bd3a};          // やわらかいが、ひと目で見分けられる5色
+const SKY=[0xbfe6ff,0xcfe0f2,0xcdeeff,0xc2e0ff,0xffe0bd,0xffc7ad];
+const GROUND=[0xd6f0b0,0xc8d0e0,0xc2e8b4,0xa9d3a8,0xf4c98e,0xf6e6bd];             // 章ごとの色（芝ににじませる淡い色）
+const GROUND_BASE=0x9bd67e,SEA_COL=0x4fb0e0,SHALLOW_COL=0x7fd4e4,SAND_COL=0xf2dca6,RIVER_COL=0x66bfe8,RIVER_BANK=0xcfd49a;   // パステルの地形色
 const FONT='"Hiragino Maru Gothic ProN","Yu Gothic","Meiryo",sans-serif';
 const matCache={};
 function mat(c,shin=80,extra){      // つやのあるプラスチック風
@@ -15,12 +16,21 @@ function mat(c,shin=80,extra){      // つやのあるプラスチック風
 }
 const geoCache={};
 const G_=(k,f)=>geoCache[k]||(geoCache[k]=f());
+// 色は「sRGBで書いた色」を、計算用のリニア色に1回だけ直す（sRGB出力＋トーンマッピングで正しく見せるため）
+function lin(m){
+  if(!m||m.userData.lin)return m;m.userData.lin=1;
+  if(m.color)m.color.convertSRGBToLinear();if(m.emissive)m.emissive.convertSRGBToLinear();
+  if((m.isMeshBasicMaterial&&m.map)||m.isSpriteMaterial)m.toneMapped=false;      // 看板・お札・文字は色をそのまま出す
+  return m;
+}
+function linGeo(g){const c=g&&g.attributes&&g.attributes.color;if(!c||g.userData.lin)return;g.userData.lin=1;for(let i=0;i<c.count;i++)c.setXYZ(i,Math.pow(c.getX(i),2.2),Math.pow(c.getY(i),2.2),Math.pow(c.getZ(i),2.2))}
 function mesh(geo,m,x=0,y=0,z=0,parent){
+  lin(m);linGeo(geo);
   const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);if(parent)parent.add(o);return o;
 }
 function canvasTex(w,h,draw){
   const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);
-  const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;t.encoding=THREE.sRGBEncoding;return t;
 }
 function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 const hex=c=>'#'+c.toString(16).padStart(6,'0');
@@ -138,7 +148,9 @@ function buildTiles(){
   SQDATA.forEach(sq=>{
     const p=POS[sq.id],g=new THREE.Group();g.position.copy(p);
     const gold=sq.c==='gold',R=gold?1.12:.86;
-    const base=mesh(G_('tb'+R,()=>new THREE.CylinderGeometry(R,R*1.06,.3,40)),mat(TILE_COL[sq.c],110),0,.15,0,g);
+    const dark=new THREE.Color(TILE_COL[sq.c]).multiplyScalar(.62).getHex();
+    mesh(G_('tp'+R,()=>new THREE.CylinderGeometry(R*1.1,R*1.16,.16,40)),mat(dark,60),0,.08,0,g);                 // 濃い色の台座：厚みと輪郭を出す
+    const base=mesh(G_('tb'+R,()=>new THREE.CylinderGeometry(R,R*1.05,.3,40)),mat(TILE_COL[sq.c],110),0,.15,0,g);
     mesh(G_('trim'+R,()=>new THREE.TorusGeometry(R*.97,.045,8,40)),mat(0xffffff,120),0,.3,0,g).rotation.x=Math.PI/2;      // 白いふちどり
     const top=mesh(G_('tt'+R,()=>new THREE.CircleGeometry(R*.93,40)),new THREE.MeshPhongMaterial({map:tileTexture(sq),shininess:60,specular:0x444444}),0,.31,0,g);
     top.rotation.x=-Math.PI/2;

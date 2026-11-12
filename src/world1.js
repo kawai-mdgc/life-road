@@ -78,21 +78,27 @@ function drawIcon(ctx,kind,cx,cy,s){
   ctx.restore();
 }
 function star(ctx,cx,cy,R,r,n){ctx.beginPath();for(let i=0;i<n*2;i++){const a=-Math.PI/2+i*Math.PI/n,rad=i%2?r:R;ctx.lineTo(cx+Math.cos(a)*rad,cy+Math.sin(a)*rad)}ctx.closePath()}
-function tileTexture(sq){
+function tileTexture(sq){                                // マスの上面（256pxで高精細に）
   const base=TILE_COL[sq.c];
-  return canvasTex(128,128,(ctx,w,h)=>{
-    ctx.fillStyle=hex(base);ctx.fillRect(0,0,w,h);
-    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(64,64,56,0,7);ctx.fill();
-    ctx.fillStyle=hex(base);ctx.beginPath();ctx.arc(64,64,50,0,7);ctx.fill();
+  const tex=canvasTex(256,256,(ctx)=>{
+    ctx.scale(2,2);
+    const g=ctx.createRadialGradient(52,46,6,64,64,70);g.addColorStop(0,'#ffffff');g.addColorStop(.35,hex(base));g.addColorStop(1,hex(base));
+    ctx.fillStyle=hex(base);ctx.fillRect(0,0,128,128);
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(64,64,58,0,7);ctx.fill();
+    ctx.globalAlpha=.9;ctx.fillStyle=g;ctx.beginPath();ctx.arc(64,64,52,0,7);ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle=hex(base);ctx.globalAlpha=.72;ctx.beginPath();ctx.arc(64,64,52,0,7);ctx.fill();ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;ctx.setLineDash([3,4]);ctx.beginPath();ctx.arc(64,64,47,0,7);ctx.stroke();ctx.setLineDash([]);
     let icon={yellow:'coin',green:'clover',red:'warn',blue:'q',gold:'flag'}[sq.c];
     if(sq.c==='blue')icon={item:'card',duel:'roulette',family:'heart',job:'tie',event:'q',lottery:'ticket'}[sq.k];
-    ctx.fillStyle='#fff';ctx.font=`900 30px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.35)';
-    ctx.font=`900 26px ${FONT}`;const label=sq.id;ctx.strokeText(label,64,24);ctx.fillText(label,64,24);
-    ctx.font=`900 17px ${FONT}`;ctx.lineWidth=4;const age=ageOfKey(sq.id)+'歳';ctx.strokeText(age,64,44);ctx.fillText(age,64,44);   // マスの年齢
-    drawIcon(ctx,icon,64,82,44);
-    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 16px ${FONT}`;ctx.strokeText(t,64,111);ctx.fillText(t,64,111)}
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
+    ctx.lineWidth=6;ctx.strokeStyle='rgba(30,20,50,.55)';
+    ctx.font=`900 28px ${FONT}`;const label=sq.id;ctx.strokeText(label,64,25);ctx.fillText(label,64,25);
+    ctx.font=`900 15px ${FONT}`;ctx.lineWidth=4;const age=ageOfKey(sq.id)+'歳';
+    const tw=ctx.measureText(age).width+12;ctx.fillStyle='rgba(30,20,50,.5)';rr(ctx,64-tw/2,37,tw,17,8);ctx.fill();ctx.fillStyle='#fff';ctx.fillText(age,64,46);   // 年齢のラベル
+    drawIcon(ctx,icon,64,83,42);
+    if(sq.c==='gold'){const t=sq.id==='1'?'START':sq.id==='150'?'GOAL':'STOP';ctx.font=`900 15px ${FONT}`;ctx.lineWidth=4;ctx.strokeText(t,64,112);ctx.fillText(t,64,112)}
   });
+  tex.anisotropy=8;return tex;
 }
 
 /* ---------- 道（曲がりくねった経路）とマスの配置 ---------- */
@@ -132,8 +138,9 @@ function buildTiles(){
   SQDATA.forEach(sq=>{
     const p=POS[sq.id],g=new THREE.Group();g.position.copy(p);
     const gold=sq.c==='gold',R=gold?1.12:.86;
-    const base=mesh(G_('tb'+R,()=>new THREE.CylinderGeometry(R,R*1.04,.3,28)),mat(TILE_COL[sq.c],90),0,.15,0,g);
-    const top=mesh(G_('tt'+R,()=>new THREE.CircleGeometry(R*.92,28)),new THREE.MeshPhongMaterial({map:tileTexture(sq),shininess:60,specular:0x444444}),0,.31,0,g);
+    const base=mesh(G_('tb'+R,()=>new THREE.CylinderGeometry(R,R*1.06,.3,40)),mat(TILE_COL[sq.c],110),0,.15,0,g);
+    mesh(G_('trim'+R,()=>new THREE.TorusGeometry(R*.97,.045,8,40)),mat(0xffffff,120),0,.3,0,g).rotation.x=Math.PI/2;      // 白いふちどり
+    const top=mesh(G_('tt'+R,()=>new THREE.CircleGeometry(R*.93,40)),new THREE.MeshPhongMaterial({map:tileTexture(sq),shininess:60,specular:0x444444}),0,.31,0,g);
     top.rotation.x=-Math.PI/2;
     // 道の進行方向に文字の上が向くよう回転
     const h=HEAD[sq.id];top.rotation.z=Math.atan2(h.x,-h.z)*0+0;

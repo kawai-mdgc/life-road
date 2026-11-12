@@ -184,7 +184,7 @@ async function zoom(p,type,x){
         ${r?`<small>昇進のマス（29・68・91）に止まると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
         今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
   }
-  else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば1等 ${fmt(LOT_FIRST)}円、となり合う数字は前後賞 ${fmt(LOT_SIDE)}円！`};
+  else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば当たり！ もう一度回して等級が決まります（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）。となり合う数字は前後賞 ${fmt(LOT_SIDE)}円`};
   else if(type==='item'){
     o={head:{ins:'アイテム（保険）',use:'アイテム（使い切り）',col:'お宝（コレクション）'}[x.ty],color:{ins:'#3f8cff',use:'#8e6bff',col:'#c98a00'}[x.ty],title:`${ITEM_ICON[x.c]||''} ${esc(x.n)}`,text:`${esc(x.eff)}<br>価値：${esc(x.v)}`};
   }

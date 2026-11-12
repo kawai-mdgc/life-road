@@ -142,6 +142,16 @@ function buildScenery(){
     const perp=new V3(-h.z,0,h.x);for(let i=-3;i<=3;i++)placed.push({x:p.x+perp.x*i*8,z:p.z+perp.z*i*8,r:6});
     placed.push({x:p.x,z:p.z,r:7});
   }
+  // 地面の模様：章ごとに、少し明るい／暗い丸いまだらを散らす（のっぺり感をなくす）
+  for(let c=0;c<6;c++){
+    const col=new THREE.Color(GROUND[c]);
+    for(let i=0;i<26;i++){
+      const b=chSquares[c][rnd(chSquares[c].length)],a=Math.random()*6.28,d=3+Math.random()*26,x=b.x+Math.cos(a)*d,z=b.z+Math.sin(a)*d;
+      if(z>48||Math.abs(x)>150)continue;
+      const k=i%2?1.07:.93,m=mesh(new THREE.CircleGeometry(1.5+Math.random()*3.5,18),new THREE.MeshLambertMaterial({color:col.clone().multiplyScalar(k)}),x,-.03+i*.0004,z,worldG);
+      m.rotation.x=-Math.PI/2;m.userData.flat=1;
+    }
+  }
   buildLotterySites();                                      // 宝くじ売り場・抽選会場
   // 第1章 春の公園と学校
   {const s=freeSpot(0,6,8,8,18);if(s)school(s.x,s.z,Math.PI*.1);
@@ -410,9 +420,18 @@ const LOOK={
 function makeDoll(o){
   const g=new THREE.Group(),look=o.job?LOOK[o.job]||{}:{};
   const body=look.body??o.color;
-  mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,12)),mat(body,90),0,.17,0,g);
-  mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,14,12)),mat(o.skin||0xffd9b3,60),0,.47,0,g);
-  [-.05,.05].forEach(z=>mesh(G_('deye',()=>new THREE.SphereGeometry(.018,6,6)),mat(0x222222),.12,.5,z,g));
+  mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,18)),mat(body,90),0,.17,0,g);
+  mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,20,16)),mat(o.skin||0xffd9b3,60),0,.47,0,g);
+  [-.05,.05].forEach(z=>{                                         // 顔：つやのある目・ほっぺ・にっこり口
+    mesh(G_('deye',()=>new THREE.SphereGeometry(.021,8,8)),mat(0x2a2233,140),.118,.495,z,g);
+    mesh(G_('dglint',()=>new THREE.SphereGeometry(.007,5,5)),mat(0xffffff,140,{emissive:0xffffff}),.137,.502,z+.006,g);
+    mesh(G_('dcheek',()=>new THREE.SphereGeometry(.022,6,6)),mat(0xff9aa8,30),.108,.455,z*1.7,g).scale.set(.5,.7,1);
+  });
+  {const sm=mesh(G_('dsmile',()=>new THREE.TorusGeometry(.03,.007,5,10,Math.PI)),mat(0x8a3a3a,40),.124,.452,0,g);sm.rotation.set(Math.PI,Math.PI/2,0)}
+  [-1,1].forEach(sd=>{                                            // うで（服の色）と手
+    const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.2,sd*.135,g);a.rotation.x=sd*-.28;
+    mesh(G_('dhand',()=>new THREE.SphereGeometry(.033,8,6)),mat(o.skin||0xffd9b3,60),.01,.115,sd*.16,g);
+  });
   if(look.body!==undefined&&o.color!==undefined)mesh(G_('dscarf',()=>new THREE.TorusGeometry(.105,.03,6,14)),mat(o.color,90),0,.335,0,g).rotation.x=Math.PI/2;   // 制服でも選んだ服の色がマフラーで見える
   if(o.gender){                                                   // せいべつ：髪型とスカート
     const hc=o.hair??0x4a3426,hm=mat(hc,40);
@@ -515,6 +534,15 @@ function buildCarModel(color){
   [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.07,8,6),mat(0xfff3a0,100,{emissive:0x886600}),.78,.38,z,v));
   [[.5,.45],[.5,-.45],[-.5,.45],[-.5,-.45]].forEach(a=>addWheel(v,a[0],.17,a[1],.17,.14));
   SEATS.forEach(s=>mesh(new THREE.BoxGeometry(.26,.02,.26),mat(0x2a2236,20),s[0],.485,s[1],v));   // 座席の穴6つ
+  // ディテール：フロントガラス・バンパー・グリル・テールランプ・ミラー・ドアの線
+  const ws=mesh(new THREE.BoxGeometry(.04,.26,.7),new THREE.MeshPhongMaterial({color:0xbfe6ff,transparent:true,opacity:.55,shininess:160,specular:0xffffff}),.42,.62,0,v);ws.rotation.z=-.35;
+  [-.36,.36].forEach(z=>{const p=mesh(new THREE.BoxGeometry(.03,.28,.03),mat(0xdddddd,140),.42,.62,z,v);p.rotation.z=-.35});
+  mesh(new THREE.BoxGeometry(.08,.09,.86),mat(0xe8e8ee,160),.83,.2,0,v);mesh(new THREE.BoxGeometry(.08,.09,.86),mat(0xe8e8ee,160),-.83,.2,0,v);   // バンパー
+  mesh(new THREE.BoxGeometry(.03,.09,.34),mat(0x333344,60),.845,.33,0,v);                                                                          // グリル
+  [-.3,.3].forEach(z=>mesh(new THREE.BoxGeometry(.03,.08,.14),mat(0xff3b3b,120,{emissive:0x661010}),-.845,.36,z,v));                               // テールランプ
+  [-.44,.44].forEach(z=>mesh(new THREE.BoxGeometry(.07,.06,.05),mat(color,100),.36,.52,z,v));                                                       // ミラー
+  [-.405,.405].forEach(z=>{mesh(new THREE.BoxGeometry(.012,.22,.01),mat(0x000000,10,{transparent:true,opacity:.25}),.08,.33,z,v);mesh(new THREE.BoxGeometry(.07,.02,.012),mat(0xe8e8ee,160),-.05,.39,z,v)});
+  mesh(new THREE.BoxGeometry(1.52,.035,.82),mat(0xffffff,160,{transparent:true,opacity:.35}),0,.455,0,v).userData.flat=1;                           // 車体のつや
   return v;
 }
 function buildStroller(color){                // ベビーカー（0〜4歳）
@@ -591,7 +619,7 @@ function makeCar(p){
     const m=mesh(new THREE.BoxGeometry(.22,1,.11),mat(c,40),-.5+i*.26,0,0,car.stackG);m.scale.y=.001;return m;
   });
   car.ring=mesh(new THREE.TorusGeometry(1.1,.08,8,28),mat(0xffe27a,120,{emissive:0x886600}),0,.1,0,g);car.ring.rotation.x=Math.PI/2;car.ring.visible=false;
-  const sh=mesh(new THREE.CircleGeometry(.95,18),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.22}),0,.02,0,g);sh.rotation.x=-Math.PI/2;
+  const sh=car.blob=mesh(new THREE.CircleGeometry(.95,18),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.22}),0,.02,0,g);sh.rotation.x=-Math.PI/2;sh.userData.blob=1;sh.visible=!Shadow.on;      // 影がオンなら丸い影は隠す
   g.position.copy(POS[p.pos]).setY(.3);car.target.copy(g.position);
   cars[p.id]=car;worldG.add(g);refreshCar(p);return car;
 }

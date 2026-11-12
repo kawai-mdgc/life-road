@@ -7,19 +7,31 @@ function initWorld(){
   renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.setSize(innerWidth,innerHeight);el.appendChild(renderer.domElement);
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;          // やわらかい影
   scene=new THREE.Scene();scene.background=new THREE.Color(SKY[0]);scene.fog=new THREE.Fog(SKY[0],170,480);
   camP=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.5,900);
   camO=new THREE.OrthographicCamera(-1,1,1,-1,1,800);
-  hemi=new THREE.HemisphereLight(0xffffff,0x88aa77,.5);scene.add(hemi);
-  sun=new THREE.DirectionalLight(0xffffff,.5);sun.position.set(60,120,40);scene.add(sun);
-  scene.add(new THREE.AmbientLight(0xffffff,.18));
+  hemi=new THREE.HemisphereLight(0xffffff,0x88aa77,.4);scene.add(hemi);
+  sun=new THREE.DirectionalLight(0xfff6e6,.72);sun.position.set(60,120,40);scene.add(sun);scene.add(sun.target);
+  sun.castShadow=true;const sm=Math.min(innerWidth,innerHeight)<700?1024:2048;sun.shadow.mapSize.set(sm,sm);
+  const sc=sun.shadow.camera;sc.left=-46;sc.right=46;sc.top=46;sc.bottom=-46;sc.near=1;sc.far=220;sc.updateProjectionMatrix();sun.shadow.bias=-.0012;sun.shadow.normalBias=.04;
+  scene.add(new THREE.AmbientLight(0xffffff,.1));
+  buildSky();
   buildPath();buildTiles();buildScenery();buildCenter();scene.add(worldG);
   worldG.updateMatrixWorld(true);occ.forEach(o=>{o.box=new THREE.Box3().setFromObject(o.g).expandByScalar(.5);o.hid=false});
   fitOrtho();
   addEventListener('resize',onResize);
   bindInput(renderer.domElement);
-  setInterval(update,16);
-  const loop=()=>{renderer.render(scene,Cam.is2D?camO:camP);requestAnimationFrame(loop)};loop();
+  setInterval(update,16);setInterval(markShadows,700);markShadows();
+  let lastF=performance.now();const fts=[];
+  const loop=()=>{
+    const now=performance.now();
+    if(Shadow.on&&!Shadow.checked&&!Cam.title&&!document.hidden){                             // 重い端末では影を自動でオフにする
+      fts.push(now-lastF);
+      if(fts.length>=150){const a=fts.slice(30).sort((x,y)=>x-y),med=a[Math.floor(a.length/2)];Shadow.checked=true;if(med>36)setShadows(false)}
+    }
+    lastF=now;
+    renderer.render(scene,Cam.is2D?camO:camP);requestAnimationFrame(loop)};loop();
 }
 function aspect(){return innerWidth/Math.max(1,innerHeight)}
 function fitOrtho(){
@@ -98,6 +110,8 @@ function updateCamera(dt,cur){
   camP.position.set(sTgt.x+Math.sin(sAz)*Math.cos(sEl)*sDist,sTgt.y+Math.sin(sEl)*sDist,sTgt.z+Math.cos(sAz)*Math.cos(sEl)*sDist);
   if(Cam.shake>.01){camP.position.x+=(Math.random()-.5)*Cam.shake*.9;camP.position.y+=(Math.random()-.5)*Cam.shake*.6;camP.position.z+=(Math.random()-.5)*Cam.shake*.9;Cam.shake*=Math.exp(-dt*5)}
   camP.lookAt(sTgt);
+  sun.target.position.copy(sTgt);sun.position.set(sTgt.x+34,sTgt.y+70,sTgt.z+22);       // 影は、いま見ている場所のまわりに落とす
+  if(skyDome)skyDome.position.copy(camP.position);
   // 章ごとの空と光
   const ch=cur&&!Cam.title?chapterOf(cur.pos):0;
   skyCol.lerp(new THREE.Color(SKY[ch]),dt*1.2);scene.background.copy(skyCol);scene.fog.color.copy(skyCol);
@@ -118,4 +132,24 @@ function updateOcclusion(){
     if(on&&occRay.intersectBox(o.box,occHit)){hit=from.distanceTo(occHit)<len-.8}
     if(hit!==o.hid){o.hid=hit;o.g.visible=!hit}
   }
+}
+
+/* ---------- 影（やわらかい影を、見ている場所のまわりに）と空（地平線のかすみ） ---------- */
+const Shadow={on:true,checked:false};
+function markShadows(){                                   // 新しく増えた物体にも、影を落とす／受ける設定を付ける
+  scene.traverse(o=>{
+    if(!o.isMesh||o.userData.sm)return;o.userData.sm=1;
+    const m=o.material,ok=m&&(m.isMeshPhongMaterial||m.isMeshLambertMaterial)&&!m.transparent;
+    o.castShadow=!!ok&&!o.userData.flat;o.receiveShadow=!!ok;
+  });
+}
+function setShadows(on){
+  Shadow.on=on;sun.castShadow=on;renderer.shadowMap.enabled=on;
+  scene.traverse(o=>{if(o.isMesh&&o.material){o.material.needsUpdate=true;if(o.userData.blob)o.visible=!on}});
+}
+let skyDome=null;
+function buildSky(){                                      // 空のグラデーション：上は空色のまま、地平線に白いかすみ
+  const t=canvasTex(8,256,(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.38,'rgba(255,255,255,0)');g.addColorStop(.5,'rgba(255,255,255,.75)');g.addColorStop(.62,'rgba(255,255,255,.2)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,w,h)});
+  skyDome=new THREE.Mesh(new THREE.SphereGeometry(600,24,16),new THREE.MeshBasicMaterial({map:t,side:THREE.BackSide,transparent:true,depthWrite:false,fog:false}));
+  skyDome.renderOrder=-1;scene.add(skyDome);
 }

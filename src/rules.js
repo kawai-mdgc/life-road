@@ -11,6 +11,8 @@ const NUM_JOB={};JOBS.forEach(j=>NUM_JOB[j.n]=j);
 const ITEM_BY_CODE={};ITEMS.forEach(i=>ITEM_BY_CODE[i.c]=i);
 const COLOR_NAME={yellow:'給料日',green:'ラッキー',red:'ピンチ',blue:'イベント',gold:'STOP'};
 const HEAD_COLOR={yellow:'#e6a800',green:'#2fb36f',red:'#e8454c',blue:'#3f8cff',gold:'#c98a00'};
+const TUITION=50000,NEWLIFE=20000;                        // 大学の学費／社会人の新生活の準備費
+const NOTE_INT=2000;                                      // 手形1枚につき、給料日ごとの利息
 const NOTE_LOAN=20000,NOTE_BACK=25000,PIN_MAX=6;
 
 const G={players:[],cur:0,order:[],stockOwner:Array(11).fill(null),deckG:[],deckS:[],deckI:[],discI:[],
@@ -67,6 +69,7 @@ function happinessOf(p){
   h+=p.spouse?14:p.lover?6:0;
   h+=Math.min(15,p.kids*6)+Math.min(6,p.pets*3)+Math.min(4,p.grand*2);
   h+=p.houses.length?8:0;
+  h+=(p.wedding||0)*2+(p.newCar?3:0);
   h+=p.job&&!p.retired?3:0;
   if(p.affairInfo)h-=6;
   if(p.jobless>0)h-=10;
@@ -102,7 +105,7 @@ async function checkVehicle(p){
 
 /* ---------- プレイヤー ---------- */
 function newPlayer(id,name,cpu,color,cloth,gender){
-  return{id,name,cpu,color,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
+  return{id,name,cpu,color,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
     finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
@@ -191,6 +194,10 @@ async function payday(p,key,passing){
   if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
   if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
+  if(p.notes>0){                                            // 借金の重み：給料日ごとに利息、取り立て屋がいれば強制返済
+    const it=NOTE_INT*p.notes;say(p,`約束手形${p.notes}枚の利息 −${fmt(it)}円`);await pay(p,it,{discount:false});
+    if(p.chased&&p.cash>=NOTE_BACK+5000){say(p,'🕶 取り立て屋に、手形1枚ぶんを取り立てられた！');await repayNotes(p,1)}
+  }
 }
 
 async function repayNotes(p,n){            // 財布から、いつでも約束手形を返済（1枚25,000円）
@@ -325,8 +332,9 @@ async function buyHouse(p){
   const jd=jobAb(p)==='carp'||jobAb(p)==='arch';
   // CPU：現金に余裕がある範囲で最も高い家（売却益が大きい）
   let pick=btns.length-1;
-  avail.forEach((o,k)=>{const pr=housePrice(p,o.h);if(p.cash>=pr+12000&&(pick===btns.length-1||pr>housePrice(p,avail[pick].h)))pick=k});
-  const i=await ask(p,{head:'マス70　家を買う',color:'#c98a00',title:'家カードから1軒選ぼう',text:`ゴールで売却額を受け取れます${jd?'<br>（特殊能力で20%引き）':''}<br><small>${avail.map(o=>`${o.h.n}：売却 ${o.h.sellt}`).join('<br>')}</small>`,btns,pick,col:true});
+  const loan=p.risk>.6?60000:p.risk>.3?0:-12000;           // CPU：性格によっては、ローン（約束手形）を組んででも買う
+  avail.forEach((o,k)=>{const pr=housePrice(p,o.h);if(p.cash+loan>=pr&&(pick===btns.length-1||pr>housePrice(p,avail[pick].h)))pick=k});
+  const i=await ask(p,{head:'マス70　家を買う',color:'#c98a00',title:'家カードから1軒選ぼう',text:`ゴールで売却額を受け取れます。<b>お金が足りない分は、約束手形（住宅ローン）で買えます</b>${jd?'<br>（特殊能力で20%引き）':''}<br><small>${avail.map(o=>`${o.h.n}：売却 ${o.h.sellt}`).join('<br>')}</small>`,btns,pick,col:true});
   if(i>=avail.length)return;
   const o=avail[i];await pay(p,housePrice(p,o.h),{discount:true});
   G.houseTaken[o.i]=true;p.houses.push(o.h);V.hud();
@@ -445,8 +453,8 @@ SP['15']=async p=>{await choosePet(p,false);await famBonus(p,'15')};
 SP['16']=async p=>{const r=await duelRoll(p,x=>x>=8);if(r>=8){say(p,'優勝！ +10,000');await income(p,10000)}else say(p,'惜しくも入賞ならず')};
 SP['19']=async p=>{p.again=true;say(p,'もう一度ルーレットを回せます！')};
 SP['20']=async p=>{
-  const cpuU=p.cash>=20000||Math.random()<.5;
-  const i=await ask(p,{head:'マス20　進路決定',color:'#c98a00',title:'どちらの道に進む？',text:'大学ルート：学費がかかるが専門職に就ける<br>就職ルート：早く稼ぎ始める（一般職）',btns:['🎓 大学ルート','💼 就職ルート'],pick:cpuU?0:1,col:true,branch:'20'});
+  const cpuU=p.risk>.45;                                    // CPU：性格で進路を決める（大学＝奨学金を背負って高収入をねらう）
+  const i=await ask(p,{head:'マス20　進路決定',color:'#c98a00',title:'どちらの道に進む？',text:'🎓 大学ルート：学費50,000円（足りない分は奨学金＝約束手形）。専門職に就けて給料が高い<br>💼 就職ルート：すぐ働いて稼ぎ始める（一般職）。借金なしで堅実',btns:['🎓 大学ルート','💼 就職ルート'],pick:cpuU?0:1,col:true,branch:'20'});
   p.route=i===0?'U':'W';say(p,`${p.name}は${i===0?'大学':'就職'}ルートへ`);
   await stepAndLand(p);
 };
@@ -477,9 +485,9 @@ SP['46']=async p=>{p.doubleNext=true;say(p,'次の番はルーレットを2回�
 SP['29']=async p=>promote(p,1);
 SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;await rankUp(p);say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
-SP['21']=async p=>{await payday(p,'21',false)};
+SP['21']=async p=>{await payday(p,'21',false);say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE)};
 SP['51']=async p=>{
-  const need=p.loverInfo?3:5;                                  // 結婚できるかは、ルーレットの出目しだい
+  const need=(p.loverInfo?3:5)-(p.newCar?1:0);             // 新車があると、ドライブデートで成功しやすい                                  // 結婚できるかは、ルーレットの出目しだい
   await ask(p,{head:'💍 プロポーズ！',color:'#ff6fa5',title:'結婚できるかな？',text:`ルーレットで <b>${need}以上</b> が出れば結婚成立！<br><small>${p.loverInfo?'恋人がいるので成功しやすい（3以上）':'恋人がいないので少し難しい（5以上）'}</small>`,btns:['ルーレットへ'],pick:0});
   const r=await duelRoll(p,x=>x>=need);
   if(r<need){
@@ -492,7 +500,9 @@ SP['51']=async p=>{
   p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
   say(p,`${p.name} は ${c.name} さんと結婚！`);
   p.spouse=true;p.lover=false;p.loverInfo=null;V.pins(p);Sound.good();
-  await gifts(p,5000,'結婚');
+  const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
+  p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
+  await gifts(p,[10000,5000,2000][wi],'結婚');
   if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}
   if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000円');await income(p,5000)}
   V.confetti(p.pos);
@@ -580,7 +590,7 @@ SP['147']=async p=>{await income(p,10000)};
 SP['145']=async p=>{await betSquare(p,50000)};
 SP['149']=async p=>{const n=pinsOf(p);say(p,`車に乗っているピン${n}本 × 3,000`);await income(p,3000*n)};
 SP['150']=async p=>{await goalSettle(p)};
-SP['U1']=async p=>{await pay(p,20000)};
+SP['U1']=async p=>{say(p,'大学の入学金と学費。足りない分は奨学金（約束手形）で');await pay(p,TUITION)};
 SP['U5']=async p=>{await travelBonus(p,'U5');const r=await duelRoll(p,x=>x<=3);if(r<=3){p.abroad=true;say(p,'留学決定！ 職業選択で1枚多く引ける')}else say(p,'留学は見送り')};
 SP['U6']=async p=>{const r=await duelRoll(p,x=>x>=5);if(r<=4){p.skip=1;say(p,'再試験で1回休み')}else say(p,'合格！')};
 SP['U8']=async p=>{p.qual++;say(p,'資格マーカーを1つ獲得！（宇宙飛行士に必要）');V.hud()};
@@ -687,14 +697,14 @@ async function lifeEvent(p,force){
 ['24','33','39','53','63','69','84','92','99','105','113','120','125'].forEach(id=>{const q=SQ[id];q.k='event';q.t='人生のできごと（何が起こるかはお楽しみ）';q.m='?';q.a=null;SP[id]=async p=>lifeEvent(p)});
 
 /* ---------- 宝くじ（売り場で最大4枚まで購入／抽選会のルーレットで番号が一致すれば当せん） ---------- */
-const LOT_PRICE=10000,LOT_MAX=4,LOT_FIRST=200000,LOT_SIDE=30000;
+const LOT_PRICE=10000,LOT_MAX=4,LOT_FIRST=1000000,LOT_SECOND=100000,LOT_THIRD=30000,LOT_SIDE=10000;
 async function lotteryShop(p,passing=false){
   const room=LOT_MAX-p.tickets.length;
   if(room<=0&&passing)return;                                  // 通過のときは、もう4枚持っていたら何も起きない
   if(room<=0){await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:`もう${LOT_MAX}枚持っています`,text:'次の抽選会まで大事に持っておこう',btns:['OK'],pick:0});return}
   const opts=[0];for(let n=1;n<=room;n++)opts.push(n);
-  const want=p.cash>=120000?2:p.cash>=50000?1:0;
-  const i=await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:passing?'売り場の前を通りかかった… 宝くじを買う？':'宝くじを買う？',text:`1枚 ${fmt(LOT_PRICE)}円（最大${LOT_MAX}枚まで）<br><small>抽選会のルーレットで番号が一致すれば当せん！<br>1等 ${fmt(LOT_FIRST)}円／前後賞 ${fmt(LOT_SIDE)}円</small><br>いま持っている枚数：${p.tickets.length}枚`,
+  const want=p.cash<30000?0:p.risk>.75?4:p.risk>.4?2:p.risk>.15?1:0;
+  const i=await ask(p,{head:'🎟 宝くじ売り場',color:'#e6a800',title:passing?'売り場の前を通りかかった… 宝くじを買う？':'宝くじを買う？',text:`1枚 ${fmt(LOT_PRICE)}円（最大${LOT_MAX}枚まで）<br><small>抽選会のルーレットで番号が一致すれば当せん！<br>番号が当たると等級の抽選へ（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）／前後賞 ${fmt(LOT_SIDE)}円</small><br>いま持っている枚数：${p.tickets.length}枚`,
     btns:opts.map(n=>n?`${n}枚買う（${fmt(n*LOT_PRICE)}円）`:'買わない'),pick:Math.min(opts.length-1,want),col:true});
   const n=opts[i];if(!n)return;
   await pay(p,n*LOT_PRICE,{discount:false});
@@ -705,14 +715,21 @@ async function lotteryShop(p,passing=false){
 async function lotteryDraw(p,auto=false){
   if(!p.tickets.length){say(p,'宝くじを持っていないので、抽選には参加しません');return}      // 持っていない人は何も起きない
   if(auto){V.banner('🎊 宝くじ抽選会が始まる！');say(p,`${p.name}：抽選会を通過… 宝くじ ${p.tickets.join('・')} で自動参加`);await sleep(900)}
-  else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ルーレットで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で1等 ${fmt(LOT_FIRST)}円／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ルーレットを回す'],pick:0});
+  else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ルーレットで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で当たり → 等級の抽選（1等 ${fmt(LOT_FIRST)}円）／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ルーレットを回す'],pick:0});
   const r=await spin(p,'duel');
   let total=0;const lines=[];
+  const hit=p.tickets.includes(r);
   for(const t of p.tickets){
     const side=Math.abs(t-r)===1||(t===1&&r===10)||(t===10&&r===1);
-    if(t===r){total+=LOT_FIRST;lines.push(`${t}番 … <b class="plus">🎉1等！ +${fmt(LOT_FIRST)}円</b>`)}
+    if(t===r)lines.push(`${t}番 … <b class="plus">🎯 当たり！</b>`);
     else if(side){total+=LOT_SIDE;lines.push(`${t}番 … <b class="plus">前後賞 +${fmt(LOT_SIDE)}円</b>`)}
     else lines.push(`${t}番 … はずれ`);
+  }
+  if(hit){                                                    // 番号が一致したら、もう一度回して等級が決まる（9〜10なら1等）
+    await ask(p,{head:'🎊 当たり！ 等級の抽選',color:'#e6a800',title:`${r}番が当たり！ もう一度回して等級を決める`,text:`<b>9〜10：1等 ${fmt(LOT_FIRST)}円</b>／6〜8：2等 ${fmt(LOT_SECOND)}円／1〜5：3等 ${fmt(LOT_THIRD)}円`,btns:['ルーレットを回す'],pick:0});
+    const r2=await spin(p,'duel'),g=r2>=9?LOT_FIRST:r2>=6?LOT_SECOND:LOT_THIRD,nm=r2>=9?'1等':r2>=6?'2等':'3等';
+    total+=g;lines.push(`等級の抽選：出目 ${r2} → <b class="plus">${nm} +${fmt(g)}円</b>`);
+    if(r2>=9){V.banner('🎉 宝くじ1等！ 一攫千金！');V.confetti(p.pos)}
   }
   p.tickets=[];
   await ask(p,{head:'🎊 抽選結果',color:total?'#2fb36f':'#8a8aa0',title:`当せん番号は ${r}！`,text:lines.join('<br>')+(total?`<br><br>合計 <b class="plus">+${fmt(total)}円</b>`:'<br><br>残念…またチャレンジ！'),btns:['OK'],pick:0});
@@ -751,6 +768,56 @@ function applyDifficulty(){                  // ピンチは重く、ラッキ�
   });
 }
 applyDifficulty();
+
+/* ---------- 山あり谷あり：自分で選ぶ大きな買い物・勝負（借金するか、順調にいくか、一攫千金か） ---------- */
+function setSq(id,c,k,t,m,a=null){const q=SQ[id];q.c=c;q.k=k;q.t=t;q.m=m;q.a=a;q.x=null}
+const riskPick=(p,n)=>Math.min(n-1,p.risk<.3?0:p.risk<.6?1:p.risk<.82?2:3);      // CPUの性格（堅実〜勝負師）
+async function venture(p,o){                                  // 賭け・投資：金額を選ぶ → ルーレットで倍率が決まる
+  const i=await ask(p,{head:o.head,color:o.color||'#6a4fd0',title:o.title,text:`${o.desc}<br><small>お金が足りない分は約束手形で用意できます（現金 ${fmt(p.cash)}円）</small>`,
+    btns:o.stakes.map(v=>v?`${fmt(v)}円を出す`:o.no||'やめておく'),pick:riskPick(p,o.stakes.length),col:true});
+  const st=o.stakes[i];if(!st){say(p,`${p.name}：${o.no||'やめておいた'}`);return}
+  await pay(p,st,{discount:false});
+  const r=await duelRoll(p,x=>o.table[x-1]>=1),m=o.table[r-1],g=Math.round(st*m);
+  if(m>=5){V.banner(`💰 一攫千金！ ×${m}`);Sound.fanfare();V.confetti(p.pos)}else if(m>1)Sound.good();else Sound.bad();
+  await ask(p,{head:o.head,color:m>1?'#2fb36f':m===1?'#8a8aa0':'#e8454c',title:`出目は ${r}！ ${m>=5?'大当たり！！':m>1?'成功！':m===1?'元本だけ戻った':m>0?'半分だけ戻った…':'失敗… 全部なくなった'}`,
+    text:m>0?`${fmt(st)}円 → <b class="${m>1?'plus':''}">${fmt(g)}円</b>（×${m}）`:`${fmt(st)}円を失いました`,btns:['OK'],pick:0});
+  say(p,`${p.name}：${o.head} 出目${r} → ${m>0?'+'+fmt(g)+'円':'−'+fmt(st)+'円'}`);
+  if(g>0)await income(p,g);
+}
+setSq('23','red','','一人暮らしスタート：敷金・礼金を払う','−25,000円',-25000);
+{const q=SQ['U1'];q.t='大学入学。入学金と学費（足りなければ奨学金＝約束手形）';q.m='−50,000円';q.a=-TUITION}
+{const q=SQ['21'];q.t='合流：社会人スタート。最初の給料をもらい、新生活の準備費を払う';q.m='給料 −20,000円'}
+setSq('103','red','','親の介護費用','−35,000円',-35000);
+setSq('140','red','','入院と手術（健康保険で無効）','−30,000円',-30000);INS_FOR['140']='health';
+setSq('32','blue','event','マイカーを買う？ 新車・中古車・買わないから選ぶ','?');
+SP['32']=async p=>{
+  const i=await ask(p,{head:'🚗 マイカー',color:'#3f8cff',title:'車を買う？',text:'<small>新車があると、プロポーズが成功しやすくなります（必要な出目−1）。足りない分は約束手形（ローン）</small>',btns:['✨ 新車（−60,000円）','🚙 中古車（−20,000円）','買わない'],pick:p.risk>.7?0:p.risk>.3?1:2,col:true});
+  if(i===0){await pay(p,60000);p.newCar=true;p.carLevel++;V.upgradeCar(p);say(p,`${p.name}：ピカピカの新車を購入！`)}
+  else if(i===1){await pay(p,20000);say(p,`${p.name}：中古車を購入`)}
+  else say(p,`${p.name}：車は買わなかった`);
+};
+setSq('47','blue','event','友人に「連帯保証人になって」と頼まれた…','?');
+SP['47']=async p=>{
+  const i=await ask(p,{head:'🤝 連帯保証人',color:'#e8454c',title:'友人の借金の、連帯保証人になる？',text:'引き受けると、ルーレットで運命が決まります<br><small>1〜3：友人が夜逃げ… <b class="minus">−80,000円</b>／4〜10：友人が成功してお礼 <b class="plus">+15,000円</b></small>',btns:['引き受ける','断る'],pick:p.risk>.6?0:1,col:true});
+  if(i===1){say(p,`${p.name}：連帯保証人は断った`);return}
+  const r=await duelRoll(p,x=>x>=4);
+  if(r<=3){Sound.bad();say(p,'友人が夜逃げ… 借金を肩代わり −80,000円');await ask(p,{head:'🤝 連帯保証人',color:'#e8454c',title:'友人が夜逃げした…',text:'借金 <b class="minus">80,000円</b> を肩代わりすることに',btns:['OK'],pick:0});await pay(p,80000,{discount:false})}
+  else{Sound.good();say(p,'友人の事業が成功！ お礼 +15,000円');await income(p,15000)}
+};
+setSq('49','blue','duel','「必ずもうかる」という投資話：出す金額を選んでルーレット','?');
+SP['49']=async p=>venture(p,{head:'📈 あやしい投資話',title:'「必ずもうかります」と言われた…',desc:'1〜6：だまされて全損／7〜8：×1.5／9：×3／<b>10：×6</b>',stakes:[0,30000,60000,100000],table:[0,0,0,0,0,0,1.5,1.5,3,6]});
+setSq('59','blue','duel','カジノでひと勝負：賭け金を選んでルーレット','?');
+SP['59']=async p=>venture(p,{head:'🎰 カジノ',color:'#c98a00',title:'カジノでひと勝負！',desc:'1〜6：没収／7〜9：×2／<b>10：ジャックポット ×5</b>',stakes:[0,20000,50000,100000],table:[0,0,0,0,0,0,2,2,2,5],no:'見るだけにする'});
+setSq('75','blue','event','高級ブランド店の前を通りかかった…（お宝カードが買える）','?');
+SP['75']=async p=>{
+  const i=await ask(p,{head:'👜 高級ブランドの誘惑',color:'#c98a00',title:'衝動買いする？',text:'30,000円で、<b>お宝カードを1枚</b>手に入れます（ゴールで換金。何が出るかはお楽しみ）',btns:['買う（−30,000円）','がまんする'],pick:p.risk>.5?0:1,col:true});
+  if(i===1){say(p,`${p.name}：がまんした`);return}
+  await pay(p,30000);const pool=ITEMS.filter(x=>x.ty==='col');await handleItem(p,{...pickOf(pool)});
+};
+setSq('98','blue','duel','ベンチャー企業に出資しないか？ 大化けするか、紙くずか','?');
+SP['98']=async p=>venture(p,{head:'🚀 ベンチャー出資',title:'友人の会社に出資する？',desc:'1〜5：倒産して全損／6：元本だけ戻る／7：×1.5／8：×2／9：×3／<b>10：上場して ×6</b>',stakes:[0,50000,100000,200000],table:[0,0,0,0,0,1,1.5,2,3,6]});
+setSq('122','blue','duel','老後資金を増やしたい：暗号資産に手を出す？','?');
+SP['122']=async p=>venture(p,{head:'🪙 暗号資産',title:'老後資金を、暗号資産で増やす？',desc:'1〜4：暴落して全損／5：半分に／6：元本／7：×1.5／8：×2／9：×3／<b>10：×5</b>',stakes:[0,50000,100000,200000],table:[0,0,0,0,.5,1,1.5,2,3,5]});
 
 async function landEffect(p,sq){
   if(SP[sq.id])return SP[sq.id](p,sq);

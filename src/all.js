@@ -1528,20 +1528,43 @@ function winTex(col){
     for(let y=6;y<h-6;y+=20)for(let x=6;x<w-6;x+=18){ctx.fillStyle=(x*y)%3?'#cfeaff':'#ffe9a0';ctx.fillRect(x,y,10,12)}
   }));
 }
+/* ---------- 木：不揃いな葉のかたまりを重ねる／針葉樹は段々の枝 ---------- */
+const hash3=(x,y,z,sd)=>{const n=Math.sin(x*12.9898+y*78.233+z*37.719+sd*4.1)*43758.5453;return n-Math.floor(n)};
+function blobGeo(i){return G_('blob'+i,()=>{                  // でこぼこした葉のかたまり（4種類を使い回す）
+  const g=new THREE.IcosahedronGeometry(1,1),p=g.attributes.position;
+  for(let k=0;k<p.count;k++){const x=p.getX(k),y=p.getY(k),z=p.getZ(k),f=.84+hash3(Math.round(x*50),Math.round(y*50),Math.round(z*50),i)*.32;p.setXYZ(k,x*f,y*f*.9,z*f)}
+  g.computeVertexNormals();return g})}
+function tierGeo(i){return G_('tier'+i,()=>{                  // 針葉樹の枝の段（すそが不揃いに垂れる）
+  const g=new THREE.ConeGeometry(1,1,11,2),p=g.attributes.position;
+  for(let k=0;k<p.count;k++){const x=p.getX(k),y=p.getY(k),z=p.getZ(k);if(y<.45){const f=.86+hash3(Math.round(x*40),0,Math.round(z*40),i)*.3;p.setXYZ(k,x*f,y-(y<-.4?hash3(Math.round(x*40),1,Math.round(z*40),i)*.16:0),z*f)}}
+  g.computeVertexNormals();return g})}
+const leafMat=c=>mat(c,12,{flatShading:true});
+const shade=(c,k)=>new THREE.Color(c).multiplyScalar(k).getHex();
 function tree(x,z,kind,s=1){
-  const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);
-  mesh(G_('trunk',()=>new THREE.CylinderGeometry(.18,.26,1.5,7)),mat(0x8a5a35,30),0,.75,0,g);
-  const sph=(r,y,c,dx=0,dz=0)=>mesh(G_('sp'+r,()=>new THREE.SphereGeometry(r,10,8)),mat(c,70),dx,y,dz,g);
-  const cone=(r,h,y,c)=>mesh(G_('co'+r+h,()=>new THREE.ConeGeometry(r,h,8)),mat(c,50),0,y,0,g);
-  if(kind==='pine'){cone(1.3,1.6,1.9,0x2f8f5b);cone(1.0,1.4,2.7,0x37a468);cone(.7,1.2,3.4,0x43b878)}
-  else if(kind==='sakura'){sph(1.2,2.2,0xffb7d1);sph(.9,2.9,0xffc9de,.5,.3);sph(.8,2.5,0xffa9c8,-.6,-.3)}
-  else if(kind==='autumn'){const cs=[0xff8a2b,0xe8452b,0xffc233,0xd96a1f];sph(1.2,2.2,cs[rnd(4)]);sph(.9,2.8,cs[rnd(4)],.5,.3);sph(.8,2.4,cs[rnd(4)],-.6,-.3)}
-  else if(kind==='palm'){
-    g.remove(g.children[0]);
-    const t=mesh(G_('ptr',()=>new THREE.CylinderGeometry(.14,.22,3.6,7)),mat(0xb98a55,20),0,1.8,0,g);t.rotation.z=.12;
-    for(let i=0;i<6;i++){const l=mesh(G_('leaf',()=>{const lg=new THREE.ConeGeometry(.32,2,5);lg.translate(0,1,0);return lg}),mat(0x2fbf6a,50),0,3.7,0,g);l.rotation.z=1.35;l.rotation.y=i*Math.PI/3}
+  const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);g.rotation.y=Math.random()*6.28;
+  const trunk=mesh(G_('trunk2',()=>new THREE.CylinderGeometry(.13,.3,1.7,8)),mat(0x7a5233,15,{flatShading:true}),0,.85,0,g);
+  const blob=(r,y,c,dx=0,dz=0,sy=1)=>{const m=mesh(blobGeo(rnd(4)),leafMat(c),dx,y,dz,g);m.scale.set(r,r*sy,r);m.rotation.y=Math.random()*6.28;return m};
+  const crown=(cols,y0=2.3)=>{                                // 丸い木：大きな芯＋まわりに不揃いなかたまり、上ほど明るく
+    blob(1.15,y0,shade(cols[0],.9));
+    const n=5+rnd(2);for(let i=0;i<n;i++){const a=i/n*6.28+Math.random()*.5,d=.62+Math.random()*.25,up=(Math.random()-.25)*.9;blob(.62+Math.random()*.25,y0+up,shade(cols[rnd(cols.length)],.92+up*.12),Math.cos(a)*d,Math.sin(a)*d)}
+    blob(.7,y0+.85,shade(cols[cols.length-1],1.08),.1,.05);
+    [[.3,1.25,.5],[-.28,1.4,-.6]].forEach(q=>{const br=mesh(G_('branch',()=>new THREE.CylinderGeometry(.04,.07,.7,5)),mat(0x7a5233,15),q[0],q[1],0,g);br.rotation.z=q[2]});   // 枝
+  };
+  if(kind==='pine'){
+    trunk.scale.set(.8,1.1,.8);
+    const cs=[0x1f6b45,0x277a4e,0x2f8a58,0x3a9a64,0x48aa70];
+    [[1.45,1.5,1.5],[1.2,1.4,2.3],[.95,1.3,3.05],[.68,1.2,3.75],[.4,1.0,4.4]].forEach((t,i)=>{const m=mesh(tierGeo(i%3),leafMat(cs[i]),0,t[2],0,g);m.scale.set(t[0],t[1],t[0]);m.rotation.y=i*1.3});
   }
-  else{sph(1.2,2.3,0x59c46a);sph(.9,3.0,0x6ed17f,.4,.2)}
+  else if(kind==='sakura')crown([0xf7a8c4,0xffb7d1,0xffc9de,0xffdbe8]);
+  else if(kind==='autumn')crown([[0xd9541f,0xe8752b,0xf29a2e,0xffc233],[0xb8321f,0xd9452b,0xe8632b,0xf28a3d],[0xd9a21f,0xe8b82b,0xffc233,0xffd966]][rnd(3)]);
+  else if(kind==='palm'){
+    g.remove(trunk);
+    for(let i=0;i<6;i++){const seg=mesh(G_('pseg',()=>new THREE.CylinderGeometry(.15,.19,.66,8)),mat(i%2?0xb98a55:0xa67a48,15,{flatShading:true}),.02*i*i,.33+i*.6,0,g);seg.rotation.z=-.06*i}   // 節のある幹（少ししなる）
+    const top=new THREE.Group();top.position.set(.72,3.75,0);g.add(top);
+    for(let i=0;i<8;i++){const l=mesh(G_('frond',()=>{const lg=new THREE.ConeGeometry(.3,2.3,4);lg.translate(0,1.15,0);lg.scale(1,1,.28);return lg}),leafMat(i%2?0x2fa85e:0x37bf6a),0,0,0,top);l.rotation.order='YXZ';l.rotation.y=i*Math.PI/4;l.rotation.z=1.15+(i%2)*.28}
+    [[.12,.1],[-.1,.12],[0,-.14]].forEach(q=>mesh(G_('coco',()=>new THREE.SphereGeometry(.13,8,6)),mat(0x6a4a2a,30),q[0],-.12,q[1],top));
+  }
+  else crown([0x3f9a4f,0x4fb05c,0x5fc46a,0x78d282]);
   g.userData.ph=Math.random()*6;sway.push(g);worldG.add(g);occ.push({g});return g;
 }
 function houseSmall(x,z,wall,roof,s=1,rot=0){
@@ -1561,10 +1584,35 @@ function building(x,z,w,h,d,col){
   mesh(new THREE.BoxGeometry(w+.3,.4,d+.3),mat(0xdfe6ef),0,h+.2,0,g);
   worldG.add(g);occ.push({g});return g;
 }
+/* ---------- 山：ごつごつした岩山。ふもとは森、中腹は岩肌、頂上は雪（1つの形に色を塗り分ける） ---------- */
+function peakGeo(r,h,sd,snow){
+  const S=18,RN=9,pos=[],col=[],idx=[],c=new THREE.Color();
+  const ph=[hash3(sd,1,2,3)*6.28,hash3(sd,4,5,6)*6.28,hash3(sd,7,8,9)*6.28];
+  const ridge=a=>1+.2*Math.sin(a*3+ph[0])+.12*Math.sin(a*5+ph[1])+.07*Math.sin(a*9+ph[2]);   // 尾根と谷
+  const put=(x,y,z,t,a)=>{
+    pos.push(x,y,z);const hf=y/h,n=hash3(Math.round(x*3),Math.round(y*3),Math.round(z*3),sd);
+    const line=.6+.09*Math.sin(a*4+ph[1])+.05*Math.sin(a*7+ph[2]);                              // ぎざぎざの雪線
+    if(snow&&hf>line)c.setHex(0xffffff).multiplyScalar(.93+n*.07);
+    else if(hf>.34)c.setHex(n>.5?0x8a8478:0x7a7468).lerp(new THREE.Color(0x9a9488),hf-.34);     // 岩肌
+    else c.setHex(n>.55?0x4f8a5a:0x5a9a62).lerp(new THREE.Color(0x7a8a68),Math.max(0,hf-.15)*2); // ふもとの森
+    col.push(c.r,c.g,c.b);
+  };
+  put(0,h,0,0,0);
+  for(let i=1;i<=RN;i++){const t=i/RN;for(let j=0;j<S;j++){
+    const a=j/S*6.28+(i%2)*.17,n=hash3(i,j,sd,1)-.5;
+    const rad=r*Math.pow(t,.9)*ridge(a)*(1+n*.14),y=Math.max(0,h*Math.pow(1-t,1.25)*(1+n*.1)+(i<RN?n*h*.03:0));
+    put(Math.cos(a)*rad,i===RN?0:y,Math.sin(a)*rad,t,a)}}
+  for(let j=0;j<S;j++)idx.push(0,1+(j+1)%S,1+j);
+  for(let i=0;i<RN-1;i++)for(let j=0;j<S;j++){const a=1+i*S+j,b=1+i*S+(j+1)%S,d=a+S,e=b+S;idx.push(a,b,d,b,e,d)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeVertexNormals();return g;
+}
+const mountMat=()=>G_('mountMat',()=>new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:4,specular:0x222222}));
 function mountain(x,z,r,h){
-  const g=new THREE.Group();g.position.set(x,0,z);
-  mesh(new THREE.ConeGeometry(r,h,7),mat(0x7e9c86,20),0,h/2,0,g);
-  mesh(new THREE.ConeGeometry(r*.38,h*.3,7),mat(0xffffff,40),0,h*.85,0,g);
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=Math.random()*6.28;
+  const sd=Math.random()*1000;
+  mesh(peakGeo(r,h,sd,h>9),mountMat(),0,0,0,g);                                             // 主峰（高い山だけ雪をかぶる）
+  const n=1+rnd(2);for(let i=0;i<n;i++){const a=Math.random()*6.28,d=r*(.45+Math.random()*.25),k=.45+Math.random()*.25;
+    mesh(peakGeo(r*k,h*k,sd+i+1,h*k>9),mountMat(),Math.cos(a)*d,0,Math.sin(a)*d,g)}          // 肩の峰（連なった山に見せる）
   worldG.add(g);occ.push({g});return g;
 }
 function cloud(x,y,z,s){

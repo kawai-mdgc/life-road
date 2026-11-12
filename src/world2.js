@@ -1,6 +1,6 @@
 // ===== 3D ワールド（後半）：背景・ルーレット・銀行・車・人形・お札・カメラ =====
 const BANK_POS=new V3(-32,0,0),ROUL_POS=new V3(0,0,0);
-const POLICE_POS=new V3(34,0,-6),JAIL_POS=new V3(34,0,6),PATROL_HOME=new V3(26,.3,-6),JAIL_GATE=new V3(27,.3,6);
+const POLICE_POS=new V3(34,0,-6),JAIL_POS=new V3(34,0,6),PATROL_HOME=new V3(26,0,-6),JAIL_GATE=new V3(27,0,6);
 let patrol=null;
 const RAINBOW=[0xff3b3b,0xff8a1f,0xffd21f,0xa6e22e,0x2fd36f,0x1fd0d6,0x2f8cff,0x5b5bff,0x9b4dff,0xff4fb0];
 const Roul={free:false,speed:0,max:8,last:-1};
@@ -404,21 +404,21 @@ function buildPolice(){
 }
 const JAIL_OFF=[[-1.6,-1.1],[0,-1.1],[1.6,-1.1],[-1.6,1.1],[0,1.1],[1.6,1.1]];
 /* ---------- 障害物をよけて進む：台帳 placed の物・海・川（橋以外）を通らない道すじを探す ---------- */
-const NAV={S:3,x0:-156,z0:-96,nx:105,nz:56};
+const NAV={S:2,x0:-156,z0:-96,nx:157,nz:84};
 function navBlocked(){
   const {S,x0,z0,nx,nz}=NAV,g=new Uint8Array(nx*nz),p95=POS[95];
   const obs=placed.filter(e=>e.kind!=='patrol'&&e.kind!=='gate'&&e.zone!=='sea');
   for(let j=0;j<nz;j++)for(let i=0;i<nx;i++){
     const x=x0+i*S,z=z0+j*S;let b=z>seaZ(x)-1;
     if(!b&&riverDist(x,z)<RIVER.w/2+1&&Math.hypot(x-p95.x,z-p95.z)>RIVER.half)b=true;       // 川は橋の上だけ渡れる
-    if(!b)for(const e of obs){if((e.x-x)**2+(e.z-z)**2<(e.r+1.1)**2){b=true;break}}
+    if(!b)for(const e of obs){if((e.x-x)**2+(e.z-z)**2<(e.r+.9)**2){b=true;break}}
     g[j*nx+i]=b?1:0;
   }
   return g;
 }
 function findPath(a,b){
   const {S,x0,z0,nx,nz}=NAV,g=navBlocked(),cell=p=>[clamp(Math.round((p.x-x0)/S),0,nx-1),clamp(Math.round((p.z-z0)/S),0,nz-1)];
-  const free=c=>{if(!g[c[1]*nx+c[0]])return c;for(let r=1;r<12;r++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){const i=c[0]+di,j=c[1]+dj;if(i>=0&&j>=0&&i<nx&&j<nz&&!g[j*nx+i])return[i,j]}return c};
+  const free=c=>{if(!g[c[1]*nx+c[0]])return c;for(let r=1;r<16;r++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){const i=c[0]+di,j=c[1]+dj;if(i>=0&&j>=0&&i<nx&&j<nz&&!g[j*nx+i])return[i,j]}return c};
   const sc=free(cell(a)),ec=free(cell(b)),N=nx*nz,gs=new Float32Array(N).fill(1e9),from=new Int32Array(N).fill(-1),open=[sc[1]*nx+sc[0]],closed=new Uint8Array(N);
   gs[open[0]]=0;const hh=k=>Math.hypot(k%nx-ec[0],Math.floor(k/nx)-ec[1]),goal=ec[1]*nx+ec[0];let found=false;
   while(open.length){let bi=0;for(let q=1;q<open.length;q++)if(gs[open[q]]+hh(open[q])<gs[open[bi]]+hh(open[bi]))bi=q;
@@ -428,29 +428,34 @@ function findPath(a,b){
   if(!found)return[a.clone(),b.clone()];
   let pts=[];for(let k=goal;k!==-1;k=from[k])pts.push(new V3(x0+(k%nx)*S,a.y,z0+Math.floor(k/nx)*S));pts.reverse();
   pts[0]=a.clone();pts[pts.length-1]=b.clone();
-  const clear=(p,q)=>{const n=Math.ceil(p.distanceTo(q)/1.5);for(let t=1;t<n;t++){const x=p.x+(q.x-p.x)*t/n,z=p.z+(q.z-p.z)*t/n,i=Math.round((x-x0)/S),j=Math.round((z-z0)/S);if(i<0||j<0||i>=nx||j>=nz||g[j*nx+i])return false}return true};
+  const obs=placed.filter(e=>e.kind!=='patrol'&&e.kind!=='gate'&&e.zone!=='sea'),dx0=0;
+  const segHit=(p,q)=>{const vx=q.x-p.x,vz=q.z-p.z,l2=vx*vx+vz*vz||1;for(const e of obs){let t=((e.x-p.x)*vx+(e.z-p.z)*vz)/l2;t=t<0?0:t>1?1:t;if((p.x+vx*t-e.x)**2+(p.z+vz*t-e.z)**2<(e.r+.6)**2)return true}return false};   // 実際の物の大きさで判定
+  const clear=(p,q)=>{if(segHit(p,q))return false;const n=Math.ceil(p.distanceTo(q)/1.5);for(let t=1;t<n;t++){const x=p.x+(q.x-p.x)*t/n,z=p.z+(q.z-p.z)*t/n,i=Math.round((x-x0)/S),j=Math.round((z-z0)/S);if(i<0||j<0||i>=nx||j>=nz||g[j*nx+i])return false}return true};
   const out=[pts[0]];let i=0;while(i<pts.length-1){let j=pts.length-1;while(j>i+1&&!clear(pts[i],pts[j]))j--;out.push(pts[j]);i=j}   // まっすぐ行ける所はまとめる
   return out;
 }
+// 地面の高さ：マスの上ならマスの高さ、それ以外は地面（キャラが浮かないように）
+function groundY(x,z){for(const q of allPts)if((q.x-x)**2+(q.z-z)**2<1.15)return .3;return 0}
 async function driveTo(obj,to,speed,o={}){                // 道すじにそって進む（車は走る／人は走ってはずむ）。follow：うしろに連れていく物
   const pts=findPath(obj.position.clone(),to.clone());let trail=o.follow?o.follow.position.clone():null;
+  let total=0;for(let n=1;n<pts.length;n++)total+=pts[n-1].distanceTo(pts[n]);speed=Math.max(speed,total/6);      // 遠回りでも6秒以内に着く速さ
   for(let n=1;n<pts.length;n++){
     const a=pts[n-1],b=pts[n],len=a.distanceTo(b);if(len<.05)continue;
     const want=Math.atan2(-(b.z-a.z),b.x-a.x),ms=len/speed*1000,dir=b.clone().sub(a).normalize();
     await anim(ms,k=>{
-      obj.position.lerpVectors(a,b,k);obj.rotation.y+=angDiff(obj.rotation.y,want)*.25;
-      if(o.run){obj.position.y=a.y+Math.abs(Math.sin(k*Math.PI*ms/110))*.18;obj.rotation.z=-.22;const st=Math.floor(k*ms/220);if(st!==obj.userData.stp){obj.userData.stp=st;Sound.step()}}
+      obj.position.lerpVectors(a,b,k);obj.position.y=groundY(obj.position.x,obj.position.z);obj.rotation.y+=angDiff(obj.rotation.y,want)*.25;
+      if(o.run){obj.position.y+=Math.abs(Math.sin(k*Math.PI*ms/110))*.18;obj.rotation.z=-.22;const st=Math.floor(k*ms/220);if(st!==obj.userData.stp){obj.userData.stp=st;Sound.step()}}
       else if(obj.wheels)obj.wheels.forEach(w=>w.rotation.z-=.4);
-      if(o.follow){trail.lerp(obj.position.clone().addScaledVector(dir,-1.8),.2);o.follow.position.set(trail.x,.3,trail.z);o.follow.rotation.y=obj.rotation.y}
+      if(o.follow){trail.lerp(obj.position.clone().addScaledVector(dir,-1.8),.2);o.follow.position.set(trail.x,groundY(trail.x,trail.z),trail.z);o.follow.rotation.y=obj.rotation.y}
     });
   }
-  obj.position.copy(to);if(o.run)obj.rotation.z=0;
+  obj.position.copy(to);obj.position.y=groundY(to.x,to.z);if(o.run)obj.rotation.z=0;
 }
 function freeNear(center,dist){                           // その地点から dist ほど離れた、通れる陸の場所（登場・退場の位置）
   const g=navBlocked(),{S,x0,z0,nx,nz}=NAV;
   for(let t=0;t<48;t++){const a=t*2.4,d=dist*(1-Math.floor(t/12)*.15),x=center.x+Math.cos(a)*d,z=center.z+Math.sin(a)*d,i=Math.round((x-x0)/S),j=Math.round((z-z0)/S);
-    if(i>=0&&j>=0&&i<nx&&j<nz&&!g[j*nx+i]&&!allPts.some(q=>(q.x-x)**2+(q.z-z)**2<9))return new V3(x,.3,z)}
-  return center.clone().add(new V3(dist*.5,0,-dist*.5)).setY(.3);
+    if(i>=0&&j>=0&&i<nx&&j<nz&&!g[j*nx+i]&&!allPts.some(q=>(q.x-x)**2+(q.z-z)**2<9))return new V3(x,0,z)}
+  return center.clone().add(new V3(dist*.5,0,-dist*.5)).setY(0);
 }
 async function moveObj(g,a,b,ms){                        // 距離に応じた速さで走らせる（カメラが追いつく速さ）
   ms=Math.max(ms,a.distanceTo(b)/14*1000);
@@ -484,13 +489,13 @@ async function announceGo(obj,dir,runner){                // 動き出す前に�
 V.policeDispatch=async(p,dash)=>{                         // 警察署 → 逮捕されるプレイヤーのマスまで
   const c=cars[p.id];if(!c||!patrol)return;
   if(dash){                                                // ごくまれに：モッズコートの警察官がダッシュで来る
-    const r=ensureRunner();r.visible=true;r.position.copy(PATROL_HOME).setY(.3);
-    const target=c.g.position.clone().add(new V3(1.6,0,1.1)).setY(.3);
+    const r=ensureRunner();r.visible=true;r.position.copy(PATROL_HOME);
+    const target=c.g.position.clone().add(new V3(1.6,0,1.1)).setY(0);
     await announceGo(r,target.clone().sub(r.position),true);
     Cam.followObj=r;await driveTo(r,target,17,{run:true});
-    await anim(500,k=>{r.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.3});Cam.followObj=null;return;
+    await anim(500,k=>{r.position.y=groundY(r.position.x,r.position.z)+Math.abs(Math.sin(k*Math.PI*2))*.3});Cam.followObj=null;return;
   }
-  const target=c.g.position.clone().add(new V3(2.1,0,1.4)).setY(.3);
+  const target=c.g.position.clone().add(new V3(2.1,0,1.4)).setY(0);
   await announceGo(patrol.g,target.clone().sub(patrol.g.position),false);
   Cam.followObj=patrol.g;
   await driveTo(patrol.g,target,14);
@@ -499,7 +504,7 @@ V.policeDispatch=async(p,dash)=>{                         // 警察署 → 逮�
 };
 V.policeLeave=async(p,dash)=>{                            // 保釈金：そのまま払って終わり。警察は署へ戻る
   if(!patrol)return;
-  if(dash){const r=ensureRunner();await driveTo(r,PATROL_HOME.clone().setY(.3),17,{run:true});r.visible=false;return}
+  if(dash){const r=ensureRunner();await driveTo(r,PATROL_HOME.clone(),17,{run:true});r.visible=false;return}
   await driveTo(patrol.g,PATROL_HOME.clone(),14);
   patrol.siren=false;
 };
@@ -511,7 +516,7 @@ V.policeTake=async(p,dash)=>{                             // 連行：署の隣�
     await driveTo(r,JAIL_GATE.clone(),15,{run:true,follow:c.g});                 // 車を連れて、障害物をよけながら署へ
     r.rotation.z=0;layoutAll();const to=c.target.clone();
     await anim(800,k=>c.g.position.lerpVectors(c.g.position.clone(),to,.25+k*.75));c.g.position.copy(to);
-    c.anim=false;await driveTo(r,PATROL_HOME.clone().setY(.3),17,{run:true});r.visible=false;Cam.followObj=null;return;
+    c.anim=false;await driveTo(r,PATROL_HOME.clone(),17,{run:true});r.visible=false;Cam.followObj=null;return;
   }
   Cam.followObj=patrol.g;
   const a=c.g.position.clone(),pp=patrol.g.position.clone();
@@ -531,7 +536,7 @@ V.release=async p=>{                                      // 釈放：警察が�
   await driveTo(patrol.g,JAIL_GATE.clone(),14);                   // 檻まで迎えに来る
   const a=c.g.position.clone();
   await anim(600,k=>c.g.position.lerpVectors(a,JAIL_GATE,ease(k)));c.g.visible=false;       // パトカーに乗る
-  layoutAll();const to=c.target.clone(),drop=to.clone().add(new V3(2.1,0,1.4)).setY(.3);
+  layoutAll();const to=c.target.clone(),drop=to.clone().add(new V3(2.1,0,1.4)).setY(0);
   await driveTo(patrol.g,drop,14);                                        // 元のマスへ送り届ける
   c.g.position.copy(to);c.g.visible=true;
   await anim(500,k=>{c.g.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.25});
@@ -562,25 +567,29 @@ V.thugsArrive=async p=>{                                  // 遠くから現れ�
   const bx=spawn.clone();
   await anim(1800,k=>{t.g.position.set(bx.x+Math.sin(k*60)*.04,bx.y,bx.z+Math.cos(k*53)*.04);t.g.wheels.forEach(w=>w.rotation.z-=.7)});   // 「今から行くぞ」
   Cam.followDist=null;
-  const behind=c.g.position.clone().addScaledVector(fwdOf(c),-2.4).setY(.3);
+  const behind=c.g.position.clone().addScaledVector(fwdOf(c),-2.4).setY(0);
   await driveTo(t.g,behind,15);
   t.following=true;Cam.followObj=null;
 };
 V.thugsLeave=async p=>{                                   // 引き上げる
   const c=cars[p.id];if(!c||!c.thugs)return;
   const t=c.thugs;t.following=false;
-  const out=t.g.position.clone().setY(0).normalize(),away=t.g.position.clone().addScaledVector(out.lengthSq()?out:new V3(1,0,0),36).setY(.3);
+  const out=t.g.position.clone().setY(0).normalize(),away=t.g.position.clone().addScaledVector(out.lengthSq()?out:new V3(1,0,0),36).setY(0);
   await driveTo(t.g,freeNear(t.g.position,34),15);
   t.g.visible=false;
 };
 function updateThugs(dt){                                 // ついてくる：自分の車の真後ろにべったり
   for(const id in cars){
-    const c=cars[id],t=c.thugs;if(!t||!t.following)continue;
-    const want=c.g.position.clone().addScaledVector(fwdOf(c),-2.4).setY(.3);
+    const c=cars[id],t=c.thugs;if(!t||!t.following||t.busy)continue;
+    const jailed=c.p.inJail||!c.g.visible;                 // 留置中・連行中は、留置所の前で待つ
+    const want=jailed?JAIL_GATE.clone().add(new V3(-2.5,0,3)):c.g.position.clone().addScaledVector(fwdOf(c),-2.4);want.y=groundY(want.x,want.z);
+    if(t.g.position.distanceTo(want)>5){                   // 離れたら、障害物をよける道すじで追いかける
+      t.busy=true;driveTo(t.g,want,15).then(()=>{t.busy=false},()=>{t.busy=false});continue;
+    }
     const before=t.g.position.clone();
     t.g.position.lerp(want,1-Math.exp(-dt*5));
     const d=t.g.position.clone().sub(before);if(d.lengthSq()>1e-6)t.g.wheels.forEach(w=>w.rotation.z-=Math.sqrt(d.lengthSq())*2.4);
-    t.g.rotation.y+=angDiff(t.g.rotation.y,c.g.rotation.y)*(1-Math.exp(-dt*6));
+    if(!jailed)t.g.rotation.y+=angDiff(t.g.rotation.y,c.g.rotation.y)*(1-Math.exp(-dt*6));
   }
 }
 function updateLottery(dt){lotteryDrums.forEach(d=>d.rotation.x+=dt*(d.userData.fast||1.6))}

@@ -135,7 +135,18 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
+  $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
+  $('#mbMoney').textContent=fmt(cur.cash)+'円';
+  $('#mbSub').innerHTML=`${turnP===cur?'▶ あなたの番':'▶ '+esc(turnP.name)+' の番'}${cur.notes?` ・📜手形${cur.notes}枚`:''} ・💼${cur.retired?'退職':cur.job?esc(rankName(cur)):'学生'}`;
 };
+/* ---------- スマホ：上のメニューバー（プレイヤー一覧・くわしい情報・道具・手札の出し入れ） ---------- */
+(function(){
+  const B=document.body,only=c=>{const on=!B.classList.contains(c);B.classList.remove('m-left','m-hud','m-tools');if(on)B.classList.add(c);Sound.click()};
+  $('#mbPl').onclick=()=>only('m-left');$('#mbInfo').onclick=()=>only('m-hud');$('#mbMenu').onclick=()=>only('m-tools');
+  $('#mbHand').onclick=()=>{B.classList.toggle('m-nohand');$('#mbHand').classList.toggle('off',B.classList.contains('m-nohand'));Sound.click()};
+  $('#stage').addEventListener('pointerdown',()=>B.classList.remove('m-left','m-hud','m-tools'));
+  $('#plist').addEventListener('click',()=>B.classList.remove('m-left'));
+})();
 const DENS=[100000,50000,10000,5000,1000];
 const billImg={};
 const billURL=d=>billImg[d]||(billImg[d]=billTexture(d).image.toDataURL('image/png'));
@@ -290,7 +301,8 @@ V.results=async()=>{
   if(cardCloseFn)cardCloseFn();closeGroupPopup();
   if(Cam.is2D){Cam.set2D(false)}
   ['#left','#hudR','#actions','#hand','#tools','#testPanel','#spinBtn','#roulLabel'].forEach(q=>{const e=$(q);if(e)e.classList.add('hidden')});
-  const pd=buildPodium(r);
+  const pd=buildPodium(r);Cam.heaven=1;
+  $('#mbar').classList.add('hidden');document.body.classList.remove('m-left','m-hud','m-tools');
   Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(0,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
   const fit=()=>{Cam.followDist=Math.max(15,(r.length>4?15.5:13.5)/Math.min(1.5,aspect()))};fit();addEventListener('resize',fit);
   V.banner(`🏆 優勝：${r[0].name}！`);
@@ -349,7 +361,7 @@ function buildTitle(){                                   // 保存済みのア�
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
-  ['#tools','#left','#hudR','#actions','#hand'].forEach(s=>$(s).classList.remove('hidden'));
+  ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));

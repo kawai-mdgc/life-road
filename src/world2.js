@@ -328,7 +328,10 @@ function buildScenery(){
    [-1,1].forEach(sd=>{const a=makeDoll({color:0xffffff,gender:sd>0?'f':'m',hair:0xf0e0a0,pose:'up',scale:2});a.position.set(0,7.5,sd*3.4);a.rotation.y=sd>0?.4:-.4;
      [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.13,a);wg.scale.set(.35,1.3,.9);wg.rotation.x=w*-.5});
      const h=mesh(new THREE.TorusGeometry(.09,.015,6,16),mat(0xffe27a,140,{emissive:0xb38a00}),0,.7,0,a);h.rotation.x=Math.PI/2;g.add(a)});
-   for(let n=146;n<=149;n++){const q=POS[n],hh=HEAD[n];if(!q||!hh)continue;[-1,1].forEach(sd=>[-.6,.6].forEach(f=>{const x=q.x-hh.z*sd*1.75+hh.x*f,z=q.z+hh.x*sd*1.75+hh.z*f;puff(x,.12,z,.55+Math.random()*.25,worldG)}))}   // 最後の数マスは、道の両わきに雲
+   for(let n=138;n<=149;n++){const q=POS[n],hh=HEAD[n];if(!q||!hh)continue;const dens=n>=145?3:n>=141?2:1;                                  // ゴールに近づくほど、道の両わきの雲がふえる
+     [-1,1].forEach(sd=>{for(let j=0;j<dens;j++){const f=(j-(dens-1)/2)*.75,x=q.x-hh.z*sd*1.8+hh.x*f,z=q.z+hh.x*sd*1.8+hh.z*f;puff(x,.12,z,.5+((n*7+j*3)%5)*.07+(n-138)*.02,worldG)}})}
+   heavenMist=mesh(new THREE.CircleGeometry(60,48),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,fog:false,map:canvasTex(256,256,(c,w,h)=>{const gr=c.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.45,'rgba(255,255,255,.96)');gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.fillRect(0,0,w,h)})}),p.x,.012,p.z,worldG);
+   heavenMist.rotation.x=-Math.PI/2;heavenMist.userData.flat=1;heavenMist.renderOrder=1;                                                        // 地面をおおう雲の海（ゴールのまわり一面が白くなる）
    worldG.add(g)}
   buildMansions();                                                         // マンションは先に建てておく（買うと一室がポンと立つ）
   // 遠景の山：陸の側（北・東・西）だけに、重ならないように並べる。海の側には置かない
@@ -1380,7 +1383,7 @@ function portraitTogether(p,c,kind){
 }
 
 /* ---------- 結果発表：雲の上の表彰台（1〜3位は台の上で大よろこび、4位は横でにっこり、5位以下はうしろでしょんぼり） ---------- */
-let podium=null;
+let podium=null,heavenMist=null;
 function buildPodium(ranked){
   if(podium)return podium;
   const base=POS[150].clone();base.y=38;

@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>LIFE ROAD</title>
 <style>
 :root{--ink:#3b2f4a;--card:#fffdf7;--pink:#ff6b9d;--blue:#3f8cff;--yellow:#ffc933;--green:#37c486;--red:#ff5a5f;--purple:#8e6bff;--shadow:0 6px 18px #0003}
@@ -182,12 +182,38 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
 @keyframes ban{0%{opacity:0;transform:scale(.6)}15%{opacity:1;transform:scale(1.05)}80%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
 #logBox{position:fixed;left:8px;bottom:140px;z-index:11;width:min(300px,60vw);max-height:30vh;overflow:auto;font-size:.74rem;line-height:1.5}
 #logBox div{border-bottom:1px dashed #ddd;padding:2px 0}
-@media(max-width:640px){
- #left{width:170px;max-height:34vh}.pl .nm{max-width:40px}
- #hudR{width:150px}#tools{top:auto;bottom:calc(228px + env(safe-area-inset-bottom));left:8px;transform:none;flex-direction:column}
- #actions{bottom:calc(132px + env(safe-area-inset-bottom))}
- .hc{width:66px;height:84px}.hc.house{width:92px}.hc.wallet{width:210px}.stack{--w:66px;height:84px}.stack.wide{--w:92px}
+#mbar{display:none}
+/* ===== スマホ：上にメニューバー。一覧・くわしい情報・道具は、押したときだけ開く ===== */
+@media(max-width:640px),(max-height:520px){
+ #mbar{display:flex;position:fixed;top:0;left:0;right:0;z-index:13;gap:5px;align-items:center;padding:calc(4px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right)) 4px calc(6px + env(safe-area-inset-left));background:#fffaf0f4;border-bottom:3px solid #fff;box-shadow:0 3px 0 #d2a56a,0 6px 14px #0003}
+ #mbar button{flex:none;width:40px;height:40px;padding:0;font-size:1.15rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border-radius:12px;box-shadow:0 3px 0 #0002}
+ #mbar button.off{opacity:.45}
+ #mbInfo{flex:1;min-width:0;line-height:1.2;cursor:pointer}
+ #mbName{font-size:.76rem;font-weight:900;white-space:nowrap}#mbName .age,#mbName .hp{font-size:.7rem;margin-left:2px}
+ #mbMoney{font-weight:900;font-size:1.02rem;margin-left:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+ #mbTop{display:flex;align-items:baseline;overflow:hidden}
+ #mbSub{display:block;font-size:.64rem;font-weight:700;color:#776;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #left,#hudR,#tools{display:none}
+ body.m-left #left{display:block;top:calc(56px + env(safe-area-inset-top));left:6px;width:min(320px,88vw);max-height:60vh;z-index:14}
+ body.m-left .pl{font-size:.9rem;padding:8px}body.m-left .pl .nm{max-width:130px}
+ body.m-hud #hudR{display:block;top:calc(56px + env(safe-area-inset-top));left:6px;right:6px;width:auto;z-index:14}
+ body.m-tools #tools{display:flex;flex-direction:column;top:calc(56px + env(safe-area-inset-top));right:6px;left:auto;bottom:auto;transform:none;z-index:14;padding:8px;border-radius:16px;background:#fffaf0f5;border:3px solid #fff;box-shadow:0 5px 0 #d2a56a,0 14px 26px #0004}
+ body.m-tools #tools button{padding:11px 16px;font-size:.92rem;text-align:left}
+ body.m-tools #btnSnd::after{content:' 音'}body.m-tools #btnLog::after{content:' これまでの記録'}
+ #hand{min-height:104px;padding:4px 8px calc(6px + env(safe-area-inset-bottom));gap:6px}
+ .hc{width:62px;height:78px;font-size:.6rem}.hc img{height:50px}.hc.house{width:86px}.hc.wallet{width:196px}.stack{--w:62px;--off:13px;height:78px}.stack.wide{--w:86px}
+ .hc .big{font-size:1.5rem;padding-top:10px}.hc .ic{font-size:1.45rem;padding-top:8px}
+ #actions{bottom:calc(112px + env(safe-area-inset-bottom))}
+ body.m-nohand #hand{display:none}body.m-nohand #actions{bottom:calc(16px + env(safe-area-inset-bottom))}
+ #spinBtn{padding:13px 26px;max-width:94vw}
+ #roulLabel{top:calc(58px + env(safe-area-inset-top))}#testPanel{top:calc(58px + env(safe-area-inset-top))}
+ #logBox{bottom:calc(118px + env(safe-area-inset-bottom));width:min(320px,80vw)}
+ #cardBody{max-height:42vh;font-size:.95rem}#cardTitle{font-size:1.12rem}#cardBtns button{padding:11px 12px}
+ #cardWrap.spec{padding-top:calc(60px + env(safe-area-inset-top))}#cardWrap.spec #card{transform:scale(.72)}
+ #cardWrap.specshow #cardBtns{max-height:34vh}
+ #podiumBar button{min-width:0;flex:1 1 30%;padding:11px 6px;font-size:.85rem}
 }
+@media(max-height:520px){#hand{min-height:0}#cardBody{max-height:36vh}#actions{bottom:calc(100px + env(safe-area-inset-bottom))}}
 
 /* ===== ジオラマの世界観にそろえたUI：木のふちの紙パネル、看板のタイトル ===== */
 #titleScr{background:radial-gradient(ellipse at 50% 40%,#ffffff00 25%,#24365a66 100%)}
@@ -270,6 +296,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  </div>
 </div>
 
+<div id="mbar" class="hidden"><button id="mbPl" title="プレイヤー一覧">👥</button><div id="mbInfo"><div id="mbTop"><span id="mbName"></span><span id="mbMoney"></span></div><small id="mbSub"></small></div><button id="mbHand" title="カードを出す・しまう">🎴</button><button id="mbMenu" title="メニュー">☰</button></div>
 <div id="tools" class="hidden">
  <button id="btn2d" class="alt">🗺 2D表示</button>
  <button id="btnSnd" class="alt">🔊</button>

@@ -2009,7 +2009,10 @@ function buildScenery(){
    [-1,1].forEach(sd=>{const a=makeDoll({color:0xffffff,gender:sd>0?'f':'m',hair:0xf0e0a0,pose:'up',scale:2});a.position.set(0,7.5,sd*3.4);a.rotation.y=sd>0?.4:-.4;
      [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.13,a);wg.scale.set(.35,1.3,.9);wg.rotation.x=w*-.5});
      const h=mesh(new THREE.TorusGeometry(.09,.015,6,16),mat(0xffe27a,140,{emissive:0xb38a00}),0,.7,0,a);h.rotation.x=Math.PI/2;g.add(a)});
-   for(let n=146;n<=149;n++){const q=POS[n],hh=HEAD[n];if(!q||!hh)continue;[-1,1].forEach(sd=>[-.6,.6].forEach(f=>{const x=q.x-hh.z*sd*1.75+hh.x*f,z=q.z+hh.x*sd*1.75+hh.z*f;puff(x,.12,z,.55+Math.random()*.25,worldG)}))}   // 最後の数マスは、道の両わきに雲
+   for(let n=138;n<=149;n++){const q=POS[n],hh=HEAD[n];if(!q||!hh)continue;const dens=n>=145?3:n>=141?2:1;                                  // ゴールに近づくほど、道の両わきの雲がふえる
+     [-1,1].forEach(sd=>{for(let j=0;j<dens;j++){const f=(j-(dens-1)/2)*.75,x=q.x-hh.z*sd*1.8+hh.x*f,z=q.z+hh.x*sd*1.8+hh.z*f;puff(x,.12,z,.5+((n*7+j*3)%5)*.07+(n-138)*.02,worldG)}})}
+   heavenMist=mesh(new THREE.CircleGeometry(60,48),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,fog:false,map:canvasTex(256,256,(c,w,h)=>{const gr=c.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.45,'rgba(255,255,255,.96)');gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.fillRect(0,0,w,h)})}),p.x,.012,p.z,worldG);
+   heavenMist.rotation.x=-Math.PI/2;heavenMist.userData.flat=1;heavenMist.renderOrder=1;                                                        // 地面をおおう雲の海（ゴールのまわり一面が白くなる）
    worldG.add(g)}
   buildMansions();                                                         // マンションは先に建てておく（買うと一室がポンと立つ）
   // 遠景の山：陸の側（北・東・西）だけに、重ならないように並べる。海の側には置かない
@@ -3061,7 +3064,7 @@ function portraitTogether(p,c,kind){
 }
 
 /* ---------- 結果発表：雲の上の表彰台（1〜3位は台の上で大よろこび、4位は横でにっこり、5位以下はうしろでしょんぼり） ---------- */
-let podium=null;
+let podium=null,heavenMist=null;
 function buildPodium(ranked){
   if(podium)return podium;
   const base=POS[150].clone();base.y=38;
@@ -3234,7 +3237,24 @@ function updateCamera(dt,cur){
   // 章ごとの空と光
   const ch=cur&&!Cam.title?chapterOf(cur.pos):0;
   skyCol.lerp(linCol(SKY[ch]),dt*1.2);scene.background.copy(skyCol);scene.fog.color.copy(skyCol);
-  sun.color.lerp(new THREE.Color(ch===5?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
+  sun.color.lerp(new THREE.Color(ch===5&&heavenK<.4?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
+  updateHeaven(dt,cur);
+}
+let heavenK=0,sunBall;
+function heavenOf(p){                                      // 最後の宝くじ抽選会(132)から霧が出はじめ、GOAL(150)で真っ白
+  if(Cam.heaven!=null)return Cam.heaven;
+  if(!p||Cam.title)return 0;const n=+p.pos;return n>=132?clamp((n-132)/18,0,1):0;
+}
+function updateHeaven(dt,cur){
+  heavenK+=(heavenOf(cur)-heavenK)*Math.min(1,dt*1.1);
+  const k=heavenK,e=k*k*(3-2*k),white=new THREE.Color(1,1,1);
+  scene.background.lerp(white,e);scene.fog.color.copy(scene.background);
+  scene.fog.near=FOG_N+(16-FOG_N)*Math.pow(k,.6);scene.fog.far=FOG_F+(58-FOG_F)*Math.pow(k,.45);
+  if(skyDome)skyDome.material.opacity=1-e;
+  if(sunBall===undefined)sunBall=worldG.children.find(o=>o.userData&&o.userData.sun)||null;
+  if(sunBall)sunBall.visible=k<.35;
+  if(heavenMist)heavenMist.material.opacity=Math.min(1,k*1.25);
+  hemi.intensity=.34+.22*e;
 }
 V.focus=p=>{Cam.focus=p};
 V.setCamDefault=()=>{Cam.title=false;Cam.userDist=24;Cam.userEl=.95;sDist=130};
@@ -3410,7 +3430,18 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
+  $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
+  $('#mbMoney').textContent=fmt(cur.cash)+'円';
+  $('#mbSub').innerHTML=`${turnP===cur?'▶ あなたの番':'▶ '+esc(turnP.name)+' の番'}${cur.notes?` ・📜手形${cur.notes}枚`:''} ・💼${cur.retired?'退職':cur.job?esc(rankName(cur)):'学生'}`;
 };
+/* ---------- スマホ：上のメニューバー（プレイヤー一覧・くわしい情報・道具・手札の出し入れ） ---------- */
+(function(){
+  const B=document.body,only=c=>{const on=!B.classList.contains(c);B.classList.remove('m-left','m-hud','m-tools');if(on)B.classList.add(c);Sound.click()};
+  $('#mbPl').onclick=()=>only('m-left');$('#mbInfo').onclick=()=>only('m-hud');$('#mbMenu').onclick=()=>only('m-tools');
+  $('#mbHand').onclick=()=>{B.classList.toggle('m-nohand');$('#mbHand').classList.toggle('off',B.classList.contains('m-nohand'));Sound.click()};
+  $('#stage').addEventListener('pointerdown',()=>B.classList.remove('m-left','m-hud','m-tools'));
+  $('#plist').addEventListener('click',()=>B.classList.remove('m-left'));
+})();
 const DENS=[100000,50000,10000,5000,1000];
 const billImg={};
 const billURL=d=>billImg[d]||(billImg[d]=billTexture(d).image.toDataURL('image/png'));
@@ -3565,7 +3596,8 @@ V.results=async()=>{
   if(cardCloseFn)cardCloseFn();closeGroupPopup();
   if(Cam.is2D){Cam.set2D(false)}
   ['#left','#hudR','#actions','#hand','#tools','#testPanel','#spinBtn','#roulLabel'].forEach(q=>{const e=$(q);if(e)e.classList.add('hidden')});
-  const pd=buildPodium(r);
+  const pd=buildPodium(r);Cam.heaven=1;
+  $('#mbar').classList.add('hidden');document.body.classList.remove('m-left','m-hud','m-tools');
   Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(0,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
   const fit=()=>{Cam.followDist=Math.max(15,(r.length>4?15.5:13.5)/Math.min(1.5,aspect()))};fit();addEventListener('resize',fit);
   V.banner(`🏆 優勝：${r[0].name}！`);
@@ -3624,7 +3656,7 @@ function buildTitle(){                                   // 保存済みのア�
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
-  ['#tools','#left','#hudR','#actions','#hand'].forEach(s=>$(s).classList.remove('hidden'));
+  ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));

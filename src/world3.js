@@ -120,7 +120,24 @@ function updateCamera(dt,cur){
   // 章ごとの空と光
   const ch=cur&&!Cam.title?chapterOf(cur.pos):0;
   skyCol.lerp(linCol(SKY[ch]),dt*1.2);scene.background.copy(skyCol);scene.fog.color.copy(skyCol);
-  sun.color.lerp(new THREE.Color(ch===5?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
+  sun.color.lerp(new THREE.Color(ch===5&&heavenK<.4?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
+  updateHeaven(dt,cur);
+}
+let heavenK=0,sunBall;
+function heavenOf(p){                                      // 最後の宝くじ抽選会(132)から霧が出はじめ、GOAL(150)で真っ白
+  if(Cam.heaven!=null)return Cam.heaven;
+  if(!p||Cam.title)return 0;const n=+p.pos;return n>=132?clamp((n-132)/18,0,1):0;
+}
+function updateHeaven(dt,cur){
+  heavenK+=(heavenOf(cur)-heavenK)*Math.min(1,dt*1.1);
+  const k=heavenK,e=k*k*(3-2*k),white=new THREE.Color(1,1,1);
+  scene.background.lerp(white,e);scene.fog.color.copy(scene.background);
+  scene.fog.near=FOG_N+(16-FOG_N)*Math.pow(k,.6);scene.fog.far=FOG_F+(58-FOG_F)*Math.pow(k,.45);
+  if(skyDome)skyDome.material.opacity=1-e;
+  if(sunBall===undefined)sunBall=worldG.children.find(o=>o.userData&&o.userData.sun)||null;
+  if(sunBall)sunBall.visible=k<.35;
+  if(heavenMist)heavenMist.material.opacity=Math.min(1,k*1.25);
+  hemi.intensity=.34+.22*e;
 }
 V.focus=p=>{Cam.focus=p};
 V.setCamDefault=()=>{Cam.title=false;Cam.userDist=24;Cam.userEl=.95;sDist=130};

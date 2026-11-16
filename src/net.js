@@ -45,7 +45,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
     });
   };
   ev('rouletteStart');ev('rouletteStop');
-  const results=V.results;V.results=async()=>{sendSnap();bc({t:'results',hist:G.hist});await results()};
+  const results=V.results;V.results=async()=>{if(NET.on&&NET.isHost)clearSave();sendSnap();bc({t:'results',hist:G.hist});await results()};
   // カード：本人にだけボタンを出し、他の人は観戦表示
   const clean=(o)=>{const c={...o};delete c.sq;delete c.cpu;delete c.pick;return c};
   V.card=(o,p)=>{
@@ -70,6 +70,26 @@ function resolvePend(rid,val){
   q.res(val);
 }
 
+/* ---------- セーブ（ホストの端末に保存）・中断・続きから ---------- */
+const SAVE_KEY='liferoad_save';
+function autoSave(){
+  if(!(NET.on&&NET.isHost)||AUTO||!NET.startList)return;
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,at:Date.now(),list:NET.startList,houseLog,state:saveState()}))}catch(e){console.warn('save',e)}
+}
+function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&s.state&&s.list?s:null}catch(e){return null}}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
+function pauseGame(){
+  if(!(NET.on&&NET.isHost))return;
+  if(!confirm('ゲームをセーブして中断しますか？\n（この番のはじめから再開できます。最初の画面の「続きから」で、もう一度ルームを作ってください）'))return;
+  bc({t:'paused'});setTimeout(()=>location.reload(),400);
+}
+const saveMembers=sv=>sv.state.players.filter(p=>!p.left).map(p=>p.name);
+function refreshResumeBtn(){
+  const sv=readSave(),box=$ol('olResumeBox');if(!box)return;
+  box.classList.toggle('hidden',!sv);if(!sv)return;
+  const d=new Date(sv.at),pad=n=>String(n).padStart(2,'0');
+  $ol('olResumeInfo').textContent=`${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} のセーブ・${sv.state.turnNo}ターン目・${saveMembers(sv).join('／')}`;
+}
 /* ---------- ホスト：参加者からの入力 ---------- */
 function hostRecv(c,m){
   if(!m||typeof m!=='object')return;
@@ -119,7 +139,8 @@ function uniqueAv(av,i){                                   // 車の色が他の
 }
 function renderLobby(slots,me,isHost){
   const joined=slots.filter(s=>s.kind!=='open'),ready=joined.filter(s=>s.ready).length;
-  const need=NET.test?1:2,allOk=joined.length>=need&&ready===joined.length;
+  const rs=NET.resume?saveMembers(NET.resume):null;
+  const need=rs?rs.length:NET.test?1:2,allOk=joined.length>=need&&ready===joined.length&&(!rs||joined.length===need);
   $ol('lbCode').textContent=NET.code;
   $ol('lbTestWrap').classList.toggle('hidden',!isHost);
   $ol('lbMembers').innerHTML=slots.map((s,i)=>s.kind==='open'?'':
@@ -129,8 +150,8 @@ function renderLobby(slots,me,isHost){
   const st=$ol('lbStart');
   if(isHost){
     st.classList.remove('hidden');st.disabled=!allOk;
-    st.textContent=joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
-    $ol('lbMsg').textContent=`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
+    st.textContent=rs&&joined.length!==need?`続きから：${need}人そろうと始められます（今 ${joined.length}人）`:joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
+    $ol('lbMsg').textContent=rs?`▶ 続きから：${rs.join('・')} の${need}人で再開します。同じ名前の人が、その続きを引きつぎます。`:`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
   }else{
     st.classList.add('hidden');
     $ol('lbMsg').textContent=allOk?'全員OK！ ホストがスタートするのを待っています…':`ホストのスタートを待っています…（OK ${ready}/${joined.length}）`;
@@ -156,7 +177,8 @@ function openPeer(id){
     p.on('open',()=>res(p));p.on('error',e=>rej(e));
   });
 }
-async function hostRoom(){
+async function hostRoom(resume){
+  NET.resume=resume||null;
   if(typeof Peer==='undefined'){olMsg('通信ライブラリ(PeerJS)を読み込めませんでした。ネット接続を確認してください。');return}
   NET.name=AV[0].name;
   olMsg('ルームを作っています…');
@@ -179,6 +201,17 @@ async function hostRoom(){
 }
 function hostStart(){
   const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
+  if(NET.resume){                                            // 続きから：セーブのプレイヤーに、同じ名前の人（いなければ空いている順）を割り当てる
+    const sv=NET.resume,act=sv.state.players.filter(p=>!p.left).map(p=>p.id);
+    if(humans.length!==act.length||!humans.every(o=>o.s.ready))return;
+    const map={},used=new Set();
+    humans.forEach(o=>{const id=act.find(i=>!used.has(i)&&sv.state.players[i].name===o.s.name);if(id!==undefined){map[o.i]=id;used.add(id)}});
+    humans.forEach(o=>{if(map[o.i]===undefined){const id=act.find(i=>!used.has(i));map[o.i]=id;used.add(id)}});
+    TestMode.on=!!NET.test;NET.started=true;NET.on=true;NET.startList=sv.list;NET.myPid=map[0];
+    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true})}else{c.conn.close()}});
+    NET.conns=NET.conns.filter(c=>c.pid!==undefined);
+    startGame(sv.list,sv);return;
+  }
   if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
   TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
@@ -186,6 +219,7 @@ function hostStart(){
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
   NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
+  NET.startList=list;clearSave();
   startGame(list);
 }
 
@@ -234,7 +268,7 @@ function clientRecv(m){
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
       G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
-      enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
+      enterGameUI();if(m.houseLog)rebuildHouses(m.houseLog);V.hud();V.banner(m.resume?'▶ 続きから再開！':'LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
     case 'ev':{
@@ -267,12 +301,16 @@ function clientRecv(m){
     case 'spinWait':{
       const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
     case 'results':G.hist=m.hist||{};V.results();break;
+    case 'paused':G.over=true;cardLocal({head:'💾 中断',color:'#3f8cff',title:'ホストがゲームをセーブして中断しました',text:'続きは、ホストが最初の画面の「続きから」でルームを作ると再開できます。<br><small>同じ名前で入ると、自分の続きを引きつげます</small>',btns:['最初に戻る']},null).then(()=>location.reload());break;
   }
 }
 
 /* ---------- タイトル画面のつなぎこみ ---------- */
 window.addEventListener('load',()=>{
   $ol('olHost').onclick=()=>{Sound.resume();hostRoom()};
+  $ol('olResume').onclick=()=>{const sv=readSave();if(!sv)return;Sound.resume();hostRoom(sv)};
+  $ol('olResumeDel').onclick=()=>{if(confirm('セーブを消しますか？'))clearSave();refreshResumeBtn()};
+  refreshResumeBtn();
   $ol('olJoin').onclick=()=>{Sound.resume();joinRoom()};
   $ol('olCode').addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,6)});
   $ol('lbLeave').onclick=()=>location.reload();

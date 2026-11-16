@@ -324,6 +324,7 @@ V.results=async()=>{
 $('#btn2d').onclick=()=>{Cam.set2D(!Cam.is2D);$('#btn2d').textContent=Cam.is2D?'🎥 3D表示':'🗺 2D表示';Sound.click()};
 $('#btnSnd').onclick=()=>{Sound.resume();$('#btnSnd').textContent=Sound.toggle()?'🔊':'🔇'};
 $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textContent=`⏩ ×${SPD}`;Sound.click()};
+$('#btnSave').onclick=()=>{if(typeof pauseGame==='function')pauseGame()};
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
 /* ---------- タイトル画面 ---------- */
@@ -366,17 +367,20 @@ function enterGameUI(){
   $('#titleScr').classList.add('hidden');
   ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
+  $('#btnSave').classList.toggle('hidden',!(NET.on&&NET.isHost));
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;
   G.players.forEach(p=>p.maxCh=0);
 }
-async function startGame(list){
+async function startGame(list,save){
   Sound.resume();
-  setupGame(list);enterGameUI();
-  V.hud();V.banner('LIFE ROAD スタート！');
+  setupGame(list);if(save)loadState(save.state);enterGameUI();
+  if(save){await rebuildHouses(save.houseLog);G.players.forEach(p=>p.maxCh=chapterOf(p.pos))}
+  V.hud();V.banner(save?'▶ 続きから再開！':'LIFE ROAD スタート！');
   await sleep(1200);
+  if(save)for(const p of G.players)if(p.chased&&!p.finished)await V.thugsArrive(p);     // 取り立て屋も元どおり
   await playGame();
 }
 window.addEventListener('load',()=>{

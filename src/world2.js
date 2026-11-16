@@ -1227,7 +1227,7 @@ function smokePuffs(center,R,n=16,rise=3.4,ms=1300){          // 煙だけ（ボ
   for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4;const m=mesh(new THREE.SphereGeometry(.6+Math.random()*.4,8,6),new THREE.MeshBasicMaterial({color:0xf2f2f4,transparent:true,opacity:.85}),center.x,center.y,center.z,worldG);puffs.push({m,a,r:R*(.55+Math.random()*.5),h:rise*(.6+Math.random()*.6)})}
   return anim(ms,k=>puffs.forEach(o=>{const e=easeOut(k);o.m.position.set(center.x+Math.cos(o.a)*o.r*e,center.y+o.h*e,center.z+Math.sin(o.a)*o.r*e);o.m.scale.setScalar(.5+k*2.2);o.m.material.opacity=.85*(1-k)})).then(()=>puffs.forEach(o=>worldG.remove(o.m)));
 }
-async function popRoom(p,h,mn){                               // マンションの一室が、ポンと立つ
+async function popRoom(p,h,mn,quiet){                               // マンションの一室が、ポンと立つ
   const slots=mn.g.userData.rooms,free=slots.map((s,i)=>i).filter(i=>!mn.used.includes(i));
   const idx=free.length?free[rnd(free.length)]:rnd(slots.length);mn.used.push(idx);
   const sl=slots[idx],room=new THREE.Group();room.position.set(sl.x,sl.y,sl.z+.22);
@@ -1237,6 +1237,7 @@ async function popRoom(p,h,mn){                               // マンション
   mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
   mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
   {const sg=nameSign(p.name,p.color,Math.min(1.5,sl.w*.95),.42);sg.position.set(0,-sl.h*.5+.24,.5);room.add(sg)}                       // バルコニーに表札
+  if(quiet){mn.g.add(room);return}                              // 続きから：演出なしで置くだけ
   room.scale.set(.001,.001,.001);mn.g.add(room);mn.g.updateMatrixWorld(true);
   const wpos=mn.g.localToWorld(new V3(sl.x,sl.y,sl.z+.4));
   const az0=Cam.userAz,hgt=mn.h.n==='タワーマンション'?14:7;
@@ -1249,16 +1250,18 @@ async function popRoom(p,h,mn){                               // マンション
   await anim(4200,k=>{Cam.userAz=mn.g.rotation.y+Math.sin(k*Math.PI)*.45});
   Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
 }
-V.buildHouse=async(p,h)=>{
-  houseSlots.push(p.id);
-  const mn=mansions[h.n];if(mn)return popRoom(p,h,mn);
+const houseLog=[];                                            // 建てた順（セーブ・途中参加の再現用）
+V.buildHouse=(p,h)=>buildHouseView(p,h,false);
+async function buildHouseView(p,h,quiet){
+  houseSlots.push(p.id);houseLog.push([p.id,h.n]);
+  const mn=mansions[h.n];if(mn)return popRoom(p,h,mn,quiet);
   const g=houseModel(h);
   mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xffffff),-2.4,1,2.6,g);mesh(new THREE.PlaneGeometry(.9,.55),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),-2.0,1.8,2.6,g);
   {const sg=nameSign(`${p.name}の家`,p.color,2.6,.9);sg.position.set(0,1.25,0);const post=new THREE.Group();[-.9,.9].forEach(x=>mesh(new THREE.CylinderGeometry(.06,.06,1.3,6),mat(0x8a5a35,30),x,.5,0,post));post.add(sg);
    const bb=new THREE.Box3().setFromObject(g);post.position.set(Math.min(bb.max.x-1.4,2.2),0,bb.max.z+.9);g.add(post)}        // 玄関の前に、名前の看板
   const box=new THREE.Box3().setFromObject(g),size=box.getSize(new V3()),hgt=Math.max(4,size.y);
   const sp=withSeed(WORLD_SEED+houseSlots.length*131+h.price%997,()=>houseSpot(h,size));     // 同じ順番なら、どの画面でも同じ場所に建つ
-  g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;worldG.add(g);g.updateMatrixWorld(true);if(sp.e)sp.e.g=g;g.scale.set(.001,.001,.001);
+  g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;worldG.add(g);g.updateMatrixWorld(true);if(sp.e)sp.e.g=g;if(quiet)return;g.scale.set(.001,.001,.001);
   const pos=new V3(sp.x,0,sp.z),focus={position:new V3(pos.x,hgt*.45,pos.z)},az0=Cam.userAz;
   Cam.followObj=focus;Cam.followDist=Math.max(16,hgt*2.4+8)*(aspect()<1?1.5:1);Cam.followEl=.55;Cam.userAz=sp.rot-.8;      // 玄関のある正面を見る
   await sleep(1300);
@@ -1272,6 +1275,7 @@ V.buildHouse=async(p,h)=>{
   await anim(4200,k=>{Cam.userAz=sp.rot-.8+k*1.6});                                  // 正面を中心に、左から右へゆっくり
   Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
 };
+async function rebuildHouses(log){for(const[pid,n]of log||[]){const p=G.players[pid],h=HOUSES.find(x=>x.n===n);if(p&&h)await buildHouseView(p,h,true)}}
 V.confetti=at=>{
   const o=typeof at==='string'?POS[at].clone():at.clone();o.y=Math.max(o.y,1.2);
   const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];

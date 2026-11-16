@@ -1209,8 +1209,15 @@ async function bonusTurn(p){                 // 先に上がった人も、ル�
   say(p,`${p.name}：ボーナスルーレット ${r} × 10,000円 = +${fmt(amt)}円`);Sound.good();
   await income(p,amt);p.bonusTotal+=amt;recordHist(p);
 }
+function saveState(){return{players:G.players,cur:G.cur,turnNo:G.turnNo,order:G.order.map(p=>p.id),stockOwner:G.stockOwner.map(p=>p?p.id:null),houseTaken:G.houseTaken,hist:G.hist,econ:G.econ||null,deckG:G.deckG,deckS:G.deckS,deckI:G.deckI,discI:G.discI}}
+function loadState(s){
+  s.players.forEach((d,i)=>{if(G.players[i])Object.assign(G.players[i],d)});
+  G.cur=s.cur;G.turnNo=s.turnNo;G.order=s.order.map(i=>G.players[i]);G.stockOwner=s.stockOwner.map(i=>i===null?null:G.players[i]);
+  G.houseTaken=s.houseTaken;G.hist=s.hist||{};G.econ=s.econ||null;G.deckG=s.deckG;G.deckS=s.deckS;G.deckI=s.deckI;G.discI=s.discI;G.awaiting=null;G.over=false;
+}
 async function playGame(){
   while(active().length&&!G.over){
+    if(typeof autoSave==='function')autoSave();           // 番のはじめに自動セーブ（「続きから」はここから再開）
     const p=G.players[G.cur];
     if(!p.finished){G.turnNo++;await takeTurn(p)}
     else if(!p.left&&active().length)await bonusTurn(p);

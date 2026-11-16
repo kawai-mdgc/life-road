@@ -1518,8 +1518,15 @@ async function bonusTurn(p){                 // 先に上がった人も、ル�
   say(p,`${p.name}：ボーナスルーレット ${r} × 10,000円 = +${fmt(amt)}円`);Sound.good();
   await income(p,amt);p.bonusTotal+=amt;recordHist(p);
 }
+function saveState(){return{players:G.players,cur:G.cur,turnNo:G.turnNo,order:G.order.map(p=>p.id),stockOwner:G.stockOwner.map(p=>p?p.id:null),houseTaken:G.houseTaken,hist:G.hist,econ:G.econ||null,deckG:G.deckG,deckS:G.deckS,deckI:G.deckI,discI:G.discI}}
+function loadState(s){
+  s.players.forEach((d,i)=>{if(G.players[i])Object.assign(G.players[i],d)});
+  G.cur=s.cur;G.turnNo=s.turnNo;G.order=s.order.map(i=>G.players[i]);G.stockOwner=s.stockOwner.map(i=>i===null?null:G.players[i]);
+  G.houseTaken=s.houseTaken;G.hist=s.hist||{};G.econ=s.econ||null;G.deckG=s.deckG;G.deckS=s.deckS;G.deckI=s.deckI;G.discI=s.discI;G.awaiting=null;G.over=false;
+}
 async function playGame(){
   while(active().length&&!G.over){
+    if(typeof autoSave==='function')autoSave();           // 番のはじめに自動セーブ（「続きから」はここから再開）
     const p=G.players[G.cur];
     if(!p.finished){G.turnNo++;await takeTurn(p)}
     else if(!p.left&&active().length)await bonusTurn(p);
@@ -2936,7 +2943,7 @@ function smokePuffs(center,R,n=16,rise=3.4,ms=1300){          // 煙だけ（ボ
   for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4;const m=mesh(new THREE.SphereGeometry(.6+Math.random()*.4,8,6),new THREE.MeshBasicMaterial({color:0xf2f2f4,transparent:true,opacity:.85}),center.x,center.y,center.z,worldG);puffs.push({m,a,r:R*(.55+Math.random()*.5),h:rise*(.6+Math.random()*.6)})}
   return anim(ms,k=>puffs.forEach(o=>{const e=easeOut(k);o.m.position.set(center.x+Math.cos(o.a)*o.r*e,center.y+o.h*e,center.z+Math.sin(o.a)*o.r*e);o.m.scale.setScalar(.5+k*2.2);o.m.material.opacity=.85*(1-k)})).then(()=>puffs.forEach(o=>worldG.remove(o.m)));
 }
-async function popRoom(p,h,mn){                               // マンションの一室が、ポンと立つ
+async function popRoom(p,h,mn,quiet){                               // マンションの一室が、ポンと立つ
   const slots=mn.g.userData.rooms,free=slots.map((s,i)=>i).filter(i=>!mn.used.includes(i));
   const idx=free.length?free[rnd(free.length)]:rnd(slots.length);mn.used.push(idx);
   const sl=slots[idx],room=new THREE.Group();room.position.set(sl.x,sl.y,sl.z+.22);
@@ -2946,6 +2953,7 @@ async function popRoom(p,h,mn){                               // マンション
   mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
   mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
   {const sg=nameSign(p.name,p.color,Math.min(1.5,sl.w*.95),.42);sg.position.set(0,-sl.h*.5+.24,.5);room.add(sg)}                       // バルコニーに表札
+  if(quiet){mn.g.add(room);return}                              // 続きから：演出なしで置くだけ
   room.scale.set(.001,.001,.001);mn.g.add(room);mn.g.updateMatrixWorld(true);
   const wpos=mn.g.localToWorld(new V3(sl.x,sl.y,sl.z+.4));
   const az0=Cam.userAz,hgt=mn.h.n==='タワーマンション'?14:7;
@@ -2958,16 +2966,18 @@ async function popRoom(p,h,mn){                               // マンション
   await anim(4200,k=>{Cam.userAz=mn.g.rotation.y+Math.sin(k*Math.PI)*.45});
   Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
 }
-V.buildHouse=async(p,h)=>{
-  houseSlots.push(p.id);
-  const mn=mansions[h.n];if(mn)return popRoom(p,h,mn);
+const houseLog=[];                                            // 建てた順（セーブ・途中参加の再現用）
+V.buildHouse=(p,h)=>buildHouseView(p,h,false);
+async function buildHouseView(p,h,quiet){
+  houseSlots.push(p.id);houseLog.push([p.id,h.n]);
+  const mn=mansions[h.n];if(mn)return popRoom(p,h,mn,quiet);
   const g=houseModel(h);
   mesh(new THREE.CylinderGeometry(.05,.05,2,6),mat(0xffffff),-2.4,1,2.6,g);mesh(new THREE.PlaneGeometry(.9,.55),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),-2.0,1.8,2.6,g);
   {const sg=nameSign(`${p.name}の家`,p.color,2.6,.9);sg.position.set(0,1.25,0);const post=new THREE.Group();[-.9,.9].forEach(x=>mesh(new THREE.CylinderGeometry(.06,.06,1.3,6),mat(0x8a5a35,30),x,.5,0,post));post.add(sg);
    const bb=new THREE.Box3().setFromObject(g);post.position.set(Math.min(bb.max.x-1.4,2.2),0,bb.max.z+.9);g.add(post)}        // 玄関の前に、名前の看板
   const box=new THREE.Box3().setFromObject(g),size=box.getSize(new V3()),hgt=Math.max(4,size.y);
   const sp=withSeed(WORLD_SEED+houseSlots.length*131+h.price%997,()=>houseSpot(h,size));     // 同じ順番なら、どの画面でも同じ場所に建つ
-  g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;worldG.add(g);g.updateMatrixWorld(true);if(sp.e)sp.e.g=g;g.scale.set(.001,.001,.001);
+  g.position.set(sp.x,0,sp.z);g.rotation.y=sp.rot;worldG.add(g);g.updateMatrixWorld(true);if(sp.e)sp.e.g=g;if(quiet)return;g.scale.set(.001,.001,.001);
   const pos=new V3(sp.x,0,sp.z),focus={position:new V3(pos.x,hgt*.45,pos.z)},az0=Cam.userAz;
   Cam.followObj=focus;Cam.followDist=Math.max(16,hgt*2.4+8)*(aspect()<1?1.5:1);Cam.followEl=.55;Cam.userAz=sp.rot-.8;      // 玄関のある正面を見る
   await sleep(1300);
@@ -2981,6 +2991,7 @@ V.buildHouse=async(p,h)=>{
   await anim(4200,k=>{Cam.userAz=sp.rot-.8+k*1.6});                                  // 正面を中心に、左から右へゆっくり
   Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
 };
+async function rebuildHouses(log){for(const[pid,n]of log||[]){const p=G.players[pid],h=HOUSES.find(x=>x.n===n);if(p&&h)await buildHouseView(p,h,true)}}
 V.confetti=at=>{
   const o=typeof at==='string'?POS[at].clone():at.clone();o.y=Math.max(o.y,1.2);
   const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];
@@ -3648,6 +3659,7 @@ V.results=async()=>{
 $('#btn2d').onclick=()=>{Cam.set2D(!Cam.is2D);$('#btn2d').textContent=Cam.is2D?'🎥 3D表示':'🗺 2D表示';Sound.click()};
 $('#btnSnd').onclick=()=>{Sound.resume();$('#btnSnd').textContent=Sound.toggle()?'🔊':'🔇'};
 $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textContent=`⏩ ×${SPD}`;Sound.click()};
+$('#btnSave').onclick=()=>{if(typeof pauseGame==='function')pauseGame()};
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
 /* ---------- タイトル画面 ---------- */
@@ -3690,17 +3702,20 @@ function enterGameUI(){
   $('#titleScr').classList.add('hidden');
   ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
   if(NET.on)$('#btnSpd').classList.add('hidden');
+  $('#btnSave').classList.toggle('hidden',!(NET.on&&NET.isHost));
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;
   G.players.forEach(p=>p.maxCh=0);
 }
-async function startGame(list){
+async function startGame(list,save){
   Sound.resume();
-  setupGame(list);enterGameUI();
-  V.hud();V.banner('LIFE ROAD スタート！');
+  setupGame(list);if(save)loadState(save.state);enterGameUI();
+  if(save){await rebuildHouses(save.houseLog);G.players.forEach(p=>p.maxCh=chapterOf(p.pos))}
+  V.hud();V.banner(save?'▶ 続きから再開！':'LIFE ROAD スタート！');
   await sleep(1200);
+  if(save)for(const p of G.players)if(p.chased&&!p.finished)await V.thugsArrive(p);     // 取り立て屋も元どおり
   await playGame();
 }
 window.addEventListener('load',()=>{
@@ -3862,7 +3877,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
     });
   };
   ev('rouletteStart');ev('rouletteStop');
-  const results=V.results;V.results=async()=>{sendSnap();bc({t:'results',hist:G.hist});await results()};
+  const results=V.results;V.results=async()=>{if(NET.on&&NET.isHost)clearSave();sendSnap();bc({t:'results',hist:G.hist});await results()};
   // カード：本人にだけボタンを出し、他の人は観戦表示
   const clean=(o)=>{const c={...o};delete c.sq;delete c.cpu;delete c.pick;return c};
   V.card=(o,p)=>{
@@ -3887,6 +3902,26 @@ function resolvePend(rid,val){
   q.res(val);
 }
 
+/* ---------- セーブ（ホストの端末に保存）・中断・続きから ---------- */
+const SAVE_KEY='liferoad_save';
+function autoSave(){
+  if(!(NET.on&&NET.isHost)||AUTO||!NET.startList)return;
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,at:Date.now(),list:NET.startList,houseLog,state:saveState()}))}catch(e){console.warn('save',e)}
+}
+function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&s.state&&s.list?s:null}catch(e){return null}}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
+function pauseGame(){
+  if(!(NET.on&&NET.isHost))return;
+  if(!confirm('ゲームをセーブして中断しますか？\n（この番のはじめから再開できます。最初の画面の「続きから」で、もう一度ルームを作ってください）'))return;
+  bc({t:'paused'});setTimeout(()=>location.reload(),400);
+}
+const saveMembers=sv=>sv.state.players.filter(p=>!p.left).map(p=>p.name);
+function refreshResumeBtn(){
+  const sv=readSave(),box=$ol('olResumeBox');if(!box)return;
+  box.classList.toggle('hidden',!sv);if(!sv)return;
+  const d=new Date(sv.at),pad=n=>String(n).padStart(2,'0');
+  $ol('olResumeInfo').textContent=`${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} のセーブ・${sv.state.turnNo}ターン目・${saveMembers(sv).join('／')}`;
+}
 /* ---------- ホスト：参加者からの入力 ---------- */
 function hostRecv(c,m){
   if(!m||typeof m!=='object')return;
@@ -3936,7 +3971,8 @@ function uniqueAv(av,i){                                   // 車の色が他の
 }
 function renderLobby(slots,me,isHost){
   const joined=slots.filter(s=>s.kind!=='open'),ready=joined.filter(s=>s.ready).length;
-  const need=NET.test?1:2,allOk=joined.length>=need&&ready===joined.length;
+  const rs=NET.resume?saveMembers(NET.resume):null;
+  const need=rs?rs.length:NET.test?1:2,allOk=joined.length>=need&&ready===joined.length&&(!rs||joined.length===need);
   $ol('lbCode').textContent=NET.code;
   $ol('lbTestWrap').classList.toggle('hidden',!isHost);
   $ol('lbMembers').innerHTML=slots.map((s,i)=>s.kind==='open'?'':
@@ -3946,8 +3982,8 @@ function renderLobby(slots,me,isHost){
   const st=$ol('lbStart');
   if(isHost){
     st.classList.remove('hidden');st.disabled=!allOk;
-    st.textContent=joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
-    $ol('lbMsg').textContent=`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
+    st.textContent=rs&&joined.length!==need?`続きから：${need}人そろうと始められます（今 ${joined.length}人）`:joined.length<need?'2人以上で始められます':allOk?(NET.test&&joined.length===1?'🧪 1人でテスト開始':'🚀 スタート！'):`全員がOKになるとスタート（OK ${ready}/${joined.length}）`;
+    $ol('lbMsg').textContent=rs?`▶ 続きから：${rs.join('・')} の${need}人で再開します。同じ名前の人が、その続きを引きつぎます。`:`参加者 ${joined.length}人（最大6人）。コードか招待リンクを友だちに送ってください。`;
   }else{
     st.classList.add('hidden');
     $ol('lbMsg').textContent=allOk?'全員OK！ ホストがスタートするのを待っています…':`ホストのスタートを待っています…（OK ${ready}/${joined.length}）`;
@@ -3973,7 +4009,8 @@ function openPeer(id){
     p.on('open',()=>res(p));p.on('error',e=>rej(e));
   });
 }
-async function hostRoom(){
+async function hostRoom(resume){
+  NET.resume=resume||null;
   if(typeof Peer==='undefined'){olMsg('通信ライブラリ(PeerJS)を読み込めませんでした。ネット接続を確認してください。');return}
   NET.name=AV[0].name;
   olMsg('ルームを作っています…');
@@ -3996,6 +4033,17 @@ async function hostRoom(){
 }
 function hostStart(){
   const humans=NET.slots.map((s,i)=>({s,i})).filter(o=>o.s.kind!=='open');
+  if(NET.resume){                                            // 続きから：セーブのプレイヤーに、同じ名前の人（いなければ空いている順）を割り当てる
+    const sv=NET.resume,act=sv.state.players.filter(p=>!p.left).map(p=>p.id);
+    if(humans.length!==act.length||!humans.every(o=>o.s.ready))return;
+    const map={},used=new Set();
+    humans.forEach(o=>{const id=act.find(i=>!used.has(i)&&sv.state.players[i].name===o.s.name);if(id!==undefined){map[o.i]=id;used.add(id)}});
+    humans.forEach(o=>{if(map[o.i]===undefined){const id=act.find(i=>!used.has(i));map[o.i]=id;used.add(id)}});
+    TestMode.on=!!NET.test;NET.started=true;NET.on=true;NET.startList=sv.list;NET.myPid=map[0];
+    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true})}else{c.conn.close()}});
+    NET.conns=NET.conns.filter(c=>c.pid!==undefined);
+    startGame(sv.list,sv);return;
+  }
   if(humans.length<(NET.test?1:2)||!humans.every(o=>o.s.ready))return;
   TestMode.on=!!NET.test;
   NET.started=true;NET.on=true;
@@ -4003,6 +4051,7 @@ function hostStart(){
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
   NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
+  NET.startList=list;clearSave();
   startGame(list);
 }
 
@@ -4051,7 +4100,7 @@ function clientRecv(m){
     case 'start':{
       NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
       G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
-      enterGameUI();V.hud();V.banner('LIFE ROAD スタート！');
+      enterGameUI();if(m.houseLog)rebuildHouses(m.houseLog);V.hud();V.banner(m.resume?'▶ 続きから再開！':'LIFE ROAD スタート！');
       break}
     case 'snap':applySnap(m);break;
     case 'ev':{
@@ -4084,12 +4133,16 @@ function clientRecv(m){
     case 'spinWait':{
       const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
     case 'results':G.hist=m.hist||{};V.results();break;
+    case 'paused':G.over=true;cardLocal({head:'💾 中断',color:'#3f8cff',title:'ホストがゲームをセーブして中断しました',text:'続きは、ホストが最初の画面の「続きから」でルームを作ると再開できます。<br><small>同じ名前で入ると、自分の続きを引きつげます</small>',btns:['最初に戻る']},null).then(()=>location.reload());break;
   }
 }
 
 /* ---------- タイトル画面のつなぎこみ ---------- */
 window.addEventListener('load',()=>{
   $ol('olHost').onclick=()=>{Sound.resume();hostRoom()};
+  $ol('olResume').onclick=()=>{const sv=readSave();if(!sv)return;Sound.resume();hostRoom(sv)};
+  $ol('olResumeDel').onclick=()=>{if(confirm('セーブを消しますか？'))clearSave();refreshResumeBtn()};
+  refreshResumeBtn();
   $ol('olJoin').onclick=()=>{Sound.resume();joinRoom()};
   $ol('olCode').addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,6)});
   $ol('lbLeave').onclick=()=>location.reload();

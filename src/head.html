@@ -66,6 +66,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .avpane{min-height:150px}.avl{font-size:.8rem;font-weight:800;margin-top:6px}
 #avModal,#titleScr,#cardBody,#cardBtns,#left,#testPanel,#groupPop .gp,#logBox{touch-action:pan-y;-webkit-overflow-scrolling:touch}#hand{touch-action:pan-x}
 @media(max-width:640px),(max-height:620px){#avModal{align-items:flex-start;padding:8px}#avPrev{width:150px;height:106px}.avside{min-width:100%}.avpane{min-height:128px}#avModal .prow{margin:2px 0 6px}#avDone{margin-top:4px!important;padding:11px}}
+#olResumeBox .rsinfo{font-size:.72rem;color:#776;margin:-2px 0 8px}#olResumeDel{color:#c4202a;text-decoration:underline;cursor:pointer;margin-left:6px}
 #rulesTxt{font-size:.8rem;text-align:left;margin-top:8px;line-height:1.6;color:#665}
 
 /* ---- HUD ---- */
@@ -258,6 +259,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
   <h1 id="logo">LIFE ROAD</h1>
   <div id="sub">🚗 みんなで遊ぶ、オンライン人生すごろく 🚗</div>
   <div class="panel" id="homeBox">
+   <div id="olResumeBox" class="hidden"><button id="olResume" class="green big">▶ 続きから</button><div class="rsinfo"><span id="olResumeInfo"></span> <a id="olResumeDel">消す</a></div></div>
    <button id="olHost" class="pink big">🏠 ルームを作る</button>
    <div class="orline"><span>または</span></div>
    <input id="olCode" type="text" inputmode="numeric" maxlength="6" placeholder="6桁のルームコードを入力" autocomplete="off">
@@ -308,6 +310,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  <button id="btnSnd" class="alt">🔊</button>
  <button id="btnSpd" class="alt">⏩ ×1</button>
  <button id="btnLog" class="alt">📜</button>
+ <button id="btnSave" class="alt hidden">💾 中断</button>
  <button id="btnTest" class="alt hidden">🧪 テスト</button>
 </div>
 <div id="left" class="panel hidden"><div id="leftTitle">プレイヤー（総資産）</div><div id="plist"></div></div>

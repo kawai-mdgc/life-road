@@ -89,7 +89,7 @@ const VEH_MSG={bike:['🚲 自転車デビュー！','ベビーカーを卒業�
   echair:['🧓 免許返納… 電動車椅子に','80歳。免許を返納して、電動車椅子に'],
   scooter:['🧓 免許返納… シニアカーに！','80歳。免許を返納して、シニアカーに']};
 const vGroup=v=>VORDER[v]===3?'old':v;
-const vehicleStop=p=>{const a=ageOfKey(p.pos);return (a<5?'stroller':a<18?'bike':a<80?'car':'old')!==vGroup(p.vstage)};   // 乗り物が変わる年齢のマスでは必ず止まる
+const vehicleStop=p=>{const a=ageOfKey(p.pos);return (a<5?'stroller':a<18?'bike':a<80?'car':'old')!==vGroup(p.vstage)};   // 乗り物が変わる年齢のマス（通過するときは一時停止して乗りかえる）
 async function checkVehicle(p){
   const age=ageOfKey(p.pos);
   if(age>=80&&!p.oldVeh){                                    // 80歳：免許返納。乗り物は自分で選ぶ
@@ -1029,7 +1029,7 @@ async function moveSteps(p,n){
     p.pos=nk;await V.step(p,nk);V.hud();                   // 年齢などを1マスごとに更新
     const s=SQ[nk];
     if(isStop(s))break;                                   // STOPマスは通過できない
-    if(vehicleStop(p)){say(p,`${p.name}：${ageOfKey(nk)}歳。乗り物が変わるので、ここで止まります`);break}
+    if(i<n-1&&vehicleStop(p)){await checkVehicle(p);V.hud()}   // 乗り物が変わる年齢：給料日と同じく、一時停止して乗りかえたら、そのまま進む
     if(i<n-1&&s.c==='yellow')await payday(p,nk,true);      // 給料日は通過でももらえる
     if(i<n-1&&s.k==='lottery'){                            // 宝くじも通過でOK
       if(LOT_SHOP.has(s.id)){V.banner('🎟 宝くじ売り場を通過！');await lotteryShop(p,true)}

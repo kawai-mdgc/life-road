@@ -1724,7 +1724,7 @@ const Roul={free:false,speed:0,max:8,last:-1};
 const occ=[];
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
-let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
+let roulCloud=null,roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
 
 /* ---------- 背景パーツ ---------- */
 function winTex(col){
@@ -2066,6 +2066,10 @@ function buildCenter(){
   mesh(new THREE.CylinderGeometry(1.8,2.4,5,20),mat(0xffffff,90),0,3.2,0,g);
   [1.2,3,5].forEach(y=>mesh(new THREE.TorusGeometry(2.1-(y>4?.2:0),.14,8,24),mat(0xff4f86),0,y+.4,0,g).rotation.x=Math.PI/2);
   roulDisc=new THREE.Group();roulDisc.position.y=6.1;g.add(roulDisc);
+  roulCloud=new THREE.Group();roulCloud.position.y=5.35;roulCloud.visible=false;g.add(roulCloud);        // 天界のルーレット：盤の下を雲の海でおおう（下の世界は見えない）
+  {const fl=mesh(new THREE.CircleGeometry(160,40),new THREE.MeshBasicMaterial({color:0xffffff,fog:false}),0,0,0,roulCloud);fl.rotation.x=-Math.PI/2;fl.userData.flat=1;
+   const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0xb0b0bc});
+   for(let i=0;i<22;i++){const a=i/22*6.283,r=5.6+(i%3)*1.5,m=mesh(new THREE.SphereGeometry(1,10,8),cl,Math.cos(a)*r,.1,Math.sin(a)*r,roulCloud);m.scale.set(1.5+(i%2)*.5,.55,1.4+(i%3)*.3);m.userData.flat=1}}
   for(let i=0;i<10;i++){                                     // レインボーの10分割
     const th=i*Math.PI/5;
     mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(RAINBOW[i],110),0,0,0,roulDisc);
@@ -2792,7 +2796,7 @@ V.roulette=async(p,purpose,label)=>{
   return r;
 };
 V.rouletteStart=async(purpose,label,pid)=>{     // 全員の画面でカメラが真上に寄り、盤が回り始める。何のルーレットかも出す
-  V.roulLabel(label,pid);Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
+  V.roulLabel(label,pid);if(roulCloud){const q=G.players[pid];roulCloud.visible=!!(q&&inHeaven(q))}Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
   await sleep(900);
 };
 V.rouletteStop=async r=>{                       // ストップ：回転がだんだん遅くなって針の下で止まる
@@ -2805,7 +2809,7 @@ V.rouletteStop=async r=>{                       // ストップ：回転がだ�
     const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==last){last=idx;Sound.tick()}
   });
   Sound.spinStop();V.bigNum(r);
-  await sleep(1000);Cam.rouletteView=false;V.roulLabel('');await sleep(350);
+  await sleep(1000);Cam.rouletteView=false;V.roulLabel('');await sleep(350);if(roulCloud)roulCloud.visible=false;
 };
 function updateRoulette(dt){                    // 回転中（ストップを待っている間）
   if(!Roul.free||!roulDisc)return;

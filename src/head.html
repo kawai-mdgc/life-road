@@ -159,6 +159,7 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
 .zoomprof{display:flex;gap:10px;align-items:center;text-align:left;font-size:.85rem;line-height:1.5}
 .hc.mate{background:#ffe4ef}
 #turnBanner{position:fixed;left:0;right:0;top:30%;z-index:26;display:flex;justify-content:center;align-items:center;gap:10px;pointer-events:none;animation:tb 1.9s ease-out forwards}
+#turnBanner .tb-n,#turnBanner .tb-t{white-space:nowrap}
 #turnBanner .tb-n{color:#fff;font-weight:900;font-size:clamp(26px,7vw,52px);padding:6px 22px;border-radius:40px;border:5px solid #fff;box-shadow:0 8px 0 #0003;text-shadow:0 3px 0 #0003}
 #turnBanner .tb-t{color:#fff;font-weight:900;font-size:clamp(28px,8vw,60px);text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;letter-spacing:.05em}
 @keyframes tb{0%{opacity:0;transform:translateX(-70vw) scale(.8)}18%{opacity:1;transform:translateX(0) scale(1.08)}28%{transform:scale(1)}80%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(60vw)}}
@@ -198,7 +199,8 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
  #mbar button{flex:none;width:40px;height:40px;padding:0;font-size:1.15rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border-radius:12px;box-shadow:0 3px 0 #0002}
  #mbar button.off{opacity:.45}
  #mbInfo{flex:1;min-width:0;line-height:1.2;cursor:pointer}
- #mbName{font-size:.76rem;font-weight:900;white-space:nowrap}#mbName .age,#mbName .hp{font-size:.7rem;margin-left:2px}
+ #mbName{font-size:.76rem;font-weight:900;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}#mbMoney{flex:none}
+ #turnBanner{flex-direction:column;gap:6px}#turnBanner .tb-t{font-size:clamp(24px,7.4vw,48px)}#mbName .age,#mbName .hp{font-size:.7rem;margin-left:2px}
  #mbMoney{font-weight:900;font-size:1.02rem;margin-left:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
  #mbTop{display:flex;align-items:baseline;overflow:hidden}
  #mbSub{display:block;font-size:.64rem;font-weight:700;color:#776;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

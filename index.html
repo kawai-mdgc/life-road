@@ -159,6 +159,7 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
 .zoomprof{display:flex;gap:10px;align-items:center;text-align:left;font-size:.85rem;line-height:1.5}
 .hc.mate{background:#ffe4ef}
 #turnBanner{position:fixed;left:0;right:0;top:30%;z-index:26;display:flex;justify-content:center;align-items:center;gap:10px;pointer-events:none;animation:tb 1.9s ease-out forwards}
+#turnBanner .tb-n,#turnBanner .tb-t{white-space:nowrap}
 #turnBanner .tb-n{color:#fff;font-weight:900;font-size:clamp(26px,7vw,52px);padding:6px 22px;border-radius:40px;border:5px solid #fff;box-shadow:0 8px 0 #0003;text-shadow:0 3px 0 #0003}
 #turnBanner .tb-t{color:#fff;font-weight:900;font-size:clamp(28px,8vw,60px);text-shadow:0 4px 0 #ff6b9d,0 8px 14px #0006;letter-spacing:.05em}
 @keyframes tb{0%{opacity:0;transform:translateX(-70vw) scale(.8)}18%{opacity:1;transform:translateX(0) scale(1.08)}28%{transform:scale(1)}80%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(60vw)}}
@@ -198,7 +199,8 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
  #mbar button{flex:none;width:40px;height:40px;padding:0;font-size:1.15rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border-radius:12px;box-shadow:0 3px 0 #0002}
  #mbar button.off{opacity:.45}
  #mbInfo{flex:1;min-width:0;line-height:1.2;cursor:pointer}
- #mbName{font-size:.76rem;font-weight:900;white-space:nowrap}#mbName .age,#mbName .hp{font-size:.7rem;margin-left:2px}
+ #mbName{font-size:.76rem;font-weight:900;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}#mbMoney{flex:none}
+ #turnBanner{flex-direction:column;gap:6px}#turnBanner .tb-t{font-size:clamp(24px,7.4vw,48px)}#mbName .age,#mbName .hp{font-size:.7rem;margin-left:2px}
  #mbMoney{font-weight:900;font-size:1.02rem;margin-left:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
  #mbTop{display:flex;align-items:baseline;overflow:hidden}
  #mbSub{display:block;font-size:.64rem;font-weight:700;color:#776;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2070,7 +2072,7 @@ const Roul={free:false,speed:0,max:8,last:-1};
 const occ=[];
 const sway=[],clouds=[],placed=[],cars={},houseSlots=[];
 const chSquares=[[],[],[],[],[],[]],allPts=[];
-let roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
+let roulCloud=null,roulDisc=null,bankDoor=null,bankCoin=null,bubbleSpr=null,confetti=[];
 
 /* ---------- 背景パーツ ---------- */
 function winTex(col){
@@ -2412,6 +2414,10 @@ function buildCenter(){
   mesh(new THREE.CylinderGeometry(1.8,2.4,5,20),mat(0xffffff,90),0,3.2,0,g);
   [1.2,3,5].forEach(y=>mesh(new THREE.TorusGeometry(2.1-(y>4?.2:0),.14,8,24),mat(0xff4f86),0,y+.4,0,g).rotation.x=Math.PI/2);
   roulDisc=new THREE.Group();roulDisc.position.y=6.1;g.add(roulDisc);
+  roulCloud=new THREE.Group();roulCloud.position.y=5.35;roulCloud.visible=false;g.add(roulCloud);        // 天界のルーレット：盤の下を雲の海でおおう（下の世界は見えない）
+  {const fl=mesh(new THREE.CircleGeometry(160,40),new THREE.MeshBasicMaterial({color:0xffffff,fog:false}),0,0,0,roulCloud);fl.rotation.x=-Math.PI/2;fl.userData.flat=1;
+   const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0xb0b0bc});
+   for(let i=0;i<22;i++){const a=i/22*6.283,r=5.6+(i%3)*1.5,m=mesh(new THREE.SphereGeometry(1,10,8),cl,Math.cos(a)*r,.1,Math.sin(a)*r,roulCloud);m.scale.set(1.5+(i%2)*.5,.55,1.4+(i%3)*.3);m.userData.flat=1}}
   for(let i=0;i<10;i++){                                     // レインボーの10分割
     const th=i*Math.PI/5;
     mesh(new THREE.CylinderGeometry(4.4,4.4,.6,10,1,false,th,Math.PI/5),mat(RAINBOW[i],110),0,0,0,roulDisc);
@@ -3138,7 +3144,7 @@ V.roulette=async(p,purpose,label)=>{
   return r;
 };
 V.rouletteStart=async(purpose,label,pid)=>{     // 全員の画面でカメラが真上に寄り、盤が回り始める。何のルーレットかも出す
-  V.roulLabel(label,pid);Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
+  V.roulLabel(label,pid);if(roulCloud){const q=G.players[pid];roulCloud.visible=!!(q&&inHeaven(q))}Cam.rouletteView=true;Roul.free=true;Roul.speed=0;Roul.last=-1;
   await sleep(900);
 };
 V.rouletteStop=async r=>{                       // ストップ：回転がだんだん遅くなって針の下で止まる
@@ -3151,7 +3157,7 @@ V.rouletteStop=async r=>{                       // ストップ：回転がだ�
     const idx=Math.floor(-roulDisc.rotation.y/sec);if(idx!==last){last=idx;Sound.tick()}
   });
   Sound.spinStop();V.bigNum(r);
-  await sleep(1000);Cam.rouletteView=false;V.roulLabel('');await sleep(350);
+  await sleep(1000);Cam.rouletteView=false;V.roulLabel('');await sleep(350);if(roulCloud)roulCloud.visible=false;
 };
 function updateRoulette(dt){                    // 回転中（ストップを待っている間）
   if(!Roul.free||!roulDisc)return;

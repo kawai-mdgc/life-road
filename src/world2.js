@@ -897,8 +897,9 @@ const SEAT_SETS={
 const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
 const HEAVEN_Y=62;                                            // 天界の高さ（下の世界は霧で見えない）
 const inHeaven=p=>{const c=cars[p.id];return !!(p.finished||(c&&c.heaven))};
-function heavenSpot(p){                                       // 天界での居場所（ゴールの真上、着いた順にぐるりと並ぶ）
-  const b=POS[150],k=(p.rank||p.id+1)-1,a=k*1.05+.4;return new V3(b.x+Math.cos(a)*5.2,HEAVEN_Y,b.z+Math.sin(a)*3.4);
+function heavenSpot(p){                                       // 天界での居場所：ゴールのマスの真上から、道の先へ一列にならぶ（いま着いた人がゴールの真上、先に着いた人は1つずつ前へ）
+  const b=POS[150],h=HEAD[150],n=G.players.filter(inHeaven).length,rank=p.rank||(p.left?-p.id-1:n),k=Math.max(0,n-rank);
+  return new V3(b.x+h.x*k*2.7,HEAVEN_Y,b.z+h.z*k*2.7);
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
@@ -909,9 +910,11 @@ function refreshCar(p){
     const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x9a9aa8});
     [[0,0,0,.75],[.55,-.05,.2,.5],[-.55,-.04,-.15,.52],[.1,-.06,-.45,.45],[-.15,-.05,.45,.46]].forEach(([x,y,z,r])=>{const m=mesh(G_('hvpuff',()=>new THREE.SphereGeometry(1,10,8)),cl,x,.25+y,z,car.styleG);m.scale.set(r,r*.5,r)});
     car.seatG.position.y=.5;
-    const d=makeDoll({...lookOf(p),color:0xffffff,old:ageOfKey(p.pos)>=75,scale:1.15});d.userData.ph=p.id;
+    const d=makeDoll({...lookOf(p),old:ageOfKey(p.pos)>=75,scale:1.15});d.userData.ph=p.id;   // 服は自分の色のまま
     [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.14,d);wg.scale.set(.35,1.3,.95);wg.rotation.x=w*-.5});
     const h=mesh(new THREE.TorusGeometry(.1,.016,6,18),mat(0xffe27a,140,{emissive:0xb38a00}),0,.72,0,d);h.rotation.x=Math.PI/2;
+    const tg=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,fog:false,map:canvasTex(320,96,(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,5,5,W-10,H-10,38);c.fill();c.strokeStyle=hex(p.color);c.lineWidth=10;rr(c,9,9,W-18,H-18,34);c.stroke();c.fillStyle='#3b2f4a';fitText(c,p.name,W/2,H/2+3,W-56,50)})}));
+    tg.scale.set(1.5,.45,1);tg.position.set(0,1.75,0);tg.renderOrder=9;car.styleG.add(tg);                                   // 名札（プレイヤーの色のふち）
     car.seatG.add(d);car.baseScale=1.25;car.g.scale.setScalar(1.25);return;
   }
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');

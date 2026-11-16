@@ -27,7 +27,8 @@ const G={players:[],cur:0,order:[],stockOwner:Array(11).fill(null),deckG:[],deck
   houseTaken:Array(HOUSES.length).fill(false),turnNo:0,over:false,awaiting:null,logs:[]};
 
 /* ---------- 位置・経路 ---------- */
-const STOP_EXTRA=new Set(['W1','U12','29','68','91','41','C2','C4','C6']);          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
+const STOP_EXTRA=new Set(['W1','U12','41','C4']);const PASS_PROMO=new Set(['29','68','91','C2','C6']);   // 昇進マスは一時停止（通過でも昇進して、そのまま進む）
+//          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
 const isStop=s=>s.c==='gold'||STOP_EXTRA.has(s.id);   // STOPマス（就職マスW1・卒業U12も必ず止まる）
 function chapterOf(key){
   const s=SQ[key]; if(s.r!=='main')return {U:0,W:0,S:2,R:2,D:3,C:3,G:4}[s.r];
@@ -1041,6 +1042,7 @@ async function moveSteps(p,n){
     if(isStop(s))break;                                   // STOPマスは通過できない
     if(i<n-1&&vehicleStop(p)){await checkVehicle(p);V.hud()}   // 乗り物が変わる年齢：給料日と同じく、一時停止して乗りかえたら、そのまま進む
     if(i<n-1&&s.c==='yellow')await payday(p,nk,true);      // 給料日は通過でももらえる
+    if(i<n-1&&PASS_PROMO.has(nk)&&p.job){V.banner('📈 昇進マスを通過！');V.flash(nk);await sleep(500);await SP[nk](p);V.hud()}   // 昇進も通過でOK（一時停止して、そのまま進む）
     if(i<n-1&&s.k==='lottery'){                            // 宝くじも通過でOK
       if(LOT_SHOP.has(s.id)){V.banner('🎟 宝くじ売り場を通過！');await lotteryShop(p,true)}
       else if(p.tickets.length)await lotteryDraw(p,true,nk);

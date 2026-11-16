@@ -228,7 +228,7 @@ async function zoom(p,type,x){
     const side=(label,name,sal,on,img)=>`<div class="rk ${on?'on':'off'}"><div class="rkh">${label}</div><img src="${img}" width="86"><div class="rkn">${esc(name)}</div><div class="rks">給料 ${fmt(sal)}円</div></div>`;
     o={head:'職業カード',color:j.deck==='s'?'#c98a00':'#3f8cff',title:esc(rankName(p)),
       text:`<div class="rkrow">${side('ランクアップ前',j.n,j.sal,!ranked,portrait(j,p,0))}${r?`<div class="rkarr">▶</div>${side('ランクアップ後',r[0],Math.round(j.sal*r[1]),ranked,portrait(j,p,1))}`:''}</div>
-        ${r?`<small>昇進のマス（29・68・91）に止まると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
+        ${r?`<small>昇進のマス（29・68・91）に止まるか通過すると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
         ${p.jobless?`<b class="minus">🥲 失業中：次の${p.jobless}回の給料日は、失業手当（給料の30%）だけ</b><br>`:''}今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
   }
   else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば当たり！ もう一度回して等級が決まります（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）。となり合う数字は前後賞 ${fmt(LOT_SIDE)}円`};

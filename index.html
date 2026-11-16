@@ -679,7 +679,8 @@ const G={players:[],cur:0,order:[],stockOwner:Array(11).fill(null),deckG:[],deck
   houseTaken:Array(HOUSES.length).fill(false),turnNo:0,over:false,awaiting:null,logs:[]};
 
 /* ---------- 位置・経路 ---------- */
-const STOP_EXTRA=new Set(['W1','U12','29','68','91','41','C2','C4','C6']);          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
+const STOP_EXTRA=new Set(['W1','U12','41','C4']);const PASS_PROMO=new Set(['29','68','91','C2','C6']);   // 昇進マスは一時停止（通過でも昇進して、そのまま進む）
+//          // 就職・卒業・昇進（ランクアップ）・転職のマスも必ず止まる
 const isStop=s=>s.c==='gold'||STOP_EXTRA.has(s.id);   // STOPマス（就職マスW1・卒業U12も必ず止まる）
 function chapterOf(key){
   const s=SQ[key]; if(s.r!=='main')return {U:0,W:0,S:2,R:2,D:3,C:3,G:4}[s.r];
@@ -1693,6 +1694,7 @@ async function moveSteps(p,n){
     if(isStop(s))break;                                   // STOPマスは通過できない
     if(i<n-1&&vehicleStop(p)){await checkVehicle(p);V.hud()}   // 乗り物が変わる年齢：給料日と同じく、一時停止して乗りかえたら、そのまま進む
     if(i<n-1&&s.c==='yellow')await payday(p,nk,true);      // 給料日は通過でももらえる
+    if(i<n-1&&PASS_PROMO.has(nk)&&p.job){V.banner('📈 昇進マスを通過！');V.flash(nk);await sleep(500);await SP[nk](p);V.hud()}   // 昇進も通過でOK（一時停止して、そのまま進む）
     if(i<n-1&&s.k==='lottery'){                            // 宝くじも通過でOK
       if(LOT_SHOP.has(s.id)){V.banner('🎟 宝くじ売り場を通過！');await lotteryShop(p,true)}
       else if(p.tickets.length)await lotteryDraw(p,true,nk);
@@ -3876,7 +3878,7 @@ async function zoom(p,type,x){
     const side=(label,name,sal,on,img)=>`<div class="rk ${on?'on':'off'}"><div class="rkh">${label}</div><img src="${img}" width="86"><div class="rkn">${esc(name)}</div><div class="rks">給料 ${fmt(sal)}円</div></div>`;
     o={head:'職業カード',color:j.deck==='s'?'#c98a00':'#3f8cff',title:esc(rankName(p)),
       text:`<div class="rkrow">${side('ランクアップ前',j.n,j.sal,!ranked,portrait(j,p,0))}${r?`<div class="rkarr">▶</div>${side('ランクアップ後',r[0],Math.round(j.sal*r[1]),ranked,portrait(j,p,1))}`:''}</div>
-        ${r?`<small>昇進のマス（29・68・91）に止まると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
+        ${r?`<small>昇進のマス（29・68・91）に止まるか通過すると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
         ${p.jobless?`<b class="minus">🥲 失業中：次の${p.jobless}回の給料日は、失業手当（給料の30%）だけ</b><br>`:''}今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
   }
   else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば当たり！ もう一度回して等級が決まります（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）。となり合う数字は前後賞 ${fmt(LOT_SIDE)}円`};

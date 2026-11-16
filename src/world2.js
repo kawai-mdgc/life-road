@@ -891,8 +891,25 @@ const SEAT_SETS={
   scooter:{y:.6,slots:[[-.02,0,0],[-.5,-.18,-.56],[-.5,.18,-.56],[.45,-.28,-.56],[.45,.28,-.56],[.1,-.34,-.56]]}
 };
 const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
+const HEAVEN_Y=24;
+const inHeaven=p=>{const c=cars[p.id];return !!(p.finished||(c&&c.heaven))};
+function heavenSpot(p){                                       // 天界での居場所（ゴールの真上、着いた順にぐるりと並ぶ）
+  const b=POS[150],k=(p.rank||p.id+1)-1,a=k*1.05+.4;return new V3(b.x+Math.cos(a)*5.2,HEAVEN_Y,b.z+Math.sin(a)*3.4);
+}
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
+  if(inHeaven(p)){                                            // 天界：家族もペットも乗り物もなし。雲の上にひとり
+    if(car.styleSig==='heaven')return;car.styleSig='heaven';
+    Object.values(car.vehicles).forEach(v=>v.visible=false);car.wheels=[];car.stackG.visible=false;car.blob.visible=false;
+    [car.mateG,car.seatG,car.styleG].forEach(g=>{while(g.children.length)g.remove(g.children[0])});
+    const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x9a9aa8});
+    [[0,0,0,.75],[.55,-.05,.2,.5],[-.55,-.04,-.15,.52],[.1,-.06,-.45,.45],[-.15,-.05,.45,.46]].forEach(([x,y,z,r])=>{const m=mesh(G_('hvpuff',()=>new THREE.SphereGeometry(1,10,8)),cl,x,.25+y,z,car.styleG);m.scale.set(r,r*.5,r)});
+    car.seatG.position.y=.5;
+    const d=makeDoll({...lookOf(p),color:0xffffff,old:ageOfKey(p.pos)>=75,scale:1.15});d.userData.ph=p.id;
+    [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.14,d);wg.scale.set(.35,1.3,.95);wg.rotation.x=w*-.5});
+    const h=mesh(new THREE.TorusGeometry(.1,.016,6,18),mat(0xffe27a,140,{emissive:0xb38a00}),0,.72,0,d);h.rotation.x=Math.PI/2;
+    car.seatG.add(d);car.baseScale=1.25;car.g.scale.setScalar(1.25);return;
+  }
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
   const old=ageOfKey(p.pos)>=75;
   const sig=[st,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
@@ -942,7 +959,8 @@ function refreshCar(p){
 function cheer(p){const c=cars[p.id];if(!c)return;anim(700,k=>c.seatG.children.forEach((d,i)=>{d.position.y=Math.abs(Math.sin(k*Math.PI*2+i*.4))*.28*(1-k*.4)}))}   // ジャンプして喜ぶ
 function sad(p){const c=cars[p.id];if(!c)return;anim(800,k=>c.seatG.children.forEach(d=>{d.rotation.y=Math.sin(k*Math.PI*5)*.6*(1-k)}))}                  // 首を振ってがっかり
 function layoutAll(){
-  const by={};G.players.filter(p=>!p.inJail).forEach(p=>{(by[p.pos]=by[p.pos]||[]).push(p)});
+  const by={};G.players.filter(p=>!p.inJail&&!inHeaven(p)).forEach(p=>{(by[p.pos]=by[p.pos]||[]).push(p)});
+  G.players.filter(inHeaven).forEach(p=>{const c=cars[p.id];if(!c)return;c.target.copy(heavenSpot(p));c.heading=-Math.PI/2});
   G.players.filter(p=>p.inJail).forEach((p,i)=>{const c=cars[p.id];if(!c)return;const o=JAIL_OFF[i%6];c.target.set(JAIL_POS.x+o[0],.3,JAIL_POS.z+o[1]);c.heading=0});
   for(const k in by){
     const arr=by[k],n=arr.length;
@@ -967,7 +985,17 @@ V.step=async(p,key)=>{
 };
 V.pins=refreshCar;
 V.upgradeCar=p=>{refreshCar(p);V.confetti(p.pos)};
-V.finishCar=async p=>{const c=cars[p.id];if(!c)return;c.ring.visible=false;await anim(900,k=>{c.g.rotation.y+=.25;c.g.position.y=.3+Math.abs(Math.sin(k*Math.PI*3))*.6})};
+V.finishCar=async p=>{                                         // ゴールした瞬間、光につつまれて、ひゅっと天界へ召される
+  const c=cars[p.id];if(!c)return;c.ring.visible=false;c.anim=true;c.heaven=true;
+  const a=c.g.position.clone(),beam=mesh(new THREE.CylinderGeometry(1.1,1.5,60,16,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,fog:false}),a.x,30,a.z,worldG);
+  Sound.fanfare();
+  await anim(700,k=>{beam.material.opacity=k*.5;c.g.position.y=a.y+Math.sin(k*Math.PI*3)*.12+k*.5;c.g.rotation.y+=.12+k*.3});      // 光がさして、ふわっと浮く
+  refreshCar(p);                                                                                                                       // ここで、ひとりの天使の姿に
+  const to=heavenSpot(p),from=c.g.position.clone();
+  await anim(650,k=>{const e=k*k*k;c.g.position.set(from.x+(to.x-from.x)*e,from.y+(to.y-from.y)*e,from.z+(to.z-from.z)*e);c.g.rotation.y+=.5;const sq=1+Math.sin(k*Math.PI)*.9;c.g.scale.set(1.25/Math.sqrt(sq),1.25*sq,1.25/Math.sqrt(sq))});   // ひゅっ！
+  c.g.scale.setScalar(1.25);layoutAll();c.g.position.copy(c.target);c.anim=false;
+  await anim(500,k=>{beam.material.opacity=.5*(1-k)});worldG.remove(beam);
+};
 function updateStacks(){
   G.players.forEach(p=>{
     const c=cars[p.id];if(!c)return;

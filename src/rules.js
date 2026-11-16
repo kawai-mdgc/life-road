@@ -1016,10 +1016,11 @@ async function land(p){
 
 /* ---------- ゴール精算 ---------- */
 async function arriveGoal(p){                               // ゴールに着いた：順位が決まるだけ。集計は全員がゴールしてから
-  p.finished=true;G.order.push(p);p.rank=G.order.length;joy(p,5);
+  G.order.push(p);p.rank=G.order.length;joy(p,5);
   if(p.chased){p.chased=false;await V.thugsLeave(p)}
-  V.hud();recordHist(p);Sound.fanfare();V.confetti(p.pos);V.finishCar(p);
-  await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} がゴール！`,text:'最終決算は、<b>全員がゴールしてから</b>行います。<br>それまでは自分の番にボーナスルーレット（10,000円 × 出た数）を回せます',btns:['OK'],pick:0});
+  V.confetti(p.pos);await V.finishCar(p);                    // 光につつまれて、天界へ
+  p.finished=true;V.hud();recordHist(p);
+  await ask(p,{head:`🏁 ゴール！ ${p.rank}着`,color:'#c98a00',title:`${p.name} がゴール！`,text:'最終決算は、<b>全員がゴールしてから</b>行います。<br>それまでは天界から、自分の番にボーナスルーレット（10,000円 × 出た数）を回せます<br><small>天界では、みんなひとり。家族やペットとは、ここでお別れです</small>',btns:['OK'],pick:0});
 }
 async function finalSettle(p){                              // 最終決算：家・お宝・株を換金、手形を返済、到着順ボーナス
   G.cur=G.players.indexOf(p);V.focus(p);V.hud();

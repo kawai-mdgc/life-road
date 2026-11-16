@@ -303,8 +303,8 @@ V.results=async()=>{
   ['#left','#hudR','#actions','#hand','#tools','#testPanel','#spinBtn','#roulLabel'].forEach(q=>{const e=$(q);if(e)e.classList.add('hidden')});
   const pd=buildPodium(r);Cam.heaven=1;
   $('#mbar').classList.add('hidden');document.body.classList.remove('m-left','m-hud','m-tools');
-  Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(0,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
-  const fit=()=>{Cam.followDist=Math.max(15,(r.length>4?15.5:13.5)/Math.min(1.5,aspect()))};fit();addEventListener('resize',fit);
+  Cam.title=false;Cam.followObj={position:pd.base.clone().add(new V3(pd.cx,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
+  const fit=()=>{Cam.followDist=Math.max(13.5,pd.half*1.06/(Math.tan(Math.PI/8)*aspect()))};fit();addEventListener('resize',fit);   // 縦長の画面でも、端の人が見切れない距離まで引く
   V.banner(`🏆 優勝：${r[0].name}！`);
   const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
   const bar=$('#podiumBar');bar.classList.remove('hidden');

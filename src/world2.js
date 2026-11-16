@@ -1399,18 +1399,18 @@ function buildPodium(ranked){
   const actors=[];
   const tag=(p,i,x,y,z)=>{const medal=['🥇','🥈','🥉'][i]||`${i+1}位`;
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,map:canvasTex(384,150,(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,4,4,W-8,H-8,26);c.fill();c.strokeStyle=hex(p.color);c.lineWidth=10;rr(c,8,8,W-16,H-16,22);c.stroke();c.fillStyle='#3b2f4a';fitText(c,`${medal} ${p.name}`,W/2,52,W-50,50);c.fillStyle='#b06a00';fitText(c,`${fmt(p.final)}円`,W/2,108,W-50,38)})}));
-    sp.scale.set(2.5,.98,1);sp.position.set(x,y,z);sp.renderOrder=9;g.add(sp)};
+    const ts=i<3?1:.74;sp.scale.set(2.5*ts,.98*ts,1);sp.position.set(x,y,z);sp.renderOrder=9;g.add(sp)};
   ranked.forEach((p,i)=>{
     const top=i<3,low=i>=4,d=makeDoll({...lookOf(p),old:true&&ageOfKey(p.pos)>=75,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,pose:top?'up':i===3?'wave':null,sad:low,scale:2.5});
     const holder=new THREE.Group();d.rotation.y=-Math.PI/2;holder.add(d);
     let x,y,z;
     if(top){x=blocks[i][0];y=blocks[i][1]-.2;z=0}
-    else if(i===3){x=4.6;y=-.2;z=.3}
-    else{const k=i-4;x=-4.6-k*2.1;y=-.2;z=-2.2;d.rotation.x=.34;d.position.z=.1;                 // うつむく
+    else if(i===3){x=4.4;y=-.2;z=.5}
+    else{const k=i-4;x=-4.6-k*1.9;y=-.2;z=-2.0;d.rotation.x=.34;d.position.z=.1;                 // うつむく
       const gl=mesh(new THREE.SphereGeometry(.34,8,6),new THREE.MeshLambertMaterial({color:0x7f8aa8,transparent:true,opacity:.8}),0,2.15,0,holder);gl.scale.set(1.5,.6,1)}   // どんより雲
     holder.position.set(x,y,z);g.add(holder);
     if(i===0){const cr=new THREE.Group();mesh(new THREE.CylinderGeometry(.13,.11,.09,8,1,true),mat(0xffd23f,160,{emissive:0x664400,side:THREE.DoubleSide}),0,0,0,cr);for(let k=0;k<5;k++)mesh(new THREE.ConeGeometry(.03,.09,4),mat(0xffd23f,160,{emissive:0x664400}),Math.cos(k*1.257)*.115,.08,Math.sin(k*1.257)*.115,cr);cr.position.set(0,.66,0);d.add(cr)}
-    tag(p,i,x,y+(low?2.9:2.45),z+.05);
+    tag(p,i,x,y+(low?2.85:i===3?2.3:2.45),z+.05);
     actors.push({holder,d,i,y,ph:i*1.3});
   });
   const t0=performance.now();
@@ -1423,7 +1423,8 @@ function buildPodium(ranked){
     halo.rotation.z=t*.3;
   },16);
   const conf=setInterval(()=>{if(!document.hidden)V.confetti(new V3(base.x+(Math.random()-.5)*7,base.y+5.5,base.z+(Math.random()-.5)*2))},900);
-  return podium={g,base,actors,timer,conf};
+  const n=ranked.length,xmin=n>4?-4.6-(n-5)*1.9-1.05:-3.7,xmax=n>3?5.5:3.7;                 // 全員が画面に入る幅
+  return podium={g,base,actors,timer,conf,cx:(xmin+xmax)/2,half:(xmax-xmin)/2};
 }
 function podiumPhoto(title){                                  // 記念撮影：いまの画面をそのまま1枚の画像にする
   renderer.render(scene,camP);

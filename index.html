@@ -949,7 +949,7 @@ async function chooseJob(p,deck,count,title,mayKeep=false){
   const val=j=>j.sal+(j.ab==='athlete'?-8000:0)+(j.ab==='stream'?4000:0);
   let best=0;pool.forEach((j,i)=>{if(val(j)>val(pool[best]))best=i});
   const btns=pool.map(j=>jobProfileHtml(j,p));
-  if(mayKeep)btns.push('そのまま（転職しない）');
+  if(mayKeep)btns.push('↩ 転職するのをやめる');
   const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
     pick:mayKeep&&pool[best].sal<=(p.job?p.job.sal:0)?pool.length:best,col:true});
   if(i>=pool.length){pool.forEach(returnJob);return}
@@ -1144,8 +1144,8 @@ SP['38']=async p=>{
 SP['41']=async p=>{
   if(!p.job)return;
   const cpuRe=p.job.sal<24000;
-  const i=await ask(p,{head:'転職フェア',color:'#3f8cff',title:'職業カードを引き直す？',text:`今の職業：${jobCardHtml(p.job)}`,btns:['引き直す','このまま'],pick:cpuRe?0:1});
-  if(i===0){const old=p.job;const j=drawJob(p,old.deck);if(j){returnJob(old);p.job=j;p.jobRank=0;say(p,`転職！「${j.n}」になった`);V.hud();V.pins(p)}}
+  const i=await ask(p,{head:'転職フェア',color:'#3f8cff',title:'転職しますか？',text:`今の職業：${jobCardHtml(p.job)}<br><small>「転職する」を押すと、候補が3つ出ます。見てからやめることもできます</small>`,btns:['転職する','このまま'],pick:cpuRe?0:1});
+  if(i===0)await chooseJob(p,p.job.deck,3,'転職フェア：3つの候補から選ぶ',true);
 };
 SP['44']=async p=>{const r=await duelRoll(p,x=>x>=6);if(r>=6){say(p,'完走！ +8,000');await income(p,8000)}else say(p,'リタイア…')};
 SP['46']=async p=>{p.doubleNext=true;say(p,'次の番はルーレットを2回回して合計進みます');await travelBonus(p,'46')};
@@ -1154,7 +1154,7 @@ SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;await rankUp(p);say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
 SP['21']=async p=>{                                          // 合流マス：大学ルートは社会人デビュー、就職ルートはもう働いているので準備費なし
   if(p.route==='W'){
-    await ask(p,{head:'マス21　合流',color:'#c98a00',title:'大学ルートと合流！',text:'就職ルートの人は、もう社会人。<br>新生活の準備費は<b>かかりません</b>。給料をもらって先へ進もう',btns:['OK'],pick:0});
+    await ask(p,{head:'マス21　合流',color:'#c98a00',title:'大学ルートと合流！',text:'就職ルートの人は、もう社会人。<br>新生活の準備費は、就職したときに<b>支払い済み</b>。給料をもらって先へ進もう',btns:['OK'],pick:0});
     await payday(p,'21',false);return;
   }
   await ask(p,{head:'マス21　社会人スタート',color:'#c98a00',title:'卒業して、社会人デビュー！',text:`最初の給料をもらいます。<br>そのあと、新生活の準備（スーツ・引っ越し・家具）に <b class="minus">−${fmt(NEWLIFE)}円</b>`,btns:['OK'],pick:0});
@@ -1275,7 +1275,9 @@ SP['U5']=async p=>{await travelBonus(p,'U5');const r=await duelRoll(p,x=>x<=3);i
 SP['U6']=async p=>{const r=await duelRoll(p,x=>x>=5);if(r<=4){p.skip=1;say(p,'再試験で1回休み')}else say(p,'合格！')};
 SP['U8']=async p=>{p.qual++;say(p,'資格マーカーを1つ獲得！（宇宙飛行士に必要）');V.hud()};
 SP['U12']=async p=>{await chooseJob(p,'s',3,'卒業！ 専門職の山から3枚引いて1枚選ぶ')};
-SP['W1']=async p=>{await chooseJob(p,'g',2,'就職！ 一般職の山から2枚引いて1枚選ぶ')};
+SP['W1']=async p=>{await chooseJob(p,'g',2,'就職！ 一般職の山から2枚引いて1枚選ぶ');
+  await ask(p,{head:'社会人スタート',color:'#c98a00',title:'新生活の準備',text:`スーツ・引っ越し・家具をそろえます <b class="minus">−${fmt(NEWLIFE)}円</b>`,btns:['OK'],pick:0});
+  say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE)};
 SP['W8']=async p=>{
   const r=await duelRoll(p,x=>x>=7);
   if(r>=7)await chooseJob(p,'s',1,'夜間学校：専門職に転職できる',true);else say(p,'試験に落ちた…');
@@ -1486,6 +1488,7 @@ async function venture(p,o){                                  // 賭け・投資
 setSq('17','red','','運転免許を取る（18歳：ここから車に乗りかえ）','−10,000円',-10000);
 setSq('23','red','','一人暮らしスタート：敷金・礼金を払う','−25,000円',-25000);
 {const q=SQ['U1'];q.t='大学入学。入学金と学費（足りなければ奨学金＝約束手形）';q.m='−50,000円';q.a=-TUITION}
+SQ['W1'].t+='／新生活の準備費 −20,000円';SQ['41'].t='転職フェア：転職するなら、候補3つから選べる（見てからやめてもOK）';
 {const q=SQ['21'];q.t='合流。大学ルート：社会人デビュー（最初の給料をもらい、新生活の準備費を払う）／就職ルート：給料だけもらう';q.m='給料（大学ルートは −20,000円）'}
 setSq('103','red','','親の介護費用','−35,000円',-35000);
 setSq('140','red','','入院と手術（健康保険で無効）','−30,000円',-30000);INS_FOR['140']='health';

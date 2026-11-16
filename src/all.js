@@ -2041,7 +2041,7 @@ function buildScenery(){
    for(let i=0;i<26;i++){const sd=i%2?1:-1,z=sd*(2.3+Math.random()*2.3),x=-3.6+Math.random()*7.2;if(Math.hypot(x,z)<4.9)puff(x,.2+Math.random()*.3,z,.7+Math.random()*.6)}
    [-3.4,3.4].forEach(sd=>{puff(0,6.9,sd,1.2);puff(.5,6.8,sd*1.2,.8)});
    const halo=mesh(new THREE.TorusGeometry(2.6,.16,8,36),mat(0xffe27a,140,{emissive:0xb38a00}),0,9.6,0,g);halo.rotation.x=Math.PI/2;
-   [[0,0,2.6],[-.6,-2.2,1.5],[.6,2.2,1.5]].forEach(([x,z,r])=>{const b=mesh(new THREE.CylinderGeometry(r*.25,r,17,14,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide,fog:false}),x,8.5,z,g);b.userData.flat=1});
+   [[0,0,2.6],[-.6,-2.2,1.5],[.6,2.2,1.5]].forEach(([x,z,r])=>{const b=mesh(new THREE.CylinderGeometry(r*.25,r,17,14,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide}),x,8.5,z,g);b.userData.flat=1});
    [-1,1].forEach(sd=>{const a=makeDoll({color:0xffffff,gender:sd>0?'f':'m',hair:0xf0e0a0,pose:'up',scale:2});a.position.set(0,7.5,sd*3.4);a.rotation.y=sd>0?.4:-.4;
      [-1,1].forEach(w=>{const wg=mesh(new THREE.SphereGeometry(.12,8,6),mat(0xffffff,60),-.12,.3,w*.13,a);wg.scale.set(.35,1.3,.9);wg.rotation.x=w*-.5});
      const h=mesh(new THREE.TorusGeometry(.09,.015,6,16),mat(0xffe27a,140,{emissive:0xb38a00}),0,.7,0,a);h.rotation.x=Math.PI/2;g.add(a)});
@@ -2608,7 +2608,7 @@ const SEAT_SETS={
   scooter:{y:.6,slots:[[-.02,0,0],[-.5,-.18,-.56],[-.5,.18,-.56],[.45,-.28,-.56],[.45,.28,-.56],[.1,-.34,-.56]]}
 };
 const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
-const HEAVEN_Y=24;
+const HEAVEN_Y=62;                                            // 天界の高さ（下の世界は霧で見えない）
 const inHeaven=p=>{const c=cars[p.id];return !!(p.finished||(c&&c.heaven))};
 function heavenSpot(p){                                       // 天界での居場所（ゴールの真上、着いた順にぐるりと並ぶ）
   const b=POS[150],k=(p.rank||p.id+1)-1,a=k*1.05+.4;return new V3(b.x+Math.cos(a)*5.2,HEAVEN_Y,b.z+Math.sin(a)*3.4);
@@ -2704,13 +2704,13 @@ V.pins=refreshCar;
 V.upgradeCar=p=>{refreshCar(p);V.confetti(p.pos)};
 V.finishCar=async p=>{                                         // ゴールした瞬間、光につつまれて、ひゅっと天界へ召される
   const c=cars[p.id];if(!c)return;c.ring.visible=false;c.anim=true;c.heaven=true;
-  const a=c.g.position.clone(),beam=mesh(new THREE.CylinderGeometry(1.1,1.5,60,16,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,fog:false}),a.x,30,a.z,worldG);
+  const a=c.g.position.clone(),beam=mesh(new THREE.CylinderGeometry(1.1,1.5,150,16,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,fog:false}),a.x,75,a.z,worldG);
   Sound.fanfare();
-  await anim(350,k=>{beam.material.opacity=k*.5;c.g.position.y=a.y+Math.sin(k*Math.PI*3)*.12+k*.5;c.g.rotation.y+=.12+k*.3});      // 光がさして、ふわっと浮く
+  await anim(600,k=>{beam.material.opacity=k*.5;c.g.position.y=a.y+Math.sin(k*Math.PI*3)*.12+k*.5;c.g.rotation.y+=.12+k*.3});      // 光がさして、ふわっと浮く
   refreshCar(p);                                                                                                                       // ここで、ひとりの天使の姿に
-  const to=heavenSpot(p),from=c.g.position.clone();
-  await anim(420,k=>{const e=k*k*k;c.g.position.set(from.x+(to.x-from.x)*e,from.y+(to.y-from.y)*e,from.z+(to.z-from.z)*e);c.g.rotation.y+=.5;const sq=1+Math.sin(k*Math.PI)*.9;c.g.scale.set(1.25/Math.sqrt(sq),1.25*sq,1.25/Math.sqrt(sq))});   // ひゅっ！
-  c.g.scale.setScalar(1.25);layoutAll();c.g.position.copy(c.target);c.anim=false;
+  const from=c.g.position.clone();                                                                                                     // 真上へ、まっすぐ
+  await anim(1100,k=>{const e=k*k;c.g.position.set(from.x,from.y+(HEAVEN_Y-from.y)*e,from.z);c.g.rotation.y+=.35;const sq=1+Math.sin(k*Math.PI)*.9;c.g.scale.set(1.25/Math.sqrt(sq),1.25*sq,1.25/Math.sqrt(sq))});   // ひゅっ！
+  c.g.scale.setScalar(1.25);layoutAll();c.anim=false;                                                                                  // 着いたら、自分の場所へふわっと移る
   anim(400,k=>{beam.material.opacity=.5*(1-k)}).then(()=>worldG.remove(beam));          // 光は、待たずに消える
 };
 function updateStacks(){
@@ -3135,7 +3135,7 @@ function portraitTogether(p,c,kind){
 let podium=null,heavenMist=null;
 function buildPodium(ranked){
   if(podium)return podium;
-  const base=POS[150].clone();base.y=38;
+  const base=POS[150].clone();base.y=110;
   const g=new THREE.Group();g.position.copy(base);worldG.add(g);
   const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x8a8a99});
   for(let i=0;i<34;i++){const a=i/34*6.283,r=3+((i*7)%10)*.75,m=mesh(new THREE.SphereGeometry(1,10,8),cl,Math.cos(a)*r*1.25,-.9-((i*3)%5)*.12,Math.sin(a)*r*.7,g);m.scale.set(2.2+(i%3)*.5,1,2+(i%4)*.4)}

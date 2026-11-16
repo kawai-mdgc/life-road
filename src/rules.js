@@ -351,6 +351,8 @@ async function buyHouse(p){
   G.houseTaken[o.i]=true;p.houses.push(o.h);joy(p,6);V.hud();
   say(p,`${p.name}：${o.h.n}を購入！`);
   await V.buildHouse(p,o.h);                       // 家にズーム → ボン！！と立つ → 約5秒しっかり見せる
+  {const u=typeof housePhoto==='function'?housePhoto(p,o.h):'';
+   if(u)await ask(p,{head:'🏠 マイホーム！',color:'#c98a00',title:`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,text:keepsake(u,`${p.name} の ${o.h.n} が建ちました！`),btns:['OK'],pick:0,wide:true})}
 }
 
 /* ---------- 勝負・賭け ---------- */
@@ -384,7 +386,8 @@ const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
 const NAT_HAIR=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441],NAT_SKIN=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e],STYLE_BY={m:['short','spiky','buzz'],f:['long','bob','pony','bun','twin'],n:['short','bob','tuft']};
 const pic2=(p,c,kind)=>typeof portraitTogether==='function'?portraitTogether(p,c,kind):'';     // 記念の絵（自分と相手がならぶ）
-const picHtml=(p,c,kind)=>{const u=pic2(p,c,kind);return u?`<img src="${u}" width="280" style="max-width:100%;border-radius:14px;background:linear-gradient(#ffe6f1,#fff7d6)" alt=""><br>`:''};
+const keepsake=(u,cap)=>u?`<div class="keep"><img class="keepsake" src="${u}" data-cap="${esc(cap||'')}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`:'';   // 保存できる記念の絵
+const picHtml=(p,c,kind,cap)=>keepsake(pic2(p,c,kind),cap);
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
@@ -433,7 +436,7 @@ async function choosePet(p,baby){
   const cand=genPets(si===0?'dog':'cat',baby);
   const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
   p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);Sound.good();
-  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet')+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
+  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet',`${p.name} の家に ${cand[ci].name} がやってきた！`)+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
   say(p,`${p.name} の家に ${cand[ci].name}（${cand[ci].breed}）がやってきた！`);
 }
 async function stepAndLand(p){                 // 分岐を選んだら、すぐ最初のマスの支払い・収入を実行する
@@ -488,7 +491,7 @@ SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！
 SP['31']=async p=>{
   const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
   p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);Sound.good();
-  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover')+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
+  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover',`${p.name} と ${c.name} さん、おつきあいスタート！`)+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
 };
 SP['34']=async p=>{
   const r=await spin(p,'duel');
@@ -535,7 +538,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
   say(p,`${p.name} は ${c.name} さんと結婚！`);
   p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
-  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse')+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
+  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse',`${p.name} と ${c.name} さんが結婚しました！`)+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');

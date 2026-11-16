@@ -105,6 +105,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
   else if(m.t==='spinGo'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='spin')resolvePend(m.rid)}
   else if(m.t==='repay'){const p=G.players[c.pid];if(p&&!p.finished)repayNotes(p,Math.max(1,Math.min(6,+m.n||1)))}
@@ -292,6 +293,7 @@ function clientRecv(m){
       }
       break}
     case 'snd':if(Sound[m.n])Sound[m.n]();break;
+    case 'chat':showChat(m.pid,m.x);break;
     case 'card':{
       const p=G.players[m.pid]||null;
       if(m.rid){cardLocal(m.o,p).then(i=>NET.send({t:'cardAns',rid:m.rid,i}))}

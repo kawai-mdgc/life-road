@@ -49,6 +49,41 @@ function cardLocal(o,p){
 }
 V.card=cardLocal;
 
+/* ---------- 記念の絵を保存：絵の下に ひとこと と LIFE ROAD のロゴを入れて1枚の画像にする ---------- */
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('.savepic');if(!a)return;
+  const img=a.parentElement.querySelector('img.keepsake');if(!img)return;
+  const W=img.naturalWidth||480,H=img.naturalHeight||320,bar=Math.round(H*.24),cv=document.createElement('canvas');cv.width=W;cv.height=H+bar;
+  const c=cv.getContext('2d');c.fillStyle='#fffaf0';c.fillRect(0,0,W,H+bar);c.drawImage(img,0,0,W,H);
+  c.fillStyle='#3b2f4a';fitText(c,img.dataset.cap||'',W/2,H+bar*.38,W-28,Math.round(bar*.36));
+  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD',W/2,H+bar*.78,W-28,Math.round(bar*.26));
+  const l=document.createElement('a');l.href=cv.toDataURL('image/png');l.download='life-road-'+Date.now()+'.png';document.body.appendChild(l);l.click();l.remove();
+  a.textContent='✅ 保存しました';setTimeout(()=>a.textContent='⬇ 画像を保存',1800);Sound.click();
+});
+/* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
+const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
+function showChat(pid,x){
+  const p=G.players[pid];if(!p||typeof x!=='string'||!x)return;
+  const emo=CHAT_EMO.includes(x),d=document.createElement('div');d.className='cf'+(emo?' emo':'');
+  d.innerHTML=`<span class="cf-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="cf-t">${esc(x)}</span>`;
+  const box=$('#chatFloat');box.appendChild(d);while(box.children.length>6)box.removeChild(box.firstChild);
+  setTimeout(()=>d.classList.add('out'),emo?3200:5200);setTimeout(()=>d.remove(),emo?3800:5800);
+  if(emo)Sound.pop();else Sound.click();
+}
+let chatLast=0;
+function sendChat(x){
+  x=String(x||'').trim().slice(0,30);if(!x||!NET.on)return;
+  const now=Date.now();if(now-chatLast<500)return;chatLast=now;
+  if(NET.isHost){bc({t:'chat',pid:NET.myPid,x});showChat(NET.myPid,x)}else NET.send({t:'chat',x});
+}
+(function(){
+  $('#chatEmo').innerHTML=CHAT_EMO.map(e=>`<button data-e="${e}">${e}</button>`).join('');
+  $('#chatEmo').querySelectorAll('button').forEach(b=>b.onclick=()=>sendChat(b.dataset.e));
+  $('#chatBtn').onclick=()=>{$('#chatPanel').classList.toggle('hidden');Sound.click()};
+  const go=()=>{const i=$('#chatIn');if(i.value.trim()){sendChat(i.value);i.value=''}};
+  $('#chatSend').onclick=go;$('#chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go()}});
+  $('#stage').addEventListener('pointerdown',()=>$('#chatPanel').classList.add('hidden'));
+})();
 /* ---------- トースト・ログ・数字・バナー ---------- */
 let toastT=0;
 V.toast=m=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,3200)};
@@ -365,7 +400,8 @@ function buildTitle(){                                   // 保存済みのア�
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
-  ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
+  ['#tools','#left','#hudR','#actions','#hand','#mbar','#chatFloat'].forEach(s=>$(s).classList.remove('hidden'));
+  $('#chatBtn').classList.toggle('hidden',!NET.on);
   if(NET.on)$('#btnSpd').classList.add('hidden');
   $('#btnSave').classList.toggle('hidden',!(NET.on&&NET.isHost));
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();

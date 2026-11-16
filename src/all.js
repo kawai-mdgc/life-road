@@ -660,6 +660,8 @@ async function buyHouse(p){
   G.houseTaken[o.i]=true;p.houses.push(o.h);joy(p,6);V.hud();
   say(p,`${p.name}：${o.h.n}を購入！`);
   await V.buildHouse(p,o.h);                       // 家にズーム → ボン！！と立つ → 約5秒しっかり見せる
+  {const u=typeof housePhoto==='function'?housePhoto(p,o.h):'';
+   if(u)await ask(p,{head:'🏠 マイホーム！',color:'#c98a00',title:`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,text:keepsake(u,`${p.name} の ${o.h.n} が建ちました！`),btns:['OK'],pick:0,wide:true})}
 }
 
 /* ---------- 勝負・賭け ---------- */
@@ -693,7 +695,8 @@ const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
 const NAT_HAIR=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441],NAT_SKIN=[0xffe0c2,0xffd9b3,0xf2c29a,0xd9a06e],STYLE_BY={m:['short','spiky','buzz'],f:['long','bob','pony','bun','twin'],n:['short','bob','tuft']};
 const pic2=(p,c,kind)=>typeof portraitTogether==='function'?portraitTogether(p,c,kind):'';     // 記念の絵（自分と相手がならぶ）
-const picHtml=(p,c,kind)=>{const u=pic2(p,c,kind);return u?`<img src="${u}" width="280" style="max-width:100%;border-radius:14px;background:linear-gradient(#ffe6f1,#fff7d6)" alt=""><br>`:''};
+const keepsake=(u,cap)=>u?`<div class="keep"><img class="keepsake" src="${u}" data-cap="${esc(cap||'')}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`:'';   // 保存できる記念の絵
+const picHtml=(p,c,kind,cap)=>keepsake(pic2(p,c,kind),cap);
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
@@ -742,7 +745,7 @@ async function choosePet(p,baby){
   const cand=genPets(si===0?'dog':'cat',baby);
   const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
   p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);Sound.good();
-  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet')+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
+  await ask(p,{head:'🐾 家族がふえた！',color:'#ff9a3d',title:`わ〜い！ ${esc(cand[ci].name)} がやってきた！`,text:picHtml(p,cand[ci],'pet',`${p.name} の家に ${cand[ci].name} がやってきた！`)+`${esc(cand[ci].breed)}・${esc(cand[ci].trait)}`,btns:['OK'],pick:0,wide:true});
   say(p,`${p.name} の家に ${cand[ci].name}（${cand[ci].breed}）がやってきた！`);
 }
 async function stepAndLand(p){                 // 分岐を選んだら、すぐ最初のマスの支払い・収入を実行する
@@ -797,7 +800,7 @@ SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！
 SP['31']=async p=>{
   const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
   p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);Sound.good();
-  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover')+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
+  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover',`${p.name} と ${c.name} さん、おつきあいスタート！`)+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
 };
 SP['34']=async p=>{
   const r=await spin(p,'duel');
@@ -844,7 +847,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   p.spouseInfo={...c,role:'spouse',bonus:[0,1000,3000,5000][c.inc]};
   say(p,`${p.name} は ${c.name} さんと結婚！`);
   p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
-  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse')+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
+  await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse',`${p.name} と ${c.name} さんが結婚しました！`)+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
@@ -3118,7 +3121,7 @@ function portraitBust(c){                       // プロフィール用：顔�
 let pairR=null,pairScene=null,pairCam=null;
 function portraitTogether(p,c,kind){
   try{
-    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setSize(300,200);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
       pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
       pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
     const g=new THREE.Group();
@@ -3134,8 +3137,8 @@ function portraitTogether(p,c,kind){
     const hc=kind==='pet'?0xffb347:0xff5a8a;                                                             // ハートと紙ふぶき
     [[0,1.0,0,.11],[.0,.9,.42,.07],[0,.92,-.44,.07]].forEach(([x,y,z,r])=>{const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(hc,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(hc,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);g.add(h)});
     const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];for(let i=0;i<26;i++){const m=mesh(new THREE.BoxGeometry(.01,.05,.03),mat(cs[i%5],60),-.3,.15+((i*37)%100)/100*1.0,-.75+((i*53)%100)/100*1.5,g);m.rotation.x=i}
-    pairScene.add(g);pairR.setClearColor(0x000000,0);pairR.render(pairScene,pairCam);pairScene.remove(g);
-    return pairR.domElement.toDataURL('image/png');
+    pairScene.add(g);pairR.setClearColor(kind==='pet'?0xfff0d2:0xffe1ec,1);pairR.render(pairScene,pairCam);pairScene.remove(g);
+    return pairR.domElement.toDataURL('image/jpeg',.86);                                                // 保存できる記念写真（背景つき）
   }catch(e){console.warn(e);return ''}
 }
 
@@ -3191,6 +3194,21 @@ function podiumPhoto(title){                                  // 記念撮影：
   c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
   c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
   return cv.toDataURL('image/png');
+}
+
+function housePhoto(p,h){                                     // 記念写真：建てた家の前で、本人が手をふる
+  try{
+    if(!pairR)portraitTogether(p,{cloth:0,gender:'n'},'lover');
+    const g=new THREE.Group(),hm=houseModel(h),b=new THREE.Box3().setFromObject(hm),c=b.getCenter(new V3()),sz=b.getSize(new V3()),R=Math.max(sz.x,sz.y*1.05,sz.z);
+    hm.position.set(-c.x,-b.min.y,-c.z);g.add(hm);
+    const gr=mesh(new THREE.CircleGeometry(R*1.5,32),mat(0xbfe3a4,10),0,-.02,0,g);gr.rotation.x=-Math.PI/2;
+    const ds=Math.max(1.6,R*.2),d=makeDoll({...lookOf(p),pose:'wave',job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,scale:ds});d.position.set(sz.x*.28,0,sz.z*.5+ds*.45);d.rotation.y=-1.25;g.add(d);
+    {const sg=nameSign(`${p.name}の家`,p.color,ds*1.5,ds*.5);sg.position.set(-sz.x*.2,ds*.55,sz.z*.5+ds*.7);sg.rotation.y=.25;g.add(sg)}
+    g.rotation.y=-.5;pairScene.add(g);
+    const cam=new THREE.PerspectiveCamera(30,1.5,.1,400);cam.position.set(R*.9,R*.8,R*2.55);cam.lookAt(0,sz.y*.36,0);
+    pairR.setClearColor(0xcfe9ff,1);pairR.render(pairScene,cam);pairScene.remove(g);
+    return pairR.domElement.toDataURL('image/jpeg',.86);
+  }catch(e){console.warn(e);return ''}
 }
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
 const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,followEl:null,shake:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
@@ -3421,6 +3439,41 @@ function cardLocal(o,p){
 }
 V.card=cardLocal;
 
+/* ---------- 記念の絵を保存：絵の下に ひとこと と LIFE ROAD のロゴを入れて1枚の画像にする ---------- */
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('.savepic');if(!a)return;
+  const img=a.parentElement.querySelector('img.keepsake');if(!img)return;
+  const W=img.naturalWidth||480,H=img.naturalHeight||320,bar=Math.round(H*.24),cv=document.createElement('canvas');cv.width=W;cv.height=H+bar;
+  const c=cv.getContext('2d');c.fillStyle='#fffaf0';c.fillRect(0,0,W,H+bar);c.drawImage(img,0,0,W,H);
+  c.fillStyle='#3b2f4a';fitText(c,img.dataset.cap||'',W/2,H+bar*.38,W-28,Math.round(bar*.36));
+  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD',W/2,H+bar*.78,W-28,Math.round(bar*.26));
+  const l=document.createElement('a');l.href=cv.toDataURL('image/png');l.download='life-road-'+Date.now()+'.png';document.body.appendChild(l);l.click();l.remove();
+  a.textContent='✅ 保存しました';setTimeout(()=>a.textContent='⬇ 画像を保存',1800);Sound.click();
+});
+/* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
+const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
+function showChat(pid,x){
+  const p=G.players[pid];if(!p||typeof x!=='string'||!x)return;
+  const emo=CHAT_EMO.includes(x),d=document.createElement('div');d.className='cf'+(emo?' emo':'');
+  d.innerHTML=`<span class="cf-n" style="background:${hex(p.color)}">${esc(p.name)}</span><span class="cf-t">${esc(x)}</span>`;
+  const box=$('#chatFloat');box.appendChild(d);while(box.children.length>6)box.removeChild(box.firstChild);
+  setTimeout(()=>d.classList.add('out'),emo?3200:5200);setTimeout(()=>d.remove(),emo?3800:5800);
+  if(emo)Sound.pop();else Sound.click();
+}
+let chatLast=0;
+function sendChat(x){
+  x=String(x||'').trim().slice(0,30);if(!x||!NET.on)return;
+  const now=Date.now();if(now-chatLast<500)return;chatLast=now;
+  if(NET.isHost){bc({t:'chat',pid:NET.myPid,x});showChat(NET.myPid,x)}else NET.send({t:'chat',x});
+}
+(function(){
+  $('#chatEmo').innerHTML=CHAT_EMO.map(e=>`<button data-e="${e}">${e}</button>`).join('');
+  $('#chatEmo').querySelectorAll('button').forEach(b=>b.onclick=()=>sendChat(b.dataset.e));
+  $('#chatBtn').onclick=()=>{$('#chatPanel').classList.toggle('hidden');Sound.click()};
+  const go=()=>{const i=$('#chatIn');if(i.value.trim()){sendChat(i.value);i.value=''}};
+  $('#chatSend').onclick=go;$('#chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go()}});
+  $('#stage').addEventListener('pointerdown',()=>$('#chatPanel').classList.add('hidden'));
+})();
 /* ---------- トースト・ログ・数字・バナー ---------- */
 let toastT=0;
 V.toast=m=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,3200)};
@@ -3737,7 +3790,8 @@ function buildTitle(){                                   // 保存済みのア�
 }
 function enterGameUI(){
   $('#titleScr').classList.add('hidden');
-  ['#tools','#left','#hudR','#actions','#hand','#mbar'].forEach(s=>$(s).classList.remove('hidden'));
+  ['#tools','#left','#hudR','#actions','#hand','#mbar','#chatFloat'].forEach(s=>$(s).classList.remove('hidden'));
+  $('#chatBtn').classList.toggle('hidden',!NET.on);
   if(NET.on)$('#btnSpd').classList.add('hidden');
   $('#btnSave').classList.toggle('hidden',!(NET.on&&NET.isHost));
   if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
@@ -3974,6 +4028,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
   else if(m.t==='spinGo'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='spin')resolvePend(m.rid)}
   else if(m.t==='repay'){const p=G.players[c.pid];if(p&&!p.finished)repayNotes(p,Math.max(1,Math.min(6,+m.n||1)))}
@@ -4161,6 +4216,7 @@ function clientRecv(m){
       }
       break}
     case 'snd':if(Sound[m.n])Sound[m.n]();break;
+    case 'chat':showChat(m.pid,m.x);break;
     case 'card':{
       const p=G.players[m.pid]||null;
       if(m.rid){cardLocal(m.o,p).then(i=>NET.send({t:'cardAns',rid:m.rid,i}))}

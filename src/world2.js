@@ -1401,7 +1401,7 @@ function portraitBust(c){                       // プロフィール用：顔�
 let pairR=null,pairScene=null,pairCam=null;
 function portraitTogether(p,c,kind){
   try{
-    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setSize(300,200);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
       pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
       pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
     const g=new THREE.Group();
@@ -1417,8 +1417,8 @@ function portraitTogether(p,c,kind){
     const hc=kind==='pet'?0xffb347:0xff5a8a;                                                             // ハートと紙ふぶき
     [[0,1.0,0,.11],[.0,.9,.42,.07],[0,.92,-.44,.07]].forEach(([x,y,z,r])=>{const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(hc,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(hc,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);g.add(h)});
     const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];for(let i=0;i<26;i++){const m=mesh(new THREE.BoxGeometry(.01,.05,.03),mat(cs[i%5],60),-.3,.15+((i*37)%100)/100*1.0,-.75+((i*53)%100)/100*1.5,g);m.rotation.x=i}
-    pairScene.add(g);pairR.setClearColor(0x000000,0);pairR.render(pairScene,pairCam);pairScene.remove(g);
-    return pairR.domElement.toDataURL('image/png');
+    pairScene.add(g);pairR.setClearColor(kind==='pet'?0xfff0d2:0xffe1ec,1);pairR.render(pairScene,pairCam);pairScene.remove(g);
+    return pairR.domElement.toDataURL('image/jpeg',.86);                                                // 保存できる記念写真（背景つき）
   }catch(e){console.warn(e);return ''}
 }
 
@@ -1474,4 +1474,19 @@ function podiumPhoto(title){                                  // 記念撮影：
   c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
   c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
   return cv.toDataURL('image/png');
+}
+
+function housePhoto(p,h){                                     // 記念写真：建てた家の前で、本人が手をふる
+  try{
+    if(!pairR)portraitTogether(p,{cloth:0,gender:'n'},'lover');
+    const g=new THREE.Group(),hm=houseModel(h),b=new THREE.Box3().setFromObject(hm),c=b.getCenter(new V3()),sz=b.getSize(new V3()),R=Math.max(sz.x,sz.y*1.05,sz.z);
+    hm.position.set(-c.x,-b.min.y,-c.z);g.add(hm);
+    const gr=mesh(new THREE.CircleGeometry(R*1.5,32),mat(0xbfe3a4,10),0,-.02,0,g);gr.rotation.x=-Math.PI/2;
+    const ds=Math.max(1.6,R*.2),d=makeDoll({...lookOf(p),pose:'wave',job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,scale:ds});d.position.set(sz.x*.28,0,sz.z*.5+ds*.45);d.rotation.y=-1.25;g.add(d);
+    {const sg=nameSign(`${p.name}の家`,p.color,ds*1.5,ds*.5);sg.position.set(-sz.x*.2,ds*.55,sz.z*.5+ds*.7);sg.rotation.y=.25;g.add(sg)}
+    g.rotation.y=-.5;pairScene.add(g);
+    const cam=new THREE.PerspectiveCamera(30,1.5,.1,400);cam.position.set(R*.9,R*.8,R*2.55);cam.lookAt(0,sz.y*.36,0);
+    pairR.setClearColor(0xcfe9ff,1);pairR.render(pairScene,cam);pairScene.remove(g);
+    return pairR.domElement.toDataURL('image/jpeg',.86);
+  }catch(e){console.warn(e);return ''}
 }

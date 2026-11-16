@@ -133,6 +133,17 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#chatBtn{position:fixed;right:10px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:33;width:52px;height:52px;padding:0;border-radius:50%;font-size:1.5rem;background:linear-gradient(#fff,#f3ead8);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 16px #0004}
+#chatPanel{position:fixed;right:10px;bottom:calc(200px + env(safe-area-inset-bottom));z-index:33;width:min(300px,88vw)}
+#chatEmo{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}#chatEmo button{padding:6px 0;font-size:1.4rem;background:#fff;box-shadow:0 2px 0 #0002;border-radius:12px}
+.chatrow{display:flex;gap:6px;margin-top:6px}.chatrow input{flex:1;min-width:0;font:inherit;font-size:16px;padding:8px;border-radius:10px;border:2px solid #e6d3b0;user-select:text}.chatrow button{padding:8px 12px;flex:none}
+#chatFloat{position:fixed;left:8px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:32;width:min(70vw,380px);display:flex;flex-direction:column;gap:5px;pointer-events:none;align-items:flex-start}
+.cf{display:flex;gap:6px;align-items:center;max-width:100%;padding:4px 10px 4px 4px;border-radius:20px;background:#fffaf0f2;border:2px solid #fff;box-shadow:0 3px 8px #0003;font-weight:800;font-size:.86rem;animation:cfin .25s ease-out;transition:opacity .6s,transform .6s}
+.cf.out{opacity:0;transform:translateY(-16px)}.cf-n{color:#fff;font-size:.68rem;padding:2px 8px;border-radius:12px;white-space:nowrap;flex:none}.cf-t{overflow-wrap:anywhere}
+.cf.emo .cf-t{font-size:1.9rem;line-height:1}.cf.emo{animation:cfpop .4s ease-out}
+@keyframes cfin{from{opacity:0;transform:translateX(-30px)}}@keyframes cfpop{0%{opacity:0;transform:scale(.3)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+.keep{display:block;text-align:center;margin-bottom:4px}.keep img{display:block;margin:0 auto;width:300px;max-width:100%;border-radius:14px;border:4px solid #fff;box-shadow:0 3px 10px #0003}
+.savepic{display:inline-block;margin:6px 0 2px;padding:6px 14px;border-radius:999px;background:#ff4f86;color:#fff;font-weight:900;font-size:.8rem;cursor:pointer;pointer-events:auto;box-shadow:0 3px 0 #0002}
 #podiumBar{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 12px calc(12px + env(safe-area-inset-bottom));text-align:center;background:linear-gradient(#fff0,#fffc 40%)}
 #podiumBar .pdt{font-weight:900;font-size:clamp(1rem,3.4vw,1.4rem);color:#3b2f4a;text-shadow:0 2px 0 #fff,0 0 8px #fff;margin-bottom:6px}
 #podiumBar .pdb{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#podiumBar button{min-width:120px}
@@ -217,6 +228,8 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
  #actions{bottom:calc(112px + env(safe-area-inset-bottom))}
  body.m-nohand #hand{display:none}body.m-nohand #actions{bottom:calc(16px + env(safe-area-inset-bottom))}
  #spinBtn{padding:13px 26px;max-width:94vw}
+ #chatBtn{bottom:calc(190px + env(safe-area-inset-bottom));width:46px;height:46px;font-size:1.3rem}#chatPanel{bottom:calc(244px + env(safe-area-inset-bottom))}#chatFloat{bottom:calc(190px + env(safe-area-inset-bottom));width:calc(100vw - 76px)}
+ body.m-nohand #chatBtn{bottom:calc(96px + env(safe-area-inset-bottom))}body.m-nohand #chatPanel{bottom:calc(150px + env(safe-area-inset-bottom))}body.m-nohand #chatFloat{bottom:calc(96px + env(safe-area-inset-bottom))}
  #roulLabel{top:calc(58px + env(safe-area-inset-top))}#testPanel{top:calc(58px + env(safe-area-inset-top))}
  #logBox{bottom:calc(118px + env(safe-area-inset-bottom));width:min(320px,80vw)}
  #cardBody{max-height:42vh;font-size:.95rem}#cardTitle{font-size:1.12rem}#cardBtns button{padding:11px 12px}
@@ -288,6 +301,9 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  <button id="avIcon" title="アバター設定"><img id="avIconImg" width="54" height="38" alt=""><span id="avIconName"></span><small>⚙ アバター設定</small></button>
 </div>
 
+<button id="chatBtn" class="hidden" title="リアクション・コメント">💬</button>
+<div id="chatPanel" class="panel hidden"><div id="chatEmo"></div><div class="chatrow"><input id="chatIn" type="text" maxlength="30" placeholder="ひとこと（30文字まで）" autocomplete="off"><button id="chatSend">送る</button></div></div>
+<div id="chatFloat" class="hidden"></div>
 <div id="podiumBar" class="hidden"></div><div id="photoFlash" class="hidden"></div>
 <div id="avModal" class="hidden">
  <div class="panel" id="avatarBox">

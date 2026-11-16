@@ -2962,9 +2962,10 @@ const SEAT_SETS={
 const isOldStage=st=>st==='chair'||st==='echair'||st==='scooter';
 const HEAVEN_Y=62;                                            // 天界の高さ（下の世界は霧で見えない）
 const inHeaven=p=>{const c=cars[p.id];return !!(p.finished||(c&&c.heaven))};
-function heavenSpot(p){                                       // 天界での居場所：ゴールのマスの真上から、道の先へ一列にならぶ（いま着いた人がゴールの真上、先に着いた人は1つずつ前へ）
-  const b=POS[150],h=HEAD[150],n=G.players.filter(inHeaven).length,rank=p.rank||(p.left?-p.id-1:n),k=Math.max(0,n-rank);
-  return new V3(b.x+h.x*k*2.7,HEAVEN_Y,b.z+h.z*k*2.7);
+const HEAVEN_SLOT=[0,5,2,7,3,9,1,6,4,8];                       // ばらばらの並び（どの画面でも同じになるよう、決め打ち）
+function heavenSpot(p){                                       // 天界での居場所：ゴール手前の道の真上あたりに、ふぞろいに浮かぶ
+  const j=HEAVEN_SLOT[p.id%10],q=POS[150-j]||POS[150],h=HEAD[150-j]||HEAD[150],r=mulberry32(p.id*977+13),lat=(r()-.5)*3.4,fw=(r()-.5)*1.6;
+  return new V3(q.x-h.z*lat+h.x*fw,HEAVEN_Y+(r()-.5)*3.2,q.z+h.x*lat+h.z*fw);
 }
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
@@ -3032,7 +3033,7 @@ function cheer(p){const c=cars[p.id];if(!c)return;anim(700,k=>c.seatG.children.f
 function sad(p){const c=cars[p.id];if(!c)return;anim(800,k=>c.seatG.children.forEach(d=>{d.rotation.y=Math.sin(k*Math.PI*5)*.6*(1-k)}))}                  // 首を振ってがっかり
 function layoutAll(){
   const by={};G.players.filter(p=>!p.inJail&&!inHeaven(p)).forEach(p=>{(by[p.pos]=by[p.pos]||[]).push(p)});
-  G.players.filter(inHeaven).forEach(p=>{const c=cars[p.id];if(!c)return;c.target.copy(heavenSpot(p));c.heading=-Math.PI/2});
+  G.players.filter(inHeaven).forEach(p=>{const c=cars[p.id];if(!c)return;c.target.copy(heavenSpot(p));c.heading=-Math.PI/2+(mulberry32(p.id*31+5)()-.5)*1.6});
   G.players.filter(p=>p.inJail).forEach((p,i)=>{const c=cars[p.id];if(!c)return;const o=JAIL_OFF[i%6];c.target.set(JAIL_POS.x+o[0],.3,JAIL_POS.z+o[1]);c.heading=0});
   for(const k in by){
     const arr=by[k],n=arr.length;

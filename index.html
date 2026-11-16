@@ -1152,7 +1152,14 @@ SP['46']=async p=>{p.doubleNext=true;say(p,'次の番はルーレットを2回�
 SP['29']=async p=>promote(p,1);
 SP['68']=async p=>promote(p,1);
 SP['91']=async p=>{p.promo+=2;await rankUp(p);say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
-SP['21']=async p=>{await payday(p,'21',false);say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE)};
+SP['21']=async p=>{                                          // 合流マス：大学ルートは社会人デビュー、就職ルートはもう働いているので準備費なし
+  if(p.route==='W'){
+    await ask(p,{head:'マス21　合流',color:'#c98a00',title:'大学ルートと合流！',text:'就職ルートの人は、もう社会人。<br>新生活の準備費は<b>かかりません</b>。給料をもらって先へ進もう',btns:['OK'],pick:0});
+    await payday(p,'21',false);return;
+  }
+  await ask(p,{head:'マス21　社会人スタート',color:'#c98a00',title:'卒業して、社会人デビュー！',text:`最初の給料をもらいます。<br>そのあと、新生活の準備（スーツ・引っ越し・家具）に <b class="minus">−${fmt(NEWLIFE)}円</b>`,btns:['OK'],pick:0});
+  await payday(p,'21',false);say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE);
+};
 async function tryMarry(p,again){                           // プロポーズ → 成功したら相手と結婚式を選ぶ
   const need=(p.loverInfo?3:5)-(p.newCar?1:0);             // 新車があると、ドライブデートで成功しやすい                                  // 結婚できるかは、ルーレットの出目しだい
   await ask(p,{head:'💍 プロポーズ！',color:'#ff6fa5',title:'結婚できるかな？',text:`ルーレットで <b>${need}以上</b> が出れば結婚成立！<br><small>${p.loverInfo?'恋人がいるので成功しやすい（3以上）':'恋人がいないので少し難しい（5以上）'}</small>`,btns:['ルーレットへ'],pick:0});
@@ -1479,7 +1486,7 @@ async function venture(p,o){                                  // 賭け・投資
 setSq('17','red','','運転免許を取る（18歳：ここから車に乗りかえ）','−10,000円',-10000);
 setSq('23','red','','一人暮らしスタート：敷金・礼金を払う','−25,000円',-25000);
 {const q=SQ['U1'];q.t='大学入学。入学金と学費（足りなければ奨学金＝約束手形）';q.m='−50,000円';q.a=-TUITION}
-{const q=SQ['21'];q.t='合流：社会人スタート。最初の給料をもらい、新生活の準備費を払う';q.m='給料 −20,000円'}
+{const q=SQ['21'];q.t='合流。大学ルート：社会人デビュー（最初の給料をもらい、新生活の準備費を払う）／就職ルート：給料だけもらう';q.m='給料（大学ルートは −20,000円）'}
 setSq('103','red','','親の介護費用','−35,000円',-35000);
 setSq('140','red','','入院と手術（健康保険で無効）','−30,000円',-30000);INS_FOR['140']='health';
 setSq('32','blue','event','マイカーを買う？ 新車・中古車・買わないから選ぶ','?');

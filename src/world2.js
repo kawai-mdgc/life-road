@@ -989,12 +989,12 @@ V.finishCar=async p=>{                                         // ゴールし�
   const c=cars[p.id];if(!c)return;c.ring.visible=false;c.anim=true;c.heaven=true;
   const a=c.g.position.clone(),beam=mesh(new THREE.CylinderGeometry(1.1,1.5,60,16,1,true),new THREE.MeshBasicMaterial({color:0xfff4b8,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,fog:false}),a.x,30,a.z,worldG);
   Sound.fanfare();
-  await anim(700,k=>{beam.material.opacity=k*.5;c.g.position.y=a.y+Math.sin(k*Math.PI*3)*.12+k*.5;c.g.rotation.y+=.12+k*.3});      // 光がさして、ふわっと浮く
+  await anim(350,k=>{beam.material.opacity=k*.5;c.g.position.y=a.y+Math.sin(k*Math.PI*3)*.12+k*.5;c.g.rotation.y+=.12+k*.3});      // 光がさして、ふわっと浮く
   refreshCar(p);                                                                                                                       // ここで、ひとりの天使の姿に
   const to=heavenSpot(p),from=c.g.position.clone();
-  await anim(650,k=>{const e=k*k*k;c.g.position.set(from.x+(to.x-from.x)*e,from.y+(to.y-from.y)*e,from.z+(to.z-from.z)*e);c.g.rotation.y+=.5;const sq=1+Math.sin(k*Math.PI)*.9;c.g.scale.set(1.25/Math.sqrt(sq),1.25*sq,1.25/Math.sqrt(sq))});   // ひゅっ！
+  await anim(420,k=>{const e=k*k*k;c.g.position.set(from.x+(to.x-from.x)*e,from.y+(to.y-from.y)*e,from.z+(to.z-from.z)*e);c.g.rotation.y+=.5;const sq=1+Math.sin(k*Math.PI)*.9;c.g.scale.set(1.25/Math.sqrt(sq),1.25*sq,1.25/Math.sqrt(sq))});   // ひゅっ！
   c.g.scale.setScalar(1.25);layoutAll();c.g.position.copy(c.target);c.anim=false;
-  await anim(500,k=>{beam.material.opacity=.5*(1-k)});worldG.remove(beam);
+  anim(400,k=>{beam.material.opacity=.5*(1-k)}).then(()=>worldG.remove(beam));          // 光は、待たずに消える
 };
 function updateStacks(){
   G.players.forEach(p=>{

@@ -57,7 +57,15 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #avIcon{position:fixed;top:10px;right:10px;z-index:60;background:#fffdf7ee;color:#3b2f4a;border:3px solid #fff;border-radius:18px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.2;box-shadow:var(--shadow)}
 #avIcon img{border-radius:10px;background:#eaf6ff}#avIcon span{font-size:.75rem;font-weight:900}#avIcon small{font-size:.62rem;color:#887}
 #avModal{position:fixed;inset:0;z-index:70;background:#0006;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto}
-#avModal .panel{max-width:520px;width:100%}
+#avModal .panel{max-width:520px;width:100%;margin:auto}
+.avrow{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+#avPrev{background:#eaf6ff99;border-radius:14px;flex:none}
+.avside{flex:1;min-width:230px;text-align:left}
+.avtabs{display:flex;gap:4px;margin-bottom:6px}.avtabs button{flex:1;padding:8px 4px;font-size:.82rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border-radius:12px 12px 4px 4px}
+.avtabs button.on{background:var(--pink);color:#fff}
+.avpane{min-height:150px}.avl{font-size:.8rem;font-weight:800;margin-top:6px}
+#avModal,#titleScr,#cardBody,#cardBtns,#left,#testPanel,#groupPop .gp,#logBox{touch-action:pan-y;-webkit-overflow-scrolling:touch}#hand{touch-action:pan-x}
+@media(max-width:640px),(max-height:620px){#avModal{align-items:flex-start;padding:8px}#avPrev{width:150px;height:106px}.avside{min-width:100%}.avpane{min-height:128px}#avModal .prow{margin:2px 0 6px}#avDone{margin-top:4px!important;padding:11px}}
 #rulesTxt{font-size:.8rem;text-align:left;margin-top:8px;line-height:1.6;color:#665}
 
 /* ---- HUD ---- */
@@ -281,15 +289,13 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  <div class="panel" id="avatarBox">
   <div style="font-weight:900;font-size:1.1rem;margin-bottom:6px">🎨 アバター設定</div>
   <div class="prow"><span>名前</span><input id="avName" type="text" maxlength="8" value="あなた"></div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">
-   <img id="avPrev" width="200" height="142" alt="アバターのプレビュー" style="background:#eaf6ff99;border-radius:14px">
-   <div style="flex:1;min-width:210px;text-align:left">
-    <div style="font-size:.8rem;font-weight:800">せいべつ</div><div id="avGender" class="gbtn"></div>
-    <div style="font-size:.8rem;font-weight:800;margin-top:6px">髪型</div><div id="avStyle" class="gbtn sm"></div>
-    <div style="font-size:.8rem;font-weight:800;margin-top:6px">髪の色</div><div id="swHair" class="sw"></div>
-    <div style="font-size:.8rem;font-weight:800;margin-top:6px">肌の色</div><div id="swSkin" class="sw"></div>
-    <div style="font-size:.8rem;font-weight:800;margin-top:6px">服の色</div><div id="swCloth" class="sw"></div>
-    <div style="font-size:.8rem;font-weight:800;margin-top:6px">車の色</div><div id="swCar" class="sw"></div>
+  <div class="avrow">
+   <img id="avPrev" width="200" height="142" alt="アバターのプレビュー">
+   <div class="avside">
+    <div id="avTabs" class="avtabs"><button data-t="face">🙂 かお</button><button data-t="hair">💇 かみ</button><button data-t="wear">👕 服・車</button></div>
+    <div class="avpane" data-t="face"><div class="avl">せいべつ</div><div id="avGender" class="gbtn"></div><div class="avl">肌の色</div><div id="swSkin" class="sw"></div></div>
+    <div class="avpane" data-t="hair"><div class="avl">髪型</div><div id="avStyle" class="gbtn sm"></div><div class="avl">髪の色</div><div id="swHair" class="sw"></div></div>
+    <div class="avpane" data-t="wear"><div class="avl">服の色</div><div id="swCloth" class="sw"></div><div class="avl">車の色</div><div id="swCar" class="sw"></div></div>
    </div>
   </div>
   <button id="avDone" class="pink big" style="margin-top:8px">OK</button>
@@ -3965,8 +3971,11 @@ function loadMe(){
   const g='mf'[rnd(2)];return{name:'あなた',gender:g,cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)],skin:SKIN_COLS[1],hair:HAIR_COLS[rnd(4)],style:DEF_STYLE[g]};
 }
 function saveMe(){try{localStorage.setItem('liferoad_me',JSON.stringify(AV[0]))}catch(e){}}
+let avTab='face';
 function renderAvatarEditor(){
   const av=AV[0];
+  $('#avTabs').querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.t===avTab);b.onclick=()=>{avTab=b.dataset.t;Sound.click();renderAvatarEditor()}});
+  document.querySelectorAll('.avpane').forEach(e=>e.classList.toggle('hidden',e.dataset.t!==avTab));
   $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
   $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;av.style=DEF_STYLE[av.gender];renderAvatarEditor()});
   $('#avStyle').innerHTML=HAIR_STYLES.map(g=>`<button data-g="${g[0]}" class="${av.style===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');

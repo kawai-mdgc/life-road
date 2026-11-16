@@ -333,8 +333,11 @@ function loadMe(){
   const g='mf'[rnd(2)];return{name:'あなた',gender:g,cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],car:CAR_COLS[rnd(CAR_COLS.length)],skin:SKIN_COLS[1],hair:HAIR_COLS[rnd(4)],style:DEF_STYLE[g]};
 }
 function saveMe(){try{localStorage.setItem('liferoad_me',JSON.stringify(AV[0]))}catch(e){}}
+let avTab='face';
 function renderAvatarEditor(){
   const av=AV[0];
+  $('#avTabs').querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.t===avTab);b.onclick=()=>{avTab=b.dataset.t;Sound.click();renderAvatarEditor()}});
+  document.querySelectorAll('.avpane').forEach(e=>e.classList.toggle('hidden',e.dataset.t!==avTab));
   $('#avGender').innerHTML=GENDERS.map(g=>`<button data-g="${g[0]}" class="${av.gender===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');
   $('#avGender').querySelectorAll('button').forEach(b=>b.onclick=()=>{av.gender=b.dataset.g;av.style=DEF_STYLE[av.gender];renderAvatarEditor()});
   $('#avStyle').innerHTML=HAIR_STYLES.map(g=>`<button data-g="${g[0]}" class="${av.style===g[0]?'pink':'alt'}">${g[1]}</button>`).join('');

@@ -735,7 +735,10 @@ function petHtml(pt){
   return `<img class="pimg" src="${portraitPet(pt)}" alt=""><div class="pi"><b>${esc(pt.name)}</b> ${pt.age}歳・${PET_DEF[pt.species].label}<br>🐾${esc(pt.breed)}<br>💬${esc(pt.trait)}</div>`;
 }
 async function choosePet(p,baby){
-  const si=await ask(p,{head:baby?'🐾 ペットに赤ちゃん！':'🐾 ペットをむかえよう',color:'#ff9a3d',title:baby?'生まれたのは、犬？ 猫？':'犬と猫、どっちにする？',text:'まず種類を選んでください',btns:['🐶 犬','🐱 猫'],pick:rnd(2),col:true});
+  const kinds=baby?[...new Set(p.petList.map(x=>x.species))]:[];           // 赤ちゃんは、いま飼っている種類から生まれる
+  let si;if(kinds.length===1)si=kinds[0]==='dog'?0:1;else{
+    si=await ask(p,{head:baby?'🐾 ペットに赤ちゃん！':'🐾 ペットをむかえよう',color:'#ff9a3d',title:baby?'生まれたのは、犬？ 猫？':'犬と猫、どっちにする？',text:'まず種類を選んでください',btns:['🐶 犬','🐱 猫'],pick:rnd(2),col:true});
+  }
   const cand=genPets(si===0?'dog':'cat',baby);
   const ci=await ask(p,{head:'🐾 ペットのプロフィールカード',color:'#ff9a3d',title:'3匹の中から選ぼう',text:'<small>タップして決定</small>',btns:cand.map(petHtml),pick:rnd(3),col:true,profile:true,wide:true});
   p.petList.push(cand[ci]);p.pets++;joy(p,4);V.pins(p);Sound.good();
@@ -759,9 +762,17 @@ async function rankUp(p){                       // 昇進すると、職業カ�
   const r=RANK_UP[p.job.n];p.jobRank=1;joy(p,5);
   V.banner(`✨ ランクアップ！ ${p.job.n} → ${r[0]}`);Sound.fanfare();V.confetti(p.pos);V.hud();V.pins(p);
   say(p,`${p.name}：${p.job.n} → ${r[0]} にランクアップ！ 給料×${r[1]}`);
+  if(G.passing){await sleep(1100);return}                    // 通過のときは、カードを出さずに一時停止だけ
   await ask(p,{head:'✨ ランクアップ！',color:'#c98a00',title:`${p.job.n} → ${r[0]}`,text:`給料が <b>×${r[1]}</b> になります<br><small>ランクアップ前 ${fmt(p.job.sal)}円 → ランクアップ後 ${fmt(Math.round(p.job.sal*r[1]))}円</small>`,btns:['OK'],pick:0});
 }
-const promote=async(p,n)=>{const k=(jobAb(p)==='promo2'&&n===1)?2:n;p.promo+=k;await rankUp(p);say(p,`昇進！ 昇進マーカー+${k}（給料+${fmt(k*5000)}）`);Sound.good();V.hud()};
+// 昇進マス：まだならランクアップ。もうランクアップ済み（またはランクアップのない職業）なら、給料日のように昇進ボーナス
+const promote=async(p)=>{
+  if(!p.job||p.retired)return;
+  const dbl=jobAb(p)==='promo2';
+  if(!p.jobRank&&RANK_UP[p.job.n]){await rankUp(p);if(!dbl)return}
+  const b=salaryOf(p)*(dbl&&p.jobRank?1:1);
+  say(p,`昇進ボーナス！ 給料1回分 +${fmt(b)}円${dbl?'（会社員の能力）':''}`);Sound.good();await income(p,b);V.hud();
+};
 SP['3']=async p=>{p.bonus=1;say(p,'次の番は出た数＋1マス進めます')};
 SP['7']=async p=>{
   const q=others(p)[0];if(!q){return}
@@ -807,9 +818,9 @@ SP['41']=async p=>{
 };
 SP['44']=async p=>{const r=await duelRoll(p,x=>x>=6);if(r>=6){say(p,'完走！ +8,000');await income(p,8000)}else say(p,'リタイア…')};
 SP['46']=async p=>{p.doubleNext=true;say(p,'次の番はルーレットを2回回して合計進みます');await travelBonus(p,'46')};
-SP['29']=async p=>promote(p,1);
-SP['68']=async p=>promote(p,1);
-SP['91']=async p=>{p.promo+=2;await rankUp(p);say(p,'管理職に昇進！ 昇進マーカー+2（給料+10,000）');Sound.good();V.hud()};
+SP['29']=async p=>promote(p);
+SP['68']=async p=>promote(p);
+SP['91']=async p=>promote(p);
 SP['21']=async p=>{                                          // 合流マス：大学ルートは社会人デビュー、就職ルートはもう働いているので準備費なし
   if(p.route==='W'){
     await ask(p,{head:'マス21　合流',color:'#c98a00',title:'大学ルートと合流！',text:'就職ルートの人は、もう社会人。<br>新生活の準備費は、就職したときに<b>支払い済み</b>。給料をもらって先へ進もう',btns:['OK'],pick:0});
@@ -888,7 +899,9 @@ SP['89']=async p=>{
 SP['94']=async p=>{await pay(p,20000);p.carLevel++;V.upgradeCar(p);say(p,'車が1ランクアップ！')};
 SP['96']=async p=>{p.redShield++;say(p,'次に止まる赤マスを1回無効にします')};
 SP['100']=async p=>{const list=active();const w=await rankSpin(list);say(w,`${w.name}が折り返し記念で+20,000`);await income(w,20000)};
-SP['102']=async p=>{await choosePet(p,true);await famBonus(p,'102')};
+SP['102']=async p=>{
+  if(!p.pets){say(p,'ペットを飼っていないので、このマスは対象外');await ask(p,{head:'🐾 ペットの赤ちゃん',color:'#8a8aa0',title:'ペットを飼っていないので対象外',text:'<small>（ペットがいる人だけのマスです）</small>',btns:['OK'],pick:0});return}
+  await choosePet(p,true);await famBonus(p,'102')};
 SP['106']=async p=>{
   await travelBonus(p,'106');
   const r=await duelRoll(p,x=>x%2===1);
@@ -1147,6 +1160,9 @@ setSq('17','red','','運転免許を取る（18歳：ここから車に乗りか
 setSq('23','red','','一人暮らしスタート：敷金・礼金を払う','−25,000円',-25000);
 {const q=SQ['U1'];q.t='大学入学。入学金と学費（足りなければ奨学金＝約束手形）';q.m='−50,000円';q.a=-TUITION}
 SQ['W1'].t+='／新生活の準備費 −20,000円';SQ['41'].t='転職フェア：転職するなら、候補3つから選べる（見てからやめてもOK）';
+['29','68','91'].forEach(id=>SQ[id].t='昇進：ランクアップ！ ランクアップ済みなら昇進ボーナス（給料1回分）。通過でもOK');
+JOBS.forEach(j=>{if(j.ab==='promo2')j.abt='昇進マスで、ランクアップに加えて昇進ボーナスももらえる'});
+SQ['102'].t='ペットを飼っていたら：赤ちゃんが生まれる。犬か猫を選んでペットピン追加';
 {const q=SQ['21'];q.t='合流。大学ルート：社会人デビュー（最初の給料をもらい、新生活の準備費を払う）／就職ルート：給料だけもらう';q.m='給料（大学ルートは −20,000円）'}
 setSq('103','red','','親の介護費用','−35,000円',-35000);
 setSq('140','red','','入院と手術（健康保険で無効）','−30,000円',-30000);INS_FOR['140']='health';
@@ -1245,11 +1261,11 @@ setSq('D8','blue','duel','お宝鑑定団：持っているお宝1枚につき �
 SP['D8']=async p=>{const n=p.items.filter(i=>i.ty==='col').length;if(!n){say(p,'お宝を持っていないので鑑定できない');return}const r=await duelRoll(p);say(p,`お宝${n}枚 × 出た数${r} × 2,000円`);await income(p,n*r*2000)};
 // 📈 キャリアアップ
 setSq('C1','blue','job','資格の勉強：受講料を払って資格マーカーを1つ得る','−15,000円');SP['C1']=async p=>{await pay(p,15000);p.qual++;say(p,'資格マーカーを1つ獲得！');V.hud()};
-setSq('C2','blue','job','昇進：ランクアップ／昇進マーカー（給料＋5,000円）','0');SP['C2']=async p=>promote(p,1);
+setSq('C2','blue','job','昇進：ランクアップ！ ランクアップ済みなら昇進ボーナス（給料1回分）','0');SP['C2']=async p=>promote(p);
 setSq('C3','yellow','','給料日','給料');
 setSq('C4','blue','job','ヘッドハンティング：専門職の山から1枚引いて転職できる','0');SP['C4']=async p=>{await chooseJob(p,'s',1,'ヘッドハンティング！ 専門職に転職できる',true)};
 setSq('C5','red','','接待ゴルフの出費','−10,000円',-10000);
-setSq('C6','blue','job','昇進：昇進マーカー（給料＋5,000円）','0');SP['C6']=async p=>promote(p,1);
+setSq('C6','blue','job','昇進：ランクアップ！ ランクアップ済みなら昇進ボーナス（給料1回分）','0');SP['C6']=async p=>promote(p);
 setSq('C7','yellow','','給料日','給料');
 setSq('C8','blue','duel','役員レース：7以上で役員に（昇進マーカー3つ＝給料＋15,000円）','?');
 SP['C8']=async p=>{if(!p.job||p.retired){say(p,'仕事がないので参加できない');return}const r=await duelRoll(p,x=>x>=7);if(r>=7){p.promo+=3;joy(p,6);Sound.fanfare();say(p,'役員に就任！ 給料＋15,000円');V.hud()}else say(p,'役員にはなれなかった…')};
@@ -1351,7 +1367,7 @@ async function moveSteps(p,n){
     if(isStop(s))break;                                   // STOPマスは通過できない
     if(i<n-1&&vehicleStop(p)){await checkVehicle(p);V.hud()}   // 乗り物が変わる年齢：給料日と同じく、一時停止して乗りかえたら、そのまま進む
     if(i<n-1&&s.c==='yellow')await payday(p,nk,true);      // 給料日は通過でももらえる
-    if(i<n-1&&PASS_PROMO.has(nk)&&p.job){V.banner('📈 昇進マスを通過！');V.flash(nk);await sleep(500);await SP[nk](p);V.hud()}   // 昇進も通過でOK（一時停止して、そのまま進む）
+    if(i<n-1&&PASS_PROMO.has(nk)&&p.job){V.banner('📈 昇進マスを通過！');V.flash(nk);await sleep(500);G.passing=true;try{await SP[nk](p)}finally{G.passing=false}V.hud()}   // 昇進も通過でOK（一時停止して、そのまま進む）
     if(i<n-1&&s.k==='lottery'){                            // 宝くじも通過でOK
       if(LOT_SHOP.has(s.id)){V.banner('🎟 宝くじ売り場を通過！');await lotteryShop(p,true)}
       else if(p.tickets.length)await lotteryDraw(p,true,nk);
@@ -3536,7 +3552,7 @@ async function zoom(p,type,x){
     const side=(label,name,sal,on,img)=>`<div class="rk ${on?'on':'off'}"><div class="rkh">${label}</div><img src="${img}" width="86"><div class="rkn">${esc(name)}</div><div class="rks">給料 ${fmt(sal)}円</div></div>`;
     o={head:'職業カード',color:j.deck==='s'?'#c98a00':'#3f8cff',title:esc(rankName(p)),
       text:`<div class="rkrow">${side('ランクアップ前',j.n,j.sal,!ranked,portrait(j,p,0))}${r?`<div class="rkarr">▶</div>${side('ランクアップ後',r[0],Math.round(j.sal*r[1]),ranked,portrait(j,p,1))}`:''}</div>
-        ${r?`<small>昇進のマス（29・68・91）に止まるか通過すると、ランクアップ！ 給料×${r[1]}</small><br>`:''}
+        ${r?`<small>昇進のマス（29・68・91）に止まるか通過すると、ランクアップ！ 給料×${r[1]}。ランクアップ済みなら昇進ボーナス（給料1回分）</small><br>`:''}
         ${p.jobless?`<b class="minus">🥲 失業中：次の${p.jobless}回の給料日は、失業手当（給料の30%）だけ</b><br>`:''}今の給料 ${fmt(salaryOf(p))}円（昇進マーカー×${p.promo}）<br>特殊能力：${esc(j.abt)}<br><small>${esc(j.look)}</small>`};
   }
   else if(type==='ticket')o={head:'🎟 宝くじ',color:'#e6a800',title:`${x}番`,text:`抽選会（マス44・97・132）のルーレットで、<br>数字が一致すれば当たり！ もう一度回して等級が決まります（1等 ${fmt(LOT_FIRST)}円・2等 ${fmt(LOT_SECOND)}円・3等 ${fmt(LOT_THIRD)}円）。となり合う数字は前後賞 ${fmt(LOT_SIDE)}円`};

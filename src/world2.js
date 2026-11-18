@@ -666,13 +666,14 @@ function makeDoll(o){
   else mesh(G_('dbody',()=>new THREE.CylinderGeometry(.1,.15,.34,18)),mat(body,90),0,.17,0,g);
   mesh(G_('dhead',()=>new THREE.SphereGeometry(.13,20,16)),mat(skin,60),0,.47,0,g);
   [-.05,.05].forEach(z=>{                                         // 顔：つやのある目・ほっぺ・にっこり口
-    mesh(G_('deye',()=>new THREE.SphereGeometry(.021,8,8)),mat(0x2a2233,140),.118,.495,z,g);
-    mesh(G_('dglint',()=>new THREE.SphereGeometry(.007,5,5)),mat(0xffffff,140,{emissive:0xffffff}),.137,.502,z+.006,g);
+    if(o.joy){const j=mesh(G_('djoy',()=>new THREE.TorusGeometry(.024,.0065,4,9,Math.PI)),mat(0x2a2233,40),.125,.5,z,g);j.rotation.y=Math.PI/2}     // 喜び：目をとじた「^ ^」
+    else{mesh(G_('deye',()=>new THREE.SphereGeometry(.021,8,8)),mat(0x2a2233,140),.118,.495,z,g);
+    mesh(G_('dglint',()=>new THREE.SphereGeometry(.007,5,5)),mat(0xffffff,140,{emissive:0xffffff}),.137,.502,z+.006,g)}
     if(!male)mesh(G_('dcheek',()=>new THREE.SphereGeometry(.022,6,6)),mat(0xff9aa8,30),.108,.455,z*1.7,g).scale.set(.5,.7,1);
     if(male){const b=mesh(G_('dbrow',()=>new THREE.BoxGeometry(.012,.014,.05)),mat(o.old?0xdddde2:0x2a2018,30),.122,.535,z*1.05,g);b.rotation.x=z>0?.25:-.25}   // 男性：きりっとした眉
     else if(o.gender==='f')mesh(G_('dlash',()=>new THREE.BoxGeometry(.008,.008,.03)),mat(0x2a2233,30),.128,.52,z*1.35,g);                                    // 女性：まつげ
   });
-  {const sm=mesh(G_('dsmile',()=>new THREE.TorusGeometry(.03,.007,5,10,Math.PI)),mat(0x8a3a3a,40),.124,.452,0,g);sm.rotation.set(o.sad?0:Math.PI,Math.PI/2,0);if(o.sad)sm.position.y=.428}
+  {const sm=mesh(G_('dsmile',()=>new THREE.TorusGeometry(.03,.007,5,10,Math.PI)),mat(0x8a3a3a,40),.124,.452,0,g);sm.rotation.set(o.sad?0:Math.PI,Math.PI/2,0);if(o.sad)sm.position.y=.428;if(o.joy)sm.scale.set(1.35,1.35,1)}
   [-1,1].forEach(sd=>{                                            // うで（服の色）と手
     const up=o.pose==='up'||(o.pose==='wave'&&sd>0),w=male?.03:0;
     if(up){const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.39,sd*(.17+w),g);a.rotation.x=sd*.55;
@@ -902,6 +903,10 @@ function heavenSpot(p){                                       // 天界での居
   const j=HEAVEN_SLOT[p.id%10],q=POS[150-j]||POS[150],h=HEAD[150-j]||HEAD[150],r=mulberry32(p.id*977+13),lat=(r()-.5)*3.4,fw=(r()-.5)*1.6;
   return new V3(q.x-h.z*lat+h.x*fw,HEAVEN_Y+(r()-.5)*3.2,q.z+h.x*lat+h.z*fw);
 }
+function exprOf(p){                                          // いまの気持ち：留置所・借金・どん底ならしょんぼり、すごく幸せならにっこり
+  if(p.inJail||p.notes>=3||p.chased||happinessOf(p)<35)return 'sad';
+  return happinessOf(p)>=88?'joy':'';
+}
 function refreshCar(p){
   const car=cars[p.id];if(!car)return;
   if(inHeaven(p)){                                            // 天界：家族もペットも乗り物もなし。雲の上にひとり
@@ -920,7 +925,8 @@ function refreshCar(p){
   }
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
   const old=ageOfKey(p.pos)>=75;
-  const sig=[st,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const ex=exprOf(p);
+  const sig=[st,ex,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
@@ -941,7 +947,7 @@ function refreshCar(p){
   }
   list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({...lookOf(p),old,job:p.job&&!p.retired&&!p.jobless&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
+    if(e.k==='driver')d=makeDoll({...lookOf(p),old,sad:ex==='sad',joy:ex==='joy',job:p.job&&!p.retired&&!p.jobless&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
     else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',...lookOf(sp),old,scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
     else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',...lookOf(lv),scale:.88})}
     else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),skin:p.skin,hair:e.kid&&e.kid.hair,scale:.7});
@@ -1263,16 +1269,21 @@ function smokePuffs(center,R,n=16,rise=3.4,ms=1300){          // 煙だけ（ボ
   for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.4;const m=mesh(new THREE.SphereGeometry(.6+Math.random()*.4,8,6),new THREE.MeshBasicMaterial({color:0xf2f2f4,transparent:true,opacity:.85}),center.x,center.y,center.z,worldG);puffs.push({m,a,r:R*(.55+Math.random()*.5),h:rise*(.6+Math.random()*.6)})}
   return anim(ms,k=>puffs.forEach(o=>{const e=easeOut(k);o.m.position.set(center.x+Math.cos(o.a)*o.r*e,center.y+o.h*e,center.z+Math.sin(o.a)*o.r*e);o.m.scale.setScalar(.5+k*2.2);o.m.material.opacity=.85*(1-k)})).then(()=>puffs.forEach(o=>worldG.remove(o.m)));
 }
+function makeRoomUnit(p,sl,glow){                             // マンションの一室（出っぱったユニット）。glow=明かりをこうこうとつける
+  const room=new THREE.Group();
+  mesh(new THREE.BoxGeometry(sl.w,sl.h,.5),mat(0xfff7e0,80),0,0,0,room);
+  mesh(new THREE.BoxGeometry(sl.w*.7,sl.h*.6,.06),mat(0xffe27a,120,{emissive:glow?0xd9a500:0x8a6a00}),0,.04,.28,room);       // 灯りのついた窓
+  if(glow){const gl=mesh(new THREE.PlaneGeometry(sl.w*1.9,sl.h*1.9),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(c,w,h)=>{const g=c.createRadialGradient(w/2,h/2,2,w/2,h/2,w/2);g.addColorStop(0,'rgba(255,230,130,.9)');g.addColorStop(1,'rgba(255,230,130,0)');c.fillStyle=g;c.fillRect(0,0,w,h)}),transparent:true,depthWrite:false}),0,.04,.4,room);gl.renderOrder=2}
+  mesh(new THREE.BoxGeometry(sl.w*1.1,.1,.35),mat(p.color,80),0,-sl.h*.5-.02,.2,room);                                          // バルコニー（プレイヤーの色）
+  mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
+  mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
+  {const sg=nameSign(p.name,p.color,Math.min(1.5,sl.w*.95),.42);sg.position.set(0,-sl.h*.5+.24,.5);room.add(sg)}                  // バルコニーに表札
+  return room;
+}
 async function popRoom(p,h,mn,quiet){                               // マンションの一室が、ポンと立つ
   const slots=mn.g.userData.rooms,free=slots.map((s,i)=>i).filter(i=>!mn.used.includes(i));
   const idx=free.length?free[rnd(free.length)]:rnd(slots.length);mn.used.push(idx);
-  const sl=slots[idx],room=new THREE.Group();room.position.set(sl.x,sl.y,sl.z+.22);
-  mesh(new THREE.BoxGeometry(sl.w,sl.h,.5),mat(0xfff7e0,80),0,0,0,room);                        // 一室（出っぱったユニット）
-  mesh(new THREE.BoxGeometry(sl.w*.7,sl.h*.6,.06),mat(0xffe27a,120,{emissive:0x8a6a00}),0,.04,.28,room); // 灯りのついた窓
-  mesh(new THREE.BoxGeometry(sl.w*1.1,.1,.35),mat(p.color,80),0,-sl.h*.5-.02,.2,room);           // バルコニー（プレイヤーの色）
-  mesh(new THREE.CylinderGeometry(.03,.03,.9,6),mat(0xffffff),sl.w*.4,sl.h*.5+.4,.2,room);
-  mesh(new THREE.PlaneGeometry(.5,.3),new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide}),sl.w*.4+.26,sl.h*.5+.65,.2,room);
-  {const sg=nameSign(p.name,p.color,Math.min(1.5,sl.w*.95),.42);sg.position.set(0,-sl.h*.5+.24,.5);room.add(sg)}                       // バルコニーに表札
+  const sl=slots[idx],room=makeRoomUnit(p,sl);room.position.set(sl.x,sl.y,sl.z+.22);mn.last=idx;
   if(quiet){mn.g.add(room);return}                              // 続きから：演出なしで置くだけ
   room.scale.set(.001,.001,.001);mn.g.add(room);mn.g.updateMatrixWorld(true);
   const wpos=mn.g.localToWorld(new V3(sl.x,sl.y,sl.z+.4));
@@ -1441,8 +1452,9 @@ function buildPodium(ranked){
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,map:canvasTex(384,150,(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,4,4,W-8,H-8,26);c.fill();c.strokeStyle=hex(p.color);c.lineWidth=10;rr(c,8,8,W-16,H-16,22);c.stroke();c.fillStyle='#3b2f4a';fitText(c,`${medal} ${p.name}`,W/2,52,W-50,50);c.fillStyle='#b06a00';fitText(c,`${fmt(p.final)}円`,W/2,108,W-50,38)})}));
     const ts=i<3?1:.74;sp.scale.set(2.5*ts,.98*ts,1);sp.position.set(x,y,z);sp.renderOrder=9;g.add(sp)};
   ranked.forEach((p,i)=>{
-    const top=i<3,low=i>=4,d=makeDoll({...lookOf(p),old:true&&ageOfKey(p.pos)>=75,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,pose:top?'up':i===3?'wave':null,sad:low,scale:2.5});
-    const holder=new THREE.Group();d.rotation.y=-Math.PI/2;holder.add(d);
+    const top=i<3,low=i>=4,pl={...lookOf(p),old:ageOfKey(p.pos)>=75,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,joy:top||i===3,sad:low,scale:2.5},d=makeDoll({...pl,pose:top?'up':i===3?'wave':null});
+    const dS=top?makeDoll({...pl,pose:null}):null;                                         // 撮影用：うでを下ろして、表情だけで喜ぶ
+    const holder=new THREE.Group();d.rotation.y=-Math.PI/2;holder.add(d);if(dS){dS.rotation.y=-Math.PI/2;dS.visible=false;holder.add(dS)}
     let x,y,z;
     if(top){x=blocks[i][0];y=blocks[i][1]-.2;z=0}
     else if(i===3){x=4.4;y=-.2;z=.5}
@@ -1451,7 +1463,7 @@ function buildPodium(ranked){
     holder.position.set(x,y,z);g.add(holder);
     if(i===0){const cr=new THREE.Group();mesh(new THREE.CylinderGeometry(.13,.11,.09,8,1,true),mat(0xffd23f,160,{emissive:0x664400,side:THREE.DoubleSide}),0,0,0,cr);for(let k=0;k<5;k++)mesh(new THREE.ConeGeometry(.03,.09,4),mat(0xffd23f,160,{emissive:0x664400}),Math.cos(k*1.257)*.115,.08,Math.sin(k*1.257)*.115,cr);cr.position.set(0,.66,0);d.add(cr)}
     tag(p,i,x,y+(low?2.85:i===3?2.3:2.45),z+.05);
-    actors.push({holder,d,i,y,ph:i*1.3});
+    actors.push({holder,d,dS,i,y,ph:i*1.3});
   });
   const t0=performance.now();
   const timer=setInterval(()=>{const t=(performance.now()-t0)/1000;
@@ -1466,27 +1478,126 @@ function buildPodium(ranked){
   const n=ranked.length,xmin=n>4?-4.6-(n-5)*1.9-1.05:-3.7,xmax=n>3?5.5:3.7;                 // 全員が画面に入る幅
   return podium={g,base,actors,timer,conf,cx:(xmin+xmax)/2,half:(xmax-xmin)/2};
 }
-function podiumPhoto(title){                                  // 記念撮影：いまの画面をそのまま1枚の画像にする
+function podiumPhoto(title){                                  // 記念撮影：飛び跳ねる動きは止めて、表情だけの静止ポーズで撮る
+  const acts=podium?podium.actors:[];
+  acts.forEach(a=>{if(a.i<3){a.holder.position.y=a.y;a.holder.rotation.set(0,0,0);a.holder.scale.set(1,1,1);if(a.dS){a.d.visible=false;a.dS.visible=true}}else if(a.i===3){a.holder.rotation.z=0;a.holder.position.y=a.y}});
   renderer.render(scene,camP);
   const src=renderer.domElement,cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;
   const c=cv.getContext('2d');c.drawImage(src,0,0);
+  acts.forEach(a=>{if(a.dS){a.d.visible=true;a.dS.visible=false}});                      // 動きをもとに戻す
   const W=cv.width,H=cv.height,u=Math.max(18,Math.round(H*.05));
   c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
   c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
   return cv.toDataURL('image/png');
 }
 
-function housePhoto(p,h){                                     // 記念写真：建てた家の前で、本人が手をふる
-  try{
-    if(!pairR)portraitTogether(p,{cloth:0,gender:'n'},'lover');
-    const g=new THREE.Group(),hm=houseModel(h),b=new THREE.Box3().setFromObject(hm),c=b.getCenter(new V3()),sz=b.getSize(new V3()),R=Math.max(sz.x,sz.y*1.05,sz.z);
-    hm.position.set(-c.x,-b.min.y,-c.z);g.add(hm);
-    const gr=mesh(new THREE.CircleGeometry(R*1.5,32),mat(0xbfe3a4,10),0,-.02,0,g);gr.rotation.x=-Math.PI/2;
-    const ds=Math.max(1.6,R*.2),d=makeDoll({...lookOf(p),pose:'wave',job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,scale:ds});d.position.set(sz.x*.28,0,sz.z*.5+ds*.45);d.rotation.y=-1.25;g.add(d);
-    {const sg=nameSign(`${p.name}の家`,p.color,ds*1.5,ds*.5);sg.position.set(-sz.x*.2,ds*.55,sz.z*.5+ds*.7);sg.rotation.y=.25;g.add(sg)}
-    g.rotation.y=-.5;pairScene.add(g);
-    const cam=new THREE.PerspectiveCamera(30,1.5,.1,400);cam.position.set(R*.9,R*.8,R*2.55);cam.lookAt(0,sz.y*.36,0);
-    pairR.setClearColor(0xcfe9ff,1);pairR.render(pairScene,cam);pairScene.remove(g);
+/* ---------- 記念写真づくり（共通）：人形やモノを並べて、1枚の写真にする ---------- */
+function ensurePair(){
+  if(pairR)return;
+  pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+  pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
+  pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0);
+}
+function photoShot(build){                                    // build(g) が {bg,pos,look,fov} を返す
+  try{ensurePair();const g=new THREE.Group(),sp=build(g);pairScene.add(g);
+    const cam=new THREE.PerspectiveCamera(sp.fov||30,1.5,.1,400);cam.position.set(...sp.pos);cam.lookAt(...sp.look);
+    pairR.setClearColor(sp.bg,1);pairR.render(pairScene,cam);pairScene.remove(g);
     return pairR.domElement.toDataURL('image/jpeg',.86);
   }catch(e){console.warn(e);return ''}
+}
+const FACE=-1.25;                                             // 斜め前のカメラに、顔を向ける
+function heartAt(g,x,y,z,r,c=0xff5a8a,ry=0){const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(c,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(c,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);h.rotation.y=ry;g.add(h)}
+function bitsAt(g,n,cx,cy,cz,sx,sy,sz){const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];for(let i=0;i<n;i++){const m=mesh(new THREE.BoxGeometry(.05,.05,.012),mat(cs[i%5],60),cx+(((i*37)%100)/100-.5)*sx,cy+(((i*53)%100)/100)*sy,cz+(((i*71)%100)/100-.5)*sz,g);m.rotation.set(i,i*2,i*3)}}
+function labelSprite(txt,col,w=1.5,h=.42,y=1){const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,fog:false,map:canvasTex(384,Math.round(384*h/w),(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,5,5,W-10,H-10,H*.4);c.fill();c.strokeStyle=hex(col);c.lineWidth=10;rr(c,9,9,W-18,H-18,H*.36);c.stroke();c.fillStyle='#3b2f4a';fitText(c,txt,W/2,H/2+3,W-60,Math.round(H*.5))})}));sp.scale.set(w,h,1);sp.position.y=y;sp.renderOrder=9;return sp}
+function riderList(p){                                        // 同じ車に乗っている全員
+  const l=[{k:'me'}];if(p.spouse)l.push({k:'sp'});else if(p.lover)l.push({k:'lv'});
+  (p.kidList||[]).forEach(k=>l.push({k:'kid',kid:k}));for(let i=0;i<(p.grand||0);i++)l.push({k:'grand',i});(p.petList||[]).forEach(pt=>l.push({k:'pet',pt}));
+  return l;
+}
+function housePhoto(p,h,family){                               // 家の記念写真。family=車に同乗する全員が家の前にならぶ。マンションは、買った部屋の明かりがついた写真
+  return photoShot(g=>{
+    const hm=houseModel(h),b=new THREE.Box3().setFromObject(hm),c=b.getCenter(new V3()),sz=b.getSize(new V3());
+    hm.position.set(-c.x,-b.min.y,-c.z);g.add(hm);
+    const mn=mansions[h.n],rooms=hm.userData.rooms;
+    if(mn&&rooms){const sl=rooms[mn.last!==undefined&&rooms[mn.last]?mn.last:0],ru=makeRoomUnit(p,sl,true);ru.position.set(sl.x,sl.y,sl.z+.22);hm.add(ru)}    // 買った部屋に灯り
+    let R=Math.max(sz.x,sz.y*1.05,sz.z);const ds=Math.max(1.8,R*(family?.27:.2)),zf=sz.z*.5+ds*.6;let signX=-sz.x*.32,rowW=0;
+    if(mn&&rooms&&!family){hm.userData.room=true}
+    else if(!family){
+      const d=makeDoll({...lookOf(p),pose:'wave',joy:true,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,scale:ds});d.position.set(sz.x*.28,0,zf);d.rotation.y=FACE;g.add(d);
+    }else{
+      const L=riderList(p),wd=r=>ds*(r.k==='pet'?.62:r.k==='kid'?.52:r.k==='grand'?.42:.66),tot=L.reduce((a,r)=>a+wd(r),0);let x=-tot/2;
+      R=Math.max(R,tot*1.1);signX=tot/2+ds*1.1;rowW=tot;
+      L.forEach(r=>{
+        let d,w=wd(r);
+        if(r.k==='me')d=makeDoll({...lookOf(p),pose:'wave',joy:true,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,scale:ds});
+        else if(r.k==='sp')d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',...lookOf(p.spouseInfo),old:ageOfKey(p.pos)>=75,joy:true,scale:ds*.95});
+        else if(r.k==='lv')d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',...lookOf(p.loverInfo),joy:true,scale:ds*.92});
+        else if(r.k==='kid')d=makeDoll({...lookOf(r.kid),skin:r.kid.skin||p.skin,pose:'up',joy:true,scale:ds*.7});
+        else if(r.k==='grand')d=makeDoll({color:KID_COL[(r.i+2)%5],gender:r.i%2?'m':'f',skin:p.skin,pose:'up',joy:true,scale:ds*.55});
+        else d=makePet(ds*.9,r.pt.col,r.pt.species);
+        d.position.set(x+w/2,0,zf+(r.k==='kid'||r.k==='grand'?ds*.18:0));d.rotation.y=FACE;g.add(d);x+=w;
+      });
+    }
+    const gr=mesh(new THREE.CircleGeometry(R*1.9,32),mat(0xbfe3a4,10),0,-.02,0,g);gr.rotation.x=-Math.PI/2;
+    {const sg=nameSign(`${p.name}の家`,p.color,ds*1.5,ds*.5);sg.position.set(signX,ds*.55,sz.z*.5+ds*.8);sg.rotation.y=.25;g.add(sg)}
+    g.rotation.y=-.5;
+    if(hm.userData.room){                                       // マンション：買った部屋の明かりをアップで
+      const sl=rooms[mn.last!==undefined&&rooms[mn.last]?mn.last:0],lx=sl.x-c.x,ly=sl.y-b.min.y,lz=sl.z+.22-c.z,cs=Math.cos(-.5),sn=Math.sin(-.5),wx=lx*cs+lz*sn,wz=-lx*sn+lz*cs,dd=Math.max(7,R*.55);
+      return{bg:0xcfe9ff,pos:[wx+.33*dd,ly+.15*dd,wz+.93*dd],look:[wx,ly,wz]};
+    }
+    if(family&&sz.y>sz.x*1.6){const Rt=Math.max(sz.x*1.5,sz.z*1.5,rowW*1.5);return{bg:0xcfe9ff,pos:[Rt*.9,Rt*.55,Rt*2.5],look:[0,Rt*.32,0]}}   // 高い建物：足もとの家族がよく見えるように寄る
+    return{bg:0xcfe9ff,pos:[R*.9,R*.8,R*2.55],look:[0,sz.y*(mn?.45:.36),0]};
+  });
+}
+function jailPhoto(p,why){                                     // 留置所の写真：鉄格子の中で、しょんぼり
+  return photoShot(g=>{
+    mesh(new THREE.BoxGeometry(6,.2,5),mat(0x8d8d99,20),0,-.1,0,g);
+    mesh(new THREE.BoxGeometry(6,4,.2),mat(0xb9bcc6,20),0,2,-2.4,g);
+    [-3,3].forEach(x=>mesh(new THREE.BoxGeometry(.2,4,5),mat(0xa9acb8,20),x,2,0,g));
+    for(let i=0;i<=6;i++)mesh(new THREE.BoxGeometry(i%2?.5:.9,.04,.02),mat(0x2b2b3a),-1.9+(i%2?.2:0),.3+i*.5,-2.28,g);      // 身長のものさし
+    for(let i=-6;i<=6;i++)mesh(new THREE.CylinderGeometry(.05,.05,4,6),mat(0x30303c,120),i*.45,2,2.2,g);                     // 鉄格子
+    [3.9,.1].forEach(y=>mesh(new THREE.BoxGeometry(6,.12,.12),mat(0x30303c,120),0,y,2.2,g));
+    const d=makeDoll({...lookOf(p),sad:true,scale:2.3});d.position.set(0,0,1.0);d.rotation.y=-Math.PI/2;g.add(d);
+    const pl=mesh(new THREE.PlaneGeometry(.78,.46),new THREE.MeshBasicMaterial({map:canvasTex(256,150,(c,W,H)=>{c.fillStyle='#fffdf2';c.fillRect(0,0,W,H);c.strokeStyle='#333';c.lineWidth=8;c.strokeRect(4,4,W-8,H-8);c.fillStyle='#3b2f4a';fitText(c,p.name,W/2,H*.3,W-30,50);c.fillStyle='#c4202a';fitText(c,why,W/2,H*.7,W-30,42)})}),0,1.0,1.75,g);
+    return{bg:0x2b2f40,pos:[0,1.5,5.2],look:[0,1.15,0],fov:38};
+  });
+}
+function birthPhoto(p,born){                                   // 赤ちゃん誕生：パパとママと赤ちゃん
+  return photoShot(g=>{
+    const me=makeDoll({...lookOf(p),pose:'up',joy:true,scale:1});me.position.set(0,.06,.5);g.add(me);
+    if(p.spouseInfo){const sp=makeDoll({color:0xff8fb5,...lookOf(p.spouseInfo),pose:'up',joy:true,scale:1});sp.position.set(0,.06,-.5);g.add(sp)}
+    born.forEach((k,i)=>{const b=makeDoll({...lookOf(k),skin:k.skin||p.skin,pose:'up',joy:true,scale:.55});b.position.set(.3,.06,(i-(born.length-1)/2)*.42);g.add(b)});
+    [[-.4,1.15,.2,.1],[-.4,1.0,-.35,.07],[-.4,1.1,.7,.07]].forEach(([x,y,z,r])=>heartAt(g,x,y,z,r,0xff8fb0));
+    bitsAt(g,30,-.2,.1,0,1,1.1,1.6);
+    return{bg:0xfff1c9,pos:[3.0,.8,0],look:[0,.55,0]};
+  });
+}
+function jobPhoto(p,title){                                    // 新しい職業：その制服で、手をふる
+  return photoShot(g=>{
+    const d=makeDoll({...lookOf(p),pose:'wave',joy:true,job:p.job?p.job.n:null,rank:p.jobRank,scale:1.2});d.position.set(0,.04,0);g.add(d);
+    g.add(labelSprite(title,p.color,1.7,.44,1.18));
+    bitsAt(g,34,-.2,.1,0,1.2,1.3,1.8);
+    return{bg:0xcfe9ff,pos:[2.9,.85,0],look:[0,.66,0]};
+  });
+}
+function lottoPhoto(p,amt){                                    // 宝くじ1等：大よろこび
+  return photoShot(g=>{
+    const d=makeDoll({...lookOf(p),pose:'up',joy:true,scale:1.2});d.position.set(0,.04,0);g.add(d);
+    g.add(labelSprite(`1等 ${fmt(amt)}円！`,0xe6a800,2.1,.5,1.2));
+    for(let i=0;i<14;i++){const a=i*.9,r=.5+(i%4)*.18,m=mesh(new THREE.CylinderGeometry(.09,.09,.02,12),mat(0xffd23f,140,{emissive:0x664400}),Math.cos(a)*r*.4-.35,.1+(i%5)*.22,Math.sin(a)*r*1.2,g);m.rotation.x=1+i}
+    bitsAt(g,34,-.2,.2,0,1.2,1.4,1.8);
+    return{bg:0xfff2b0,pos:[3.1,.85,0],look:[0,.68,0]};
+  });
+}
+function carPhoto(p,title){                                    // 新車：リボンをかけた車の横で、ばんざい
+  return photoShot(g=>{
+    const car=buildCarModel(p.color);g.add(car);
+    const rb=mat(0xff3b5c,80);mesh(new THREE.BoxGeometry(.12,.04,.84),rb,.1,.62,0,car);mesh(new THREE.BoxGeometry(1.52,.04,.12),rb,0,.62,0,car);
+    [-1,1].forEach(sd=>{const lp=mesh(new THREE.SphereGeometry(.12,8,6),rb,.1,.68,sd*.12,car);lp.scale.set(1.4,.8,1)});
+    const d=makeDoll({...lookOf(p),pose:'up',joy:true,scale:1.5});d.position.set(.3,0,1.05);d.rotation.y=-.75;g.add(d);
+    g.add(labelSprite(title,p.color,1.8,.46,1.6));
+    const gr=mesh(new THREE.CircleGeometry(3.4,32),mat(0xc8d0dc,10),0,-.02,0,g);gr.rotation.x=-Math.PI/2;
+    bitsAt(g,30,0,.4,0,3,1.5,3);
+    return{bg:0xd9f0ff,pos:[3.1,1.55,3.8],look:[0,.7,.2]};
+  });
 }

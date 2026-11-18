@@ -134,6 +134,9 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#peekBar{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:31;display:flex;gap:6px;align-items:center;padding:6px 10px;border-radius:22px;background:#fffaf0f5;border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 10px 20px #0004;font-weight:900;font-size:.9rem;max-width:96vw}
+#peekBar button{padding:6px 10px;font-size:.85rem;flex:none;border-radius:12px}#pkName{white-space:nowrap}
+.pl .pk{padding:1px 6px;font-size:.8rem;border-radius:10px;background:#fff;color:#3b2f4a;box-shadow:0 2px 0 #0002;margin-left:4px;flex:none}
 #chatBtn{position:fixed;right:10px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:33;width:52px;height:52px;padding:0;border-radius:50%;font-size:1.5rem;background:linear-gradient(#fff,#f3ead8);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 16px #0004}
 #chatPanel{position:fixed;right:10px;bottom:calc(200px + env(safe-area-inset-bottom));z-index:33;width:min(300px,88vw)}
 #chatEmo{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}#chatEmo button{padding:6px 0;font-size:1.4rem;background:#fff;box-shadow:0 2px 0 #0002;border-radius:12px}
@@ -231,6 +234,7 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
  #spinBtn{padding:13px 26px;max-width:94vw}
  #chatBtn{bottom:calc(190px + env(safe-area-inset-bottom));width:46px;height:46px;font-size:1.3rem}#chatPanel{bottom:calc(244px + env(safe-area-inset-bottom))}#chatFloat{bottom:calc(190px + env(safe-area-inset-bottom));width:calc(100vw - 76px)}
  body.m-nohand #chatBtn{bottom:calc(96px + env(safe-area-inset-bottom))}body.m-nohand #chatPanel{bottom:calc(150px + env(safe-area-inset-bottom))}body.m-nohand #chatFloat{bottom:calc(96px + env(safe-area-inset-bottom))}
+ #peekBar{top:calc(56px + env(safe-area-inset-top));gap:4px;padding:5px 8px}#peekBar button{padding:7px 9px}
  #roulLabel{top:calc(58px + env(safe-area-inset-top))}#testPanel{top:calc(58px + env(safe-area-inset-top))}
  #logBox{bottom:calc(118px + env(safe-area-inset-bottom));width:min(320px,80vw)}
  #cardBody{max-height:42vh;font-size:.95rem}#cardTitle{font-size:1.12rem}#cardBtns button{padding:11px 12px}
@@ -305,6 +309,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
 <button id="chatBtn" class="hidden" title="リアクション・コメント">💬</button>
 <div id="chatPanel" class="panel hidden"><div id="chatEmo"></div><div class="chatrow"><input id="chatIn" type="text" maxlength="30" placeholder="ひとこと（30文字まで）" autocomplete="off"><button id="chatSend">送る</button></div></div>
 <div id="chatFloat" class="hidden"></div>
+<div id="peekBar" class="hidden"><button id="pkPrev">◀</button><span id="pkName"></span><button id="pkNext">▶</button><button id="pkMode" class="alt">📍 現在地</button><button id="pkClose" class="pink">✕</button></div>
 <div id="podiumBar" class="hidden"></div><div id="photoFlash" class="hidden"></div>
 <div id="avModal" class="hidden">
  <div class="panel" id="avatarBox">

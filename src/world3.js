@@ -94,6 +94,7 @@ function update(){
     const f=confetti[i];f.life+=dt;f.v.y-=12*dt;f.m.position.addScaledVector(f.v,dt);f.m.rotation.x+=f.rs.x*dt;f.m.rotation.y+=f.rs.y*dt;
     if(f.life>1.8||f.m.position.y<0){scene.remove(f.m);confetti.splice(i,1)}
   }
+  if(Cam.peek&&(Cam.rouletteView||performance.now()<Cam.introUntil||performance.now()>Cam.peek.until||G.over))V.peekEnd();   // ルーレットや番のはじまりでは、自動でもどる
   updateCamera(dt,cur);
   updateOcclusion();
 }
@@ -104,6 +105,10 @@ function updateCamera(dt,cur){
   if(Cam.title){Cam.userAz+=dt*.1;tgt=new V3(0,0,0);az=Cam.userAz;el=.7;dist=135}
   else if(Cam.is2D){
     camO.position.set(Cam.pan.x,300,Cam.pan.z);camO.up.set(0,0,-1);camO.lookAt(Cam.pan.x,0,Cam.pan.z);return;
+  }else if(Cam.peek&&cars[Cam.peek.id]){                                   // とびカメラ：ほかの人（自分も）の表情・現在地をのぞく
+    const c=cars[Cam.peek.id],ry=c.g.rotation.y,fx=Math.cos(ry),fz=-Math.sin(ry);
+    if(Cam.peek.mode==='face'){tgt=c.g.position.clone().add(new V3(0,c.heaven?1.25:.95,0));az=Math.atan2(fx,fz)+.3;el=.18;dist=c.heaven?6:5}
+    else{tgt=c.g.position.clone();az=Cam.userAz;el=1.0;dist=22}
   }else if(Cam.rouletteView){tgt=new V3(0,6.2,1.0);az=0;el=1.42;dist=Math.max(15.5,14/aspect())}   // 真上から見て、針と止まる目がはっきり見える
   else{
     const c=cur&&cars[cur.id];tgt=Cam.followObj?Cam.followObj.position.clone():(c?c.g.position.clone():new V3());
@@ -129,7 +134,7 @@ function heavenOf(p){                                      // 最後の宝くじ
   if(!p||Cam.title)return 0;const n=+p.pos;return n>=132?clamp((n-132)/18,0,1):0;
 }
 function updateHeaven(dt,cur){
-  heavenK+=(heavenOf(cur)-heavenK)*Math.min(1,dt*1.1);
+  heavenK+=(heavenOf(Cam.peek&&G.players[Cam.peek.id]?G.players[Cam.peek.id]:cur)-heavenK)*Math.min(1,dt*1.1);
   const k=heavenK,e=k*k*(3-2*k),white=new THREE.Color(1,1,1);
   scene.background.lerp(white,e);scene.fog.color.copy(scene.background);
   scene.fog.near=FOG_N+(16-FOG_N)*Math.pow(k,.6);scene.fog.far=FOG_F+(58-FOG_F)*Math.pow(k,.45);

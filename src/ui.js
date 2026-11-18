@@ -152,9 +152,27 @@ function showPlayerInfo(p){
       ${row('お宝',cols.length?cols.map(i=>(ITEM_ICON[i.c]||'')+esc(i.n)).join('・'):'なし')}
       ${row('アイテム',oth.length?oth.map(i=>(ITEM_ICON[i.c]||'')+esc(i.n)).join('・'):'なし')}
       ${row('株券・宝くじ',`株券 ${p.stocks.length?p.stocks.join('・'):'なし'} ／ 宝くじ ${p.tickets.length?p.tickets.join('・')+'番':'なし'}`)}
-    </table>`,btns:['閉じる'],cpu:false},p);
+    </table>`,btns:['🎥 とびカメラで見る','閉じる'],cpu:false},p).then(i=>{if(i===0)V.peekStart(p.id)});
 }
 
+/* ---------- とびカメラ：ターン中でも、だれかの表情（アップ）や現在地（上から）をのぞける ---------- */
+function renderPeek(){
+  const k=Cam.peek;if(!k)return;const p=G.players[k.id];if(!p)return;
+  $('#pkName').innerHTML=`<span style="color:${hex(p.color)}">●</span> ${esc(p.name)}${p.id===NET.myPid?'（あなた）':''} <small>😊${happinessOf(p)}${p.inJail?' 🚔留置所':p.finished?' ☁天界':p.chased?' 🕶追われ中':''}</small>`;
+  $('#pkMode').textContent=k.mode==='face'?'📍 現在地':'😀 表情';
+}
+V.peekStart=(pid,mode)=>{
+  const p=G.players[pid],c=cars[pid];if(!p||!c||Cam.title)return;
+  if(Cam.is2D){Cam.pan.set(c.g.position.x,0,c.g.position.z);V.toast(`📍 ${p.name} のいる場所`);return}
+  Cam.peek={id:pid,mode:mode||(Cam.peek&&Cam.peek.mode)||'face',until:performance.now()+15000};
+  $('#peekBar').classList.remove('hidden');renderPeek();Sound.click();
+};
+V.peekEnd=()=>{Cam.peek=null;$('#peekBar').classList.add('hidden')};
+(function(){
+  const step=d=>{if(!Cam.peek)return;const n=G.players.length;V.peekStart((Cam.peek.id+d+n)%n)};
+  $('#pkPrev').onclick=()=>step(-1);$('#pkNext').onclick=()=>step(1);$('#pkClose').onclick=()=>V.peekEnd();
+  $('#pkMode').onclick=()=>{if(!Cam.peek)return;Cam.peek.mode=Cam.peek.mode==='face'?'place':'face';Cam.peek.until=performance.now()+15000;renderPeek()};
+})();
 /* ---------- ルーレットボタン ---------- */
 V.waitSpin=(p,purpose,phase='start')=>new Promise(res=>{
   if(p.cpu||AUTO){setTimeout(res,(phase==='stop'?400+rnd(900):650)/SPD);return}
@@ -175,7 +193,8 @@ V.hud=()=>{
   G.players.forEach(refreshCar);updateStacks();
   // 左：プレイヤー一覧（総資産ランキング順）
   const ord=[...G.players].sort((a,b)=>(b.settled?b.final:assetsOf(b))-(a.settled?a.final:assetsOf(a)));
-  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''}" data-pid="${p.id}" title="タップで情報を見る"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}${p.finished?'🏁':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.settled?p.final:assetsOf(p))}</span></div>`).join('');
+  $('#plist').innerHTML=ord.map((p,i)=>`<div class="pl ${p===turnP?'cur':''}" data-pid="${p.id}" title="タップで情報を見る"><span>${i+1}</span><span class="dot" style="background:${hex(p.color)}"></span><span class="nm">${esc(p.name)}${p.cpu?'🤖':''}${p.finished?'🏁':''}</span><small class="ag">${ageOfKey(p.pos)}歳</small><span class="as">${fmt(p.settled?p.final:assetsOf(p))}</span><button class="pk" data-pid="${p.id}" title="とびカメラ">🎥</button></div>`).join('');
+  $('#plist').querySelectorAll('.pk').forEach(b=>b.onclick=e=>{e.stopPropagation();document.body.classList.remove('m-left');V.peekStart(+b.dataset.pid)});
   $('#plist').querySelectorAll('.pl').forEach(e=>e.onclick=()=>showPlayerInfo(G.players[+e.dataset.pid]));
   // 右上：手番プレイヤー
   const m=$('#money');
@@ -435,7 +454,7 @@ function enterGameUI(){
 async function startGame(list,save){
   Sound.resume();
   setupGame(list);if(save)loadState(save.state);enterGameUI();
-  if(save){await rebuildHouses(save.houseLog);G.players.forEach(p=>p.maxCh=chapterOf(p.pos))}
+  if(save){await rebuildHouses(save.houseLog);G.players.forEach(p=>p.maxCh=chapterLabel(p.pos))}
   V.hud();V.banner(save?'▶ 続きから再開！':'LIFE ROAD スタート！');
   await sleep(1200);
   if(save)for(const p of G.players)if(p.chased&&!p.finished)await V.thugsArrive(p);     // 取り立て屋も元どおり

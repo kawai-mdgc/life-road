@@ -34,6 +34,7 @@ function chapterOf(key){
   const s=SQ[key]; if(s.r!=='main')return {U:0,W:0,S:2,R:2,D:3,C:3,G:4}[s.r];
   const n=s.n; return n<=20?0:n<=50?1:n<=80?2:n<=110?3:n<=135?4:5;
 }
+const chapterLabel=key=>{const s=SQ[key];return s&&(s.r==='S'||s.r==='R')?3:chapterOf(key)};   // 表示用：安定・挑戦ルート（42〜45歳）は第4章
 const CHAPTER_NAME=['第1章 青春編','第2章 社会人編','第3章 家族編','第4章 中年・挑戦編','第5章 成熟編','第6章 ゴール編'];
 function nextKey(p,key=p.pos){
   const s=SQ[key];
@@ -305,6 +306,7 @@ async function chooseJob(p,deck,count,title,mayKeep=false){
   const chosen=pool[i];pool.forEach((j,k)=>{if(k!==i)returnJob(j)});
   returnJob(p.job);p.job=chosen;p.jobRank=0;V.hud();V.pins(p);
   say(p,`${p.name} は「${chosen.n}」になった！`);Sound.good();
+  await photoCard(p,'💼 新しい職業','#3f8cff',`${esc(p.name)} は「${esc(chosen.n)}」になった！`,photoOf('jobPhoto',p,chosen.n),`${p.name}、${chosen.n}になりました！`);
 }
 
 /* ---------- 赤マス（保険・特殊能力・健康／事故／詐欺） ---------- */
@@ -351,8 +353,8 @@ async function buyHouse(p){
   G.houseTaken[o.i]=true;p.houses.push(o.h);joy(p,6);V.hud();
   say(p,`${p.name}：${o.h.n}を購入！`);
   await V.buildHouse(p,o.h);                       // 家にズーム → ボン！！と立つ → 約5秒しっかり見せる
-  {const u=typeof housePhoto==='function'?housePhoto(p,o.h):'';
-   if(u)await ask(p,{head:'🏠 マイホーム！',color:'#c98a00',title:`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,text:keepsake(u,`${p.name} の ${o.h.n} が建ちました！`),btns:['OK'],pick:0,wide:true})}
+  await photoCard(p,'🏠 マイホーム！','#c98a00',`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,photoOf('housePhoto',p,o.h,false),`${p.name} の ${o.h.n} が建ちました！`,/マンション/.test(o.h.n)?'<small>買った部屋に、明かりがともりました</small>':'');
+  if(p.spouse||p.lover||p.kidList.length||p.pets)await photoCard(p,'📸 家族写真','#ff9a3d',`${esc(p.name)} の家族、そろって記念写真！`,photoOf('housePhoto',p,o.h,true),`${p.name} 一家、新しい家の前で`);
 }
 
 /* ---------- 勝負・賭け ---------- */
@@ -388,6 +390,8 @@ const NAT_HAIR=[0x2a2018,0x4a3426,0x8a5a2b,0xd9a441],NAT_SKIN=[0xffe0c2,0xffd9b3
 const pic2=(p,c,kind)=>typeof portraitTogether==='function'?portraitTogether(p,c,kind):'';     // 記念の絵（自分と相手がならぶ）
 const keepsake=(u,cap)=>u?`<div class="keep"><img class="keepsake" src="${u}" data-cap="${esc(cap||'')}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`:'';   // 保存できる記念の絵
 const picHtml=(p,c,kind,cap)=>keepsake(pic2(p,c,kind),cap);
+const photoOf=(n,...a)=>{try{const f=globalThis[n];return typeof f==='function'?f(...a):''}catch(e){console.warn(e);return ''}};      // 写真づくり（画面側にしかない関数は、なければ何もしない）
+async function photoCard(p,head,color,title,url,cap,more=''){if(!url)return;await ask(p,{head,color,title,text:keepsake(url,cap)+more,btns:['OK'],pick:0,wide:true})}
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
 function genPerson(g,p,role='spouse'){
   const inc=1+rnd(3),base=ageOfKey(p.pos);
@@ -457,7 +461,7 @@ async function rankUp(p){                       // 昇進すると、職業カ�
   V.banner(`✨ ランクアップ！ ${p.job.n} → ${r[0]}`);Sound.fanfare();V.confetti(p.pos);V.hud();V.pins(p);
   say(p,`${p.name}：${p.job.n} → ${r[0]} にランクアップ！ 給料×${r[1]}`);
   if(G.passing){await sleep(1100);return}                    // 通過のときは、カードを出さずに一時停止だけ
-  await ask(p,{head:'✨ ランクアップ！',color:'#c98a00',title:`${p.job.n} → ${r[0]}`,text:`給料が <b>×${r[1]}</b> になります<br><small>ランクアップ前 ${fmt(p.job.sal)}円 → ランクアップ後 ${fmt(Math.round(p.job.sal*r[1]))}円</small>`,btns:['OK'],pick:0});
+  await ask(p,{head:'✨ ランクアップ！',color:'#c98a00',title:`${p.job.n} → ${r[0]}`,text:keepsake(photoOf('jobPhoto',p,r[0]),`${p.name}、${r[0]}にランクアップ！`)+`給料が <b>×${r[1]}</b> になります<br><small>ランクアップ前 ${fmt(p.job.sal)}円 → ランクアップ後 ${fmt(Math.round(p.job.sal*r[1]))}円</small>`,btns:['OK'],pick:0});
 }
 // 昇進マス：まだならランクアップ。もうランクアップ済み（またはランクアップのない職業）なら、給料日のように昇進ボーナス
 const promote=async(p)=>{
@@ -515,13 +519,14 @@ SP['46']=async p=>{p.doubleNext=true;say(p,'次の番はルーレットを2回�
 SP['29']=async p=>promote(p);
 SP['68']=async p=>promote(p);
 SP['91']=async p=>promote(p);
+SQ['U7'].t='学生寮の家賃';SQ['W5'].t='社員寮の家賃';SQ['23'].t='寮を出て一人暮らしスタート：引っ越しと敷金・礼金';
 SP['21']=async p=>{                                          // 合流マス：大学ルートは社会人デビュー、就職ルートはもう働いているので準備費なし
   if(p.route==='W'){
     await ask(p,{head:'マス21　合流',color:'#c98a00',title:'大学ルートと合流！',text:'就職ルートの人は、もう社会人。<br>新生活の準備費は、就職したときに<b>支払い済み</b>。給料をもらって先へ進もう',btns:['OK'],pick:0});
     await payday(p,'21',false);return;
   }
-  await ask(p,{head:'マス21　社会人スタート',color:'#c98a00',title:'卒業して、社会人デビュー！',text:`最初の給料をもらいます。<br>そのあと、新生活の準備（スーツ・引っ越し・家具）に <b class="minus">−${fmt(NEWLIFE)}円</b>`,btns:['OK'],pick:0});
-  await payday(p,'21',false);say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE);
+  await ask(p,{head:'マス21　社会人スタート',color:'#c98a00',title:'卒業して、社会人デビュー！',text:`最初の給料をもらいます。<br>そのあと、新生活の準備（家具・家電）に <b class="minus">−${fmt(NEWLIFE)}円</b><br><small>就活スーツはもう買っているので、スーツ代はかかりません</small>`,btns:['OK'],pick:0});
+  await payday(p,'21',false);say(p,`新生活の準備（家具・家電） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE);
 };
 async function tryMarry(p,again){                           // プロポーズ → 成功したら相手と結婚式を選ぶ
   const need=(p.loverInfo?3:5)-(p.newCar?1:0);             // 新車があると、ドライブデートで成功しやすい                                  // 結婚できるかは、ルーレットの出目しだい
@@ -550,14 +555,16 @@ const BOY_N=['ハルキ','ソウマ','レン','ユウト','アオイ','タイガ
 async function baby(p,n,id){
   if(!p.spouse){say(p,'パートナーがいないので、子どもには恵まれなかった…');await ask(p,{head:'👶 子ども',color:'#8a8aa0',title:'子どもには恵まれなかった',text:'<small>（パートナーがいないので対象外です）</small>',btns:['OK'],pick:0});return}
   if(n===1&&Math.random()<.12){n=2;V.banner('👶👶 なんと双子！');say(p,'なんと、双子が生まれた！')}
+  const born=[];
   for(let i=0;i<n;i++){
     const g=Math.random()<.5?'f':'m',pool=shuffle([...(g==='f'?GIRL_N:BOY_N)].filter(n=>!p.kidList.some(k=>k.name===n))).slice(0,3);   // 兄弟で名前がかぶらない
     const ni=await ask(p,{head:`👶 ${n===2?(i+1)+'人目：':''}子ども誕生！`,color:'#ff9a3d',title:g==='f'?'女の子が生まれました！':'男の子が生まれました！',text:'名前をつけてあげよう',btns:pool,pick:rnd(3),col:true});
     p.kidList.push({name:pool[ni],gender:g,bornAge:ageOfKey(p.pos),hair:p.spouseInfo&&Math.random()<.5?p.spouseInfo.hair:(NAT_HAIR.includes(p.hair)?p.hair:NAT_HAIR[1]),skin:p.skin,cloth:KID_COL[p.kidList.length%KID_COL.length]});
     p.kids=p.kidList.length;joy(p,6);
-    say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);
+    say(p,`${p.name} に${g==='f'?'女の子':'男の子'}「${pool[ni]}」が誕生！`);born.push(p.kidList[p.kidList.length-1]);
   }
   V.pins(p);Sound.good();
+  await photoCard(p,'👶 誕生！','#ff9a3d',`わ〜い！ ${born.map(k=>esc(k.name)).join('・')} が生まれたよ！`,photoOf('birthPhoto',p,born),`${p.name} 家族に ${born.map(k=>k.name).join('・')} が誕生！`);
   await gifts(p,2000,'出産');
   if(jobAb(p)==='baby3'){say(p,'保育士の能力で+3,000円');await income(p,3000)}
   await famBonus(p,id);V.confetti(p.pos);
@@ -590,7 +597,11 @@ SP['89']=async p=>{
   const w=await rankSpin(list);say(w,`${w.name}がゴルフコンペで優勝！`);
   for(const q of list)if(q!==w)await pay(q,3000,{to:w,discount:false});
 };
-SP['94']=async p=>{await pay(p,20000);p.carLevel++;V.upgradeCar(p);say(p,'車が1ランクアップ！')};
+setSq('94','blue','event','車を買う／買い替える？（−20,000円。車のモデルが1ランク上がる。選べる）','?');
+SP['94']=async p=>{                                          // 車の買い替え：強制をやめ、選べるように（32で買った人は買い替え／買わなかった人は初めての購入）
+  const first=!p.carLevel&&!p.newCar;
+  const i=await ask(p,{head:'🚗 車',color:'#3f8cff',title:first?'車を買う？':'車を買い替える？',text:first?'車のモデルが1ランク上がります（−20,000円。足りない分は約束手形）':'車のモデルが1ランク上がります（−20,000円。足りない分は約束手形）',btns:[first?'🚙 中古車を買う（−20,000円）':'🔄 買い替える（−20,000円）','このままにする'],pick:p.risk>.5?0:1,col:true});
+  if(i===0){await pay(p,20000);p.carLevel++;V.upgradeCar(p);say(p,first?'車を購入！':'車が1ランクアップ！')}else say(p,'車はそのまま')};
 SP['96']=async p=>{p.redShield++;say(p,'次に止まる赤マスを1回無効にします')};
 SP['100']=async p=>{const list=active();const w=await rankSpin(list);say(w,`${w.name}が折り返し記念で+20,000`);await income(w,20000)};
 SP['102']=async p=>{
@@ -625,7 +636,7 @@ SP['136']=async p=>{
   const s=salaryOf(p)*3;say(p,`退職！ 退職金 ${fmt(s)}円`);await income(p,s);
   returnJob(p.job);p.job=null;p.jobRank=0;p.promo=0;p.halfPay=false;p.retired=true;V.hud();V.pins(p);
   const i=await ask(p,{head:'🌴 退職後の暮らし',color:'#8a6a4a',title:'老後の暮らし方を選ぼう',text:'<small>足りない分は約束手形。年金は年金日に10,000円だけです</small>',btns:['🏝 高級シニアレジデンス（−300,000円／幸福度が大きくアップ）','🚢 世界クルーズの旅（−120,000円／幸福度アップ）','🏠 今の家でつつましく（0円）'],pick:p.risk>.65?0:p.risk>.3?1:2,col:true});
-  if(i===0){joy(p,16);say(p,`${p.name}：高級シニアレジデンスへ −300,000円`);await pay(p,300000,{discount:false})}
+  if(i===0){p.seniorRes=true;joy(p,16);say(p,`${p.name}：高級シニアレジデンスへ −300,000円`);await pay(p,300000,{discount:false})}
   else if(i===1){joy(p,9);say(p,`${p.name}：世界クルーズの旅へ −120,000円`);await pay(p,120000,{discount:false})}
   else say(p,`${p.name}：今の家でつつましく暮らす`);
 };
@@ -641,8 +652,8 @@ SP['U6']=async p=>{const r=await duelRoll(p,x=>x>=5);if(r<=4){p.skip=1;say(p,'�
 SP['U8']=async p=>{p.qual++;say(p,'資格マーカーを1つ獲得！（宇宙飛行士に必要）');V.hud()};
 SP['U12']=async p=>{await chooseJob(p,'s',3,'卒業！ 専門職の山から3枚引いて1枚選ぶ')};
 SP['W1']=async p=>{await chooseJob(p,'g',2,'就職！ 一般職の山から2枚引いて1枚選ぶ');
-  await ask(p,{head:'社会人スタート',color:'#c98a00',title:'新生活の準備',text:`スーツ・引っ越し・家具をそろえます <b class="minus">−${fmt(NEWLIFE)}円</b>`,btns:['OK'],pick:0});
-  say(p,`新生活の準備（スーツ・引っ越し・家具） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE)};
+  await ask(p,{head:'社会人スタート',color:'#c98a00',title:'新生活の準備',text:`スーツ・通勤かばん・身のまわりをそろえます <b class="minus">−${fmt(NEWLIFE)}円</b><br><small>引っ越しは、あとのマス23で（寮を出るとき）</small>`,btns:['OK'],pick:0});
+  say(p,`新生活の準備（スーツ・身のまわり） −${fmt(NEWLIFE)}円`);await pay(p,NEWLIFE)};
 SP['W8']=async p=>{
   const r=await duelRoll(p,x=>x>=7);
   if(r>=7)await chooseJob(p,'s',1,'夜間学校：専門職に転職できる',true);else say(p,'試験に落ちた…');
@@ -682,6 +693,7 @@ async function arrest(p,force,dashForce){
     say(p,`${p.name} の出目は ${n}… 罪状は「${r.why}」で確定！`);
     await sleep(600);
   }
+  if(r.why==='飲酒運転'&&ageOfKey(p.pos)>=80)r=ARRESTS.find(x=>x.why==='ネットでの誹謗中傷');   // 免許を返納したあとは、運転の罪はなし
   Sound.bad();
   V.banner(dash?'🏃 モッズコートの警察官がダッシュで来た！':'🚨 警察が来た！');       // ② 罪が確定したあとに、警察官が来る
   await V.policeDispatch(p,dash);                            // 警察署から、警官がそのマスまで来る
@@ -693,6 +705,7 @@ async function arrest(p,force,dashForce){
     say(p,`${p.name} は「${r.why}」で逮捕… ${dash?'走って連行され':'パトカーで'}留置所へ（${r.rest}回休み）`);
     p.skip=Math.max(p.skip,r.rest);p.inJail=true;
     await V.policeTake(p,dash);
+    await photoCard(p,'🚔 留置所','#e8454c',`${esc(p.name)} は留置所へ…`,photoOf('jailPhoto',p,r.why),`${p.name}、「${r.why}」で留置所入り…`,'<small>しょんぼり記念写真</small>');
   }
 }
 const LIFE={
@@ -780,7 +793,7 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
   else await ask(p,{head:'🎊 宝くじ抽選会',color:'#e6a800',title:'抽選会！ ガラガラで当せん番号を決める',text:`あなたの宝くじ：<b>${p.tickets.join('・')}</b><br><small>数字が一致で当たり → 等級の抽選（1等 ${fmt(LOT_FIRST)}円）／となり合う数字（前後賞）は ${fmt(LOT_SIDE)}円</small>`,btns:['ガラガラを回す'],pick:0});
   G.ctx='宝くじ抽選会：当せん番号';
   const r=await garagara(p,sqId,()=>false,false);            // 番号の抽選では確定演出なし（確定演出は1等のときだけ）
-  let total=0;const lines=[];
+  let total=0,first=false;const lines=[];
   const hit=p.tickets.includes(r);
   for(const t of p.tickets){
     const side=Math.abs(t-r)===1||(t===1&&r===10)||(t===10&&r===1);
@@ -793,10 +806,11 @@ async function lotteryDraw(p,auto=false,sqId=p.pos){
     const r2=await garagara(p,sqId,x=>x>=9,true),g=r2>=9?LOT_FIRST:r2>=6?LOT_SECOND:LOT_THIRD,nm=r2>=9?'1等':r2>=6?'2等':'3等';
     total+=g;lines.push(`等級の抽選：出目 ${r2} → <b class="plus">${nm} +${fmt(g)}円</b>`);
 
-    if(r2>=9){V.banner('🎉 宝くじ1等！ 一攫千金！');V.confetti(p.pos)}
+    if(r2>=9){V.banner('🎉 宝くじ1等！ 一攫千金！');V.confetti(p.pos);first=true}
   }
   p.tickets=[];
   await ask(p,{head:'🎊 抽選結果',color:total?'#2fb36f':'#8a8aa0',title:`当せん番号は ${r}！`,text:lines.join('<br>')+(total?`<br><br>合計 <b class="plus">+${fmt(total)}円</b>`:'<br><br>残念…またチャレンジ！'),btns:['OK'],pick:0});
+  if(first)await photoCard(p,'🎉 宝くじ1等！','#e6a800',`${esc(p.name)} が1等を当てた！`,photoOf('lottoPhoto',p,LOT_FIRST),`${p.name}、宝くじ1等 ${fmt(LOT_FIRST)}円！`);
   if(total)joy(p,Math.min(60,4+total/20000));                // 当せん金額が大きいほど、幸せレベルが爆発的に上がる
   if(total){say(p,`${p.name}：宝くじ当せん！ +${fmt(total)}円`);Sound.fanfare();await income(p,total)}else say(p,`${p.name}：宝くじははずれ…`);
   V.hud();
@@ -853,17 +867,17 @@ async function venture(p,o){                                  // 賭け・投資
 setSq('17','red','','運転免許を取る（18歳：ここから車に乗りかえ）','−10,000円',-10000);
 setSq('23','red','','一人暮らしスタート：敷金・礼金を払う','−25,000円',-25000);
 {const q=SQ['U1'];q.t='大学入学。入学金と学費（足りなければ奨学金＝約束手形）';q.m='−50,000円';q.a=-TUITION}
-SQ['W1'].t+='／新生活の準備費 −20,000円';SQ['41'].t='転職フェア：転職するなら、候補3つから選べる（見てからやめてもOK）';
+SQ['W1'].t+='／新生活の準備（スーツ・身のまわり）−20,000円';SQ['41'].t='転職フェア：転職するなら、候補3つから選べる（見てからやめてもOK）';
 ['29','68','91'].forEach(id=>SQ[id].t='昇進：ランクアップ！ ランクアップ済みなら昇進ボーナス（給料1回分）。通過でもOK');
 JOBS.forEach(j=>{if(j.ab==='promo2')j.abt='昇進マスで、ランクアップに加えて昇進ボーナスももらえる'});
 SQ['102'].t='ペットを飼っていたら：赤ちゃんが生まれる。犬か猫を選んでペットピン追加';
-{const q=SQ['21'];q.t='合流。大学ルート：社会人デビュー（最初の給料をもらい、新生活の準備費を払う）／就職ルート：給料だけもらう';q.m='給料（大学ルートは −20,000円）'}
+{const q=SQ['21'];q.t='合流。大学ルート：社会人デビュー（最初の給料をもらい、家具・家電をそろえる）／就職ルート：給料だけもらう';q.m='給料（大学ルートは −20,000円）'}
 setSq('103','red','','親の介護費用','−35,000円',-35000);
 setSq('140','red','','入院と手術（健康保険で無効）','−30,000円',-30000);INS_FOR['140']='health';
 setSq('32','blue','event','マイカーを買う？ 新車・中古車・買わないから選ぶ','?');
 SP['32']=async p=>{
   const i=await ask(p,{head:'🚗 マイカー',color:'#3f8cff',title:'車を買う？',text:'<small>新車があると、プロポーズが成功しやすくなります（必要な出目−1）。足りない分は約束手形（ローン）</small>',btns:['✨ 新車（−60,000円）','🚙 中古車（−20,000円）','買わない'],pick:p.risk>.7?0:p.risk>.3?1:2,col:true});
-  if(i===0){await pay(p,60000);p.newCar=true;p.carLevel++;V.upgradeCar(p);say(p,`${p.name}：ピカピカの新車を購入！`)}
+  if(i===0){await pay(p,60000);p.newCar=true;p.carLevel++;V.upgradeCar(p);say(p,`${p.name}：ピカピカの新車を購入！`);await photoCard(p,'🚗 新車！','#3f8cff','わ〜い！ ピカピカの新車がきた！',photoOf('carPhoto',p,'新車、買いました！'),`${p.name}、新車を買いました！`)}
   else if(i===1){await pay(p,20000);say(p,`${p.name}：中古車を購入`)}
   else say(p,`${p.name}：車は買わなかった`);
 };
@@ -894,7 +908,7 @@ SP['122']=async p=>venture(p,{head:'🪙 暗号資産',title:'老後資金を、
 SP['51']=async p=>p.spouse?anniversary(p):tryMarry(p,false);
 async function anniversary(p){                             // すでに結婚していたら：結婚記念日でお祝い金
   joy(p,5);Sound.good();say(p,`${p.name}：結婚記念日！ お祝い金 +10,000円`);
-  await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}結婚記念日！`,text:'みんなからお祝い金 <b class="plus">+10,000円</b>（幸せレベルもアップ）',btns:['OK'],pick:0});
+  await ask(p,{head:'💐 結婚記念日',color:'#ff6fa5',title:`${p.spouseInfo?p.spouseInfo.name+'さんと':'夫婦で'}結婚記念日！`,text:(p.spouseInfo?picHtml(p,p.spouseInfo,'spouse',`${p.name} と ${p.spouseInfo.name} さんの結婚記念日`):'')+'みんなからお祝い金 <b class="plus">+10,000円</b>（幸せレベルもアップ）',btns:['OK'],pick:0});
   await income(p,10000);
 }
 async function partyOrAnniv(p){
@@ -909,7 +923,7 @@ async function partyOrAnniv(p){
 const pct=(p,rate,min)=>Math.max(min,Math.round(Math.max(0,p.cash)*rate/1000)*1000);
 Object.assign(LIFE,{
   meet:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=22,w:2,run:async p=>{await ask(p,{head:'💘 人生のできごと',color:'#ff6fa5',title:'運命の出会い！',text:'プロポーズのチャンスです',btns:['OK'],pick:0});await tryMarry(p,true)}},
-  nursing:{ok:p=>ageOfKey(p.pos)>=66,w:4,run:async p=>{const a=pct(p,.45,250000);Sound.bad();
+  nursing:{ok:p=>ageOfKey(p.pos)>=66&&!p.seniorRes,w:4,run:async p=>{const a=pct(p,.45,250000);Sound.bad();
     await ask(p,{head:'🏥 人生のできごと',color:'#e8454c',title:'老人ホームに入ることに',text:`入居一時金 <b class="minus">${fmt(a)}円</b><br><small>現金の45%（最低250,000円）。足りない分は約束手形</small>`,btns:['OK'],pick:0});say(p,`老人ホームの入居一時金 −${fmt(a)}円`);await pay(p,a,{discount:false})}},
   bigscam:{ok:p=>ageOfKey(p.pos)>=60,w:3,run:async p=>{
     if(has(p,'sec')||jobAb(p)==='void_scam'){await ask(p,{head:'📞 人生のできごと',color:'#2fb36f',title:'「オレだよオレ」… あやしい電話',text:'対策のおかげで、だまされませんでした',btns:['OK'],pick:0});say(p,'振り込め詐欺… 対策のおかげで無事');return}
@@ -918,7 +932,7 @@ Object.assign(LIFE,{
     await ask(p,{head:'📉 人生のできごと',color:'#e8454c',title:'老後のための投資信託が暴落…',text:`損失 <b class="minus">${fmt(a)}円</b><br><small>現金の20%（最低60,000円）</small>`,btns:['OK'],pick:0});say(p,`投資信託が暴落 −${fmt(a)}円`);await pay(p,a,{discount:false})}},
   care:{ok:p=>ageOfKey(p.pos)>=60,w:3,run:async p=>{const ins=has(p,'health'),a=ins?90000:180000;Sound.bad();
     await ask(p,{head:'🩺 人生のできごと',color:'#e8454c',title:'大きな手術と、長いリハビリ',text:`医療・介護費 <b class="minus">${fmt(a)}円</b>${ins?'（健康保険で半額）':'<br><small>健康保険があれば半額でした</small>'}`,btns:['OK'],pick:0});say(p,`医療・介護費 −${fmt(a)}円`);await pay(p,a,{discount:false})}},
-  gift:{ok:p=>ageOfKey(p.pos)>=50&&p.kids>0,w:2,run:async p=>{const k=pickOf(p.kidList);
+  gift:{ok:p=>p.kidList.some(k=>ageOfKey(p.pos)-k.bornAge>=25),w:2,run:async p=>{const k=pickOf(p.kidList.filter(k=>ageOfKey(p.pos)-k.bornAge>=25));
     const i=await ask(p,{head:'🏠 人生のできごと',color:'#3f8cff',title:`${k.name}が「家を買いたい」と相談に来た`,text:'頭金 100,000円を援助する？<br><small>援助すると幸福度アップ。足りない分は約束手形</small>',btns:['援助する（−100,000円）','ことわる'],pick:p.risk>.4?0:1,col:true});
     if(i===0){joy(p,8);say(p,`${k.name}の家の頭金を援助 −100,000円`);await pay(p,100000,{discount:false})}else{joy(p,-3);say(p,'援助はことわった…')}}}
 });
@@ -1068,7 +1082,7 @@ async function moveSteps(p,n){
       else if(p.tickets.length)await lotteryDraw(p,true,nk);
     }
   }
-  V.chapter(chapterOf(p.pos),p);
+  V.chapter(chapterLabel(p.pos),p);
 }
 function scoreLanding(p,r){                                  // CPU用：r進んだ先の良し悪し
   let key=p.pos,sc=0;

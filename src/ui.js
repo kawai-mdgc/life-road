@@ -57,7 +57,12 @@ function finishShot(cv,title,sub){                            // 写真の下に
   c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD'+(sub?'　'+sub:''),W/2,H-bh*.24,W-30,Math.round(bh*.26));
   return cv.toDataURL('image/jpeg',.9);
 }
-function dlURL(url,name){const l=document.createElement('a');l.href=url;l.download=name;document.body.appendChild(l);l.click();l.remove()}
+async function dlURL(url,name){                               // ダウンロードに自動で保存（Blob経由。長い画像データでも確実に）
+  let href=url,obj=false;
+  try{if(/^data:/.test(url)){href=URL.createObjectURL(await (await fetch(url)).blob());obj=true}}catch(e){href=url}
+  const l=document.createElement('a');l.href=href;l.download=name;l.rel='noopener';l.style.display='none';document.body.appendChild(l);l.click();
+  setTimeout(()=>{l.remove();if(obj)URL.revokeObjectURL(href)},4000);
+}
 document.addEventListener('click',e=>{                        // 記念の絵を保存：絵の下に ひとこと と LIFE ROAD を重ねて、4:3のまま1枚の画像にする
   const a=e.target.closest&&e.target.closest('.savepic');if(!a)return;
   const img=a.parentElement.querySelector('img.keepsake');if(!img)return;
@@ -456,15 +461,14 @@ V.results=async()=>{
   V.banner(`🏆 優勝：${r[0].name}！`);
   const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
   const bar=$('#podiumBar');bar.classList.remove('hidden');
-  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdImg" class="alt">🖼 結果画像</button><button id="pdShare" class="green">🔗 リンクをコピー</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdShare" class="green">🔗 結果をシェア</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
   $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
-  $('#pdShare').onclick=copySiteLink;                         // 押したら、すぐリンクをコピー（開くとトップページ。Xなどでは表彰台の画像つき）
-  $('#pdImg').onclick=async()=>{dlURL((await resultImage(resultData(r))).toDataURL('image/png'),'life-road-result.png');V.toast('🖼 結果の画像を保存しました')};
+  $('#pdShare').onclick=()=>{if(!cardOpen)shareResults(r)};      // 表彰台と結果の画像（保存ボタンつき）と、リンクのコピー
   if(canPhoto)$('#pdPhoto').onclick=async()=>{
     Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
     const url=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`);
     setTimeout(()=>fl.classList.add('hidden'),500);
-    dlURL(url,'life-road-podium.jpg');V.toast('📸 表彰台の写真を保存しました');
+    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
   };
   await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();

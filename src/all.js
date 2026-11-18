@@ -4623,6 +4623,7 @@ function initTestPanel(){
   const P=$('#testPanel');
   P.innerHTML=`<div class="th"><span>🧪 テストパネル</span><button id="tpClose" class="alt">×</button></div>
    <div class="tn">ジャンプ・職業・アイテムは「自分の番のルーレット前」に使えます</div>
+   <div class="tgrid" style="margin:4px 0"><button id="tpGoal" class="pink">🏁 ゴールまで飛ぶ</button><button id="tpNear" class="gold">⏩ ゴール手前(148)へ</button></div>
    <div class="tsec">マスへジャンプ（そのマスの内容をすぐ実行）</div><div id="tpJump" class="tgrid"></div>
    <div class="trow" style="margin-top:4px"><input id="tpKey" type="text" placeholder="マス番号 例: 95 / U3 / R5"><button id="tpGo" class="gold">行く</button></div>
    <div class="tsec">ルーレットの出目を固定（次の1回だけ）</div><div id="tpRoll" class="tgrid"></div>
@@ -4634,6 +4635,7 @@ function initTestPanel(){
    <div class="tgrid" style="margin-top:4px"><button id="tpAllCol" class="green">お宝を全部</button><button id="tpAllIns" class="green">保険を全部</button><button id="tpAllUse" class="green">使い切りを全部</button></div>`;
   $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
   $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('jump',b.dataset.k));
+  $('#tpGoal').onclick=()=>testRun('jump','150');$('#tpNear').onclick=()=>testRun('jump','148');
   $('#tpGo').onclick=()=>testRun('jump',$('#tpKey').value.trim().toUpperCase());
   const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる'],['suspicion','🕵不倫の疑い'],['loverChance','💗恋人チャンス'],['meet','💍結婚チャンス'],['lateLove','🌸熟年の出会い']];
   $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');

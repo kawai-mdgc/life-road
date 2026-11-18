@@ -109,15 +109,23 @@ async function shareResults(r){
     }else break;
   }
 }
-async function showSharedResult(){                            // 結果リンクから開いたとき：その結果を見せる
+async function showSharedResult(){                            // 結果リンクから開いたとき：表彰台のシーンで、その結果を見せる
   let d;try{d=JSON.parse(unb64u(location.hash.slice(3)))}catch(e){return}
   if(!d||d.v!==1||!Array.isArray(d.p)||!d.p.length||d.p.length>8)return;
   d.p=d.p.map(x=>[String(x[0]||'').slice(0,8),+x[1]||0,+x[2]||0,String(x[3]||'n'),+x[4]||0,+x[5]||0,String(x[6]||''),+x[7]||0,+x[8]||0,x[9]?1:0]);
+  G.players=d.p.map((x,i)=>{const av=cleanAv({gender:x[3],cloth:x[2],car:x[1],skin:x[4],hair:x[5],style:x[6]},i),q=newPlayer(i,x[0],true,av.car,av.cloth,av.gender,av);q.final=x[7];q.rank=i+1;q.pos='150';q.finished=true;q.left=!!x[9];return q});
+  G.cur=0;G.over=true;
   $('#titleScr').classList.add('hidden');
-  const img=(await resultImage(d)).toDataURL('image/png');
-  await cardLocal({head:'🏆 LIFE ROAD の結果',color:'#c98a00',wide:true,title:`${esc(d.p[0][0])} の優勝！`,text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>みんなで遊ぶ、オンライン人生すごろく</small>`,btns:['自分も遊んでみる'],cpu:false},null);
-  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
-  $('#titleScr').classList.remove('hidden');
+  const r=G.players,pd=buildPodium(r);Cam.title=false;Cam.heaven=1;
+  Cam.followObj={position:pd.base.clone().add(new V3(pd.cx,1.9,0))};Cam.followEl=.2;Cam.userAz=0;
+  const fit=()=>{Cam.followDist=Math.max(13.5,pd.half*1.06/(Math.tan(Math.PI/8)*aspect()))};fit();addEventListener('resize',fit);
+  document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
+  const bar=$('#podiumBar');bar.classList.remove('hidden');
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！　${man(r[0].final)}万円</div><div class="pdb"><button id="pdPhoto" class="pink">📸 表彰台を保存</button><button id="pdDetail">📊 結果カード</button><button id="pdAgain" class="alt">自分も遊んでみる</button></div>`;
+  const card=async(url,cap,head)=>{if(cardOpen)return;await cardLocal({head,color:'#ff4f86',wide:true,title:cap,text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null)};
+  $('#pdPhoto').onclick=()=>card(podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`),'表彰台','📸 表彰台');
+  $('#pdDetail').onclick=async()=>card((await resultImage(d)).toDataURL('image/png'),'みんなの結果','📊 結果');
+  $('#pdAgain').onclick=()=>location.replace(location.pathname+location.search);
 }
 /* ---------- ゴール後の写真：天界の自分を撮る（保存・共有） ---------- */
 async function heavenPhoto(){

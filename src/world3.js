@@ -133,11 +133,11 @@ function shot43(o){
   const sz=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio();
   const keep={fn:scene.fog.near,ff:scene.fog.far,fc:scene.fog.color.clone(),bg:scene.background.clone(),sd:skyDome?skyDome.material.opacity:1,pos:camP.position.clone(),q:camP.quaternion.clone(),asp:camP.aspect};
   try{
-    renderer.setPixelRatio(1);renderer.setSize(800,600,false);camP.aspect=4/3;
+    const W=o.w||800,H=o.h||600;renderer.setPixelRatio(1);renderer.setSize(W,H,false);camP.aspect=W/H;
     if(o.heaven){scene.background.set(0xffffff);scene.fog.color.copy(scene.background);scene.fog.near=16;scene.fog.far=58;if(skyDome)skyDome.material.opacity=0}
     if(o.cam){camP.position.set(...o.cam.pos);camP.lookAt(...o.cam.look)}
     camP.updateProjectionMatrix();renderer.render(scene,camP);
-    const cv=document.createElement('canvas');cv.width=800;cv.height=600;cv.getContext('2d').drawImage(renderer.domElement,0,0);
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.getContext('2d').drawImage(renderer.domElement,0,0);
     return cv;
   }finally{
     scene.fog.near=keep.fn;scene.fog.far=keep.ff;scene.fog.color.copy(keep.fc);scene.background.copy(keep.bg);if(skyDome)skyDome.material.opacity=keep.sd;

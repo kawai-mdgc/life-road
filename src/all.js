@@ -3515,11 +3515,11 @@ function shot43(o){
   const sz=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio();
   const keep={fn:scene.fog.near,ff:scene.fog.far,fc:scene.fog.color.clone(),bg:scene.background.clone(),sd:skyDome?skyDome.material.opacity:1,pos:camP.position.clone(),q:camP.quaternion.clone(),asp:camP.aspect};
   try{
-    renderer.setPixelRatio(1);renderer.setSize(800,600,false);camP.aspect=4/3;
+    const W=o.w||800,H=o.h||600;renderer.setPixelRatio(1);renderer.setSize(W,H,false);camP.aspect=W/H;
     if(o.heaven){scene.background.set(0xffffff);scene.fog.color.copy(scene.background);scene.fog.near=16;scene.fog.far=58;if(skyDome)skyDome.material.opacity=0}
     if(o.cam){camP.position.set(...o.cam.pos);camP.lookAt(...o.cam.look)}
     camP.updateProjectionMatrix();renderer.render(scene,camP);
-    const cv=document.createElement('canvas');cv.width=800;cv.height=600;cv.getContext('2d').drawImage(renderer.domElement,0,0);
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.getContext('2d').drawImage(renderer.domElement,0,0);
     return cv;
   }finally{
     scene.fog.near=keep.fn;scene.fog.far=keep.ff;scene.fog.color.copy(keep.fc);scene.background.copy(keep.bg);if(skyDome)skyDome.material.opacity=keep.sd;
@@ -3654,6 +3654,7 @@ const man=v=>(Math.round(v/1000)/10).toLocaleString('en-US');
 const b64u=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const unb64u=s=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
 const resultData=r=>({v:1,t:Date.now(),p:r.map(p=>[String(p.name).slice(0,8),p.color,p.cloth,p.gender,p.skin||0,p.hair||0,p.style||'',Math.round(p.final||0),Math.round(lastHap(p)),p.left?1:0])});
+const SITE_URL='https://kawai-mdgc.github.io/life-road/';          // シェアするリンク（開くとトップページ。Xなどでは、表彰台の画像つきで表示される）
 const shareURL=d=>location.href.split(/[?#]/)[0]+'#r='+b64u(JSON.stringify(d));
 function loadImg(u){return new Promise(res=>{if(!u)return res(null);const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=u})}
 async function resultImage(d){                                // 結果カード（4:3）
@@ -3679,17 +3680,10 @@ async function shareResults(r){
   let pod='';try{if(typeof podium!=='undefined'&&podium)pod=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`)}catch(e){console.warn(e)}      // 表彰台の写真（静止ポーズ）も一緒に
   const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
   for(;;){
-    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><small>表彰台と結果の2枚と、結果のリンクを送れます</small>`,btns:['📤 共有する','閉じる'],col:true,cpu:false},null);
+    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><small>リンクをXなどに貼ると、表彰台の画像つきで表示されます。リンクを開くと、トップページが開きます</small>`,btns:['🔗 リンクをコピー','閉じる'],col:true,cpu:false},null);
     if(i!==0)break;
-    let done=false;                                           // 共有メニューがあればそれで（画像2枚＋リンク）。なければ、リンクをコピー
-    if(navigator.share){
-      try{
-        const blob=await new Promise(r2=>cv.toBlob(r2,'image/png')),files=[];
-        if(pod)files.push(new File([await (await fetch(pod)).blob()],'life-road-podium.jpg',{type:'image/jpeg'}));files.push(new File([blob],'life-road-result.png',{type:'image/png'}));
-        const data={title:'LIFE ROAD',text,url};if(navigator.canShare&&navigator.canShare({files}))data.files=files;await navigator.share(data);done=true;
-      }catch(e){if(e&&e.name==='AbortError')continue}
-    }
-    if(!done){try{await navigator.clipboard.writeText(text+'\n'+url)}catch(e){const ta=document.createElement('textarea');ta.value=text+'\n'+url;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}V.toast('共有用の文章とリンクをコピーしました')}
+    try{await navigator.clipboard.writeText(SITE_URL)}catch(e){const ta=document.createElement('textarea');ta.value=SITE_URL;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}
+    V.toast('リンクをコピーしました');
   }
 }
 async function showSharedResult(){                            // 結果リンクから開いたとき：表彰台のシーンで、その結果を見せる
@@ -3709,14 +3703,12 @@ async function showSharedResult(){                            // 結果リンク
   $('#pdDetail').onclick=async()=>card((await resultImage(d)).toDataURL('image/png'),'みんなの結果','📊 結果');
   $('#pdAgain').onclick=()=>location.replace(location.pathname+location.search);
 }
-/* ---------- ゴール後の写真：天界の自分を撮る（保存・共有） ---------- */
-async function heavenPhoto(){
-  const p=G.players[NET.myPid],c=p&&cars[p.id];if(!p||!c||cardOpen)return;
-  const ry=c.g.rotation.y,fx=Math.cos(ry),fz=-Math.sin(ry),az=Math.atan2(fx,fz)+.3,el=.18,dist=4.6,t=c.g.position.clone().add(new V3(0,1.2,0));
-  const pos=[t.x+Math.sin(az)*Math.cos(el)*dist,t.y+Math.sin(el)*dist,t.z+Math.cos(az)*Math.cos(el)*dist];
-  Sound.stamp();
-  const cv=shot43({heaven:true,cam:{pos,look:[t.x,t.y,t.z]}}),cap=`${p.name}、${p.rank||''}着でゴール！`,url=finishShot(cv,cap,'');
-  await cardLocal({head:'📸 天界の記念写真',color:'#ff4f86',wide:true,title:'ゴールおめでとう！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
+/* ---------- カメラ：いまのプレイ画面を、4:3の写真にして保存できる ---------- */
+async function takePhoto(){
+  const p=G.players[NET.myPid];if(!p||cardOpen||Cam.title)return;
+  Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';setTimeout(()=>fl.classList.add('hidden'),500);
+  const cv=shot43({}),url=finishShot(cv,`${p.name}（${ageOfKey(p.pos)}歳）の人生`,'');
+  await cardLocal({head:'📸 写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
 }
 /* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
 const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
@@ -3867,7 +3859,7 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
-  {const me=G.players[NET.myPid];$('#heavenBtn').classList.toggle('hidden',!(NET.on&&me&&me.finished&&!G.over))}
+  $('#heavenBtn').classList.toggle('hidden',!(NET.on&&G.players[NET.myPid]&&!G.over))               // カメラボタン：プレイ中はいつでも
   setFav(!!(NET.on&&!G.over&&turnP&&turnP.id===NET.myPid));       // 自分の番だけ、赤ポチ
   $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
   $('#mbMoney').textContent=fmt(cur.cash)+'円';
@@ -4059,7 +4051,7 @@ V.results=async()=>{
 $('#btn2d').onclick=()=>{Cam.set2D(!Cam.is2D);$('#btn2d').textContent=Cam.is2D?'🎥 3D表示':'🗺 2D表示';Sound.click()};
 $('#btnSnd').onclick=()=>{Sound.resume();$('#btnSnd').textContent=Sound.toggle()?'🔊':'🔇'};
 $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textContent=`⏩ ×${SPD}`;Sound.click()};
-$('#heavenBtn').onclick=heavenPhoto;
+$('#heavenBtn').onclick=takePhoto;
 $('#btnSave').onclick=()=>{if(typeof pauseGame==='function')pauseGame()};
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 

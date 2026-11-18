@@ -3702,8 +3702,7 @@ async function shareResults(r){
   let pod='';try{if(typeof podium!=='undefined'&&podium)pod=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`)}catch(e){console.warn(e)}      // 表彰台の写真（静止ポーズ）も一緒に
   const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
   shareCtx={url,text,pod,img};
-  let canFiles=false;try{canFiles=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([''],'a.png',{type:'image/png'})]}))}catch(e){}
-  await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><div class="sharebtns"><a class="copylink">🔗 リンクをコピー</a>${canFiles?'<a class="sharepics">📤 画像2枚つきで共有</a>':''}</div><small>リンクを開くと、この結果の表彰台が見られて、「自分も遊んでみる」から遊べます${canFiles?'<br>「画像2枚つきで共有」は、表彰台と結果の画像・リンクをまとめて送れます':''}</small>`,btns:['閉じる'],cpu:false},null);
+  await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><div class="sharebtns"><a class="copylink">🔗 リンクをコピー</a></div><small>リンクを開くと、この結果の表彰台が見られて、「自分も遊んでみる」から遊べます</small>`,btns:['閉じる'],cpu:false},null);
   shareCtx=null;
 }
 async function showSharedResult(){                            // 結果リンクから開いたとき：表彰台のシーンで、その結果を見せる

@@ -444,7 +444,7 @@ function enterGameUI(){
   $('#chatBtn').classList.toggle('hidden',!NET.on);
   if(NET.on)$('#btnSpd').classList.add('hidden');
   $('#btnSave').classList.toggle('hidden',!NET.on);
-  if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
+  if(NET.on&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;

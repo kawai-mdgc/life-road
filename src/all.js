@@ -1092,7 +1092,7 @@ async function lotteryShop(p,passing=false){
 }
 async function garagara(p,sqId,want,grade){                 // ガラガラを回す → 出た玉で決まる（ほしい玉のときは確定演出）
   await V.waitSpin(p,'gara','start');
-  const r=TestMode.on&&TestMode.roll?TestMode.roll:1+rnd(10);TestMode.roll=0;
+  const r=TestMode.on&&TestMode.roll&&(TestMode.rollPid===undefined||TestMode.rollPid===p.id)?TestMode.roll:1+rnd(10);TestMode.roll=0;
   await V.garagara(p,sqId,r,!!want(r),!!grade);
   return r;
 }
@@ -2415,6 +2415,7 @@ function makeDoll(o){
     const a=mesh(G_('darm',()=>new THREE.CylinderGeometry(.028,.032,.17,8)),mat(body,90),.01,.2,sd*(.135+w),g);a.rotation.x=sd*-.28;
     mesh(G_('dhand',()=>new THREE.SphereGeometry(.033,8,6)),mat(skin,60),.01,.115,sd*(.16+w),g);
   });
+  if(o.prison){for(let k=0;k<4;k++){const y=.06+k*.082,r=.15-.05*(y/.34)+.006,t=mesh(new THREE.TorusGeometry(r,.012,5,20),mat(0x1b1b22,20),0,y,0,g);t.rotation.x=Math.PI/2}}      // 囚人服：黒い横しま
   if(look.body!==undefined&&o.color!==undefined)mesh(G_('dscarf',()=>new THREE.TorusGeometry(.105,.03,6,14)),mat(o.color,90),0,.335,0,g).rotation.x=Math.PI/2;   // 制服でも選んだ服の色がマフラーで見える
   if(o.gender){                                                   // 髪型（えらべる）・髪の色・スカート。75歳からは白髪
     const hc=o.old?0xe9e9ee:(o.hair??0x4a3426),hm=mat(hc,40),st=o.style||(o.gender==='m'?'short':o.gender==='f'?'long':'tuft');
@@ -2660,7 +2661,7 @@ function refreshCar(p){
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
   const old=ageOfKey(p.pos)>=75;
   const ex=exprOf(p);
-  const sig=[st,ex,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const sig=[st,ex,p.inJail,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
   Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
@@ -2681,7 +2682,7 @@ function refreshCar(p){
   }
   list.slice(0,set.slots.length).forEach((e,i)=>{
     let d;
-    if(e.k==='driver')d=makeDoll({...lookOf(p),old,sad:ex==='sad',joy:ex==='joy',job:p.job&&!p.retired&&!p.jobless&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
+    if(e.k==='driver')d=makeDoll({...lookOf(p),...(p.inJail?{color:0xff8a1f,prison:true}:{}),old,sad:ex==='sad',joy:ex==='joy',job:p.job&&!p.retired&&!p.jobless&&!p.inJail&&st!=='stroller'&&st!=='bike'?p.job.n:null,rank:p.jobRank,scale:st==='stroller'?.6:st==='bike'?.85:.95});
     else if(e.k==='spouse'){const sp=p.spouseInfo;d=makeDoll({color:0xff8fb5,gender:p.gender==='f'?'m':'f',...lookOf(sp),old,scale:.9});mesh(new THREE.TorusGeometry(.03,.01,5,10),mat(0xffd23f,120),.1,.2,.0,d)}
     else if(e.k==='lover'){const lv=p.loverInfo;d=makeDoll({color:0xffb6cf,gender:p.gender==='f'?'m':'f',...lookOf(lv),scale:.88})}
     else if(e.k==='kid')d=makeDoll({color:e.kid?e.kid.cloth:KID_COL[e.i%5],gender:e.kid?e.kid.gender:(e.i%2?'f':'m'),skin:p.skin,hair:e.kid&&e.kid.hair,scale:.7});
@@ -2818,7 +2819,7 @@ V.roulette=async(p,purpose,label)=>{
   await V.waitSpin(p,purpose,'start');
   await V.rouletteStart(purpose,label,p.id);
   await V.waitSpin(p,purpose,'stop');
-  const r=TestMode.on&&TestMode.roll?TestMode.roll:1+rnd(10);TestMode.roll=0;   // テスト：出目の固定（1回だけ）
+  const r=TestMode.on&&TestMode.roll&&(TestMode.rollPid===undefined||TestMode.rollPid===p.id)?TestMode.roll:1+rnd(10);TestMode.roll=0;   // テスト：出目の固定（1回だけ・押した本人のルーレットだけ）
   await V.rouletteStop(r);
   return r;
 };
@@ -3283,17 +3284,17 @@ function housePhoto(p,h,family){                               // 家の記念�
     return{bg:0xcfe9ff,pos:[R*.9,R*.8,R*2.55],look:[0,sz.y*(mn?.45:.36),0]};
   });
 }
-function jailPhoto(p,why){                                     // 留置所の写真：鉄格子の中で、しょんぼり
+function jailPhoto(p,why){                                     // マグショット：囚人服で、罪名の札を持って、正面から
   return photoShot(g=>{
-    mesh(new THREE.BoxGeometry(6,.2,5),mat(0x8d8d99,20),0,-.1,0,g);
-    mesh(new THREE.BoxGeometry(6,4,.2),mat(0xb9bcc6,20),0,2,-2.4,g);
-    [-3,3].forEach(x=>mesh(new THREE.BoxGeometry(.2,4,5),mat(0xa9acb8,20),x,2,0,g));
-    for(let i=0;i<=6;i++)mesh(new THREE.BoxGeometry(i%2?.5:.9,.04,.02),mat(0x2b2b3a),-1.9+(i%2?.2:0),.3+i*.5,-2.28,g);      // 身長のものさし
-    for(let i=-6;i<=6;i++)mesh(new THREE.CylinderGeometry(.05,.05,4,6),mat(0x30303c,120),i*.45,2,2.2,g);                     // 鉄格子
-    [3.9,.1].forEach(y=>mesh(new THREE.BoxGeometry(6,.12,.12),mat(0x30303c,120),0,y,2.2,g));
-    const d=makeDoll({...lookOf(p),sad:true,scale:2.3});d.position.set(0,0,1.0);d.rotation.y=-Math.PI/2;g.add(d);
-    const pl=mesh(new THREE.PlaneGeometry(.78,.46),new THREE.MeshBasicMaterial({map:canvasTex(256,150,(c,W,H)=>{c.fillStyle='#fffdf2';c.fillRect(0,0,W,H);c.strokeStyle='#333';c.lineWidth=8;c.strokeRect(4,4,W-8,H-8);c.fillStyle='#3b2f4a';fitText(c,p.name,W/2,H*.3,W-30,50);c.fillStyle='#c4202a';fitText(c,why,W/2,H*.7,W-30,42)})}),0,1.0,1.75,g);
-    return{bg:0x2b2f40,pos:[0,1.5,5.2],look:[0,1.15,0],fov:38};
+    const wall=mesh(new THREE.PlaneGeometry(7,4.6),new THREE.MeshBasicMaterial({map:canvasTex(512,336,(c,W,H)=>{
+      c.fillStyle='#cfd6c9';c.fillRect(0,0,W,H);c.strokeStyle='#2b2f40';c.fillStyle='#2b2f40';c.lineWidth=3;c.font='700 20px sans-serif';
+      for(let k=0;k<=22;k++){const y=H*(1-.2*k/4.6),long=k%5===0;[[.26,.40],[.60,.74]].forEach(([x0,x1],i)=>{c.beginPath();c.moveTo(W*(i?x1-(long?.14:.07):x0),y);c.lineTo(W*(i?x1:x0+(long?.14:.07)),y);c.stroke()});
+        if(long){c.fillText(String(140+k*4),W*.43,y+6);c.fillText(String(140+k*4),W*.545,y+6)}}
+    })}),0,2.3,-1.3,g);
+    const d=makeDoll({...lookOf(p),color:0xff8a1f,prison:true,sad:true,scale:2.5});d.position.set(0,0,0);d.rotation.y=-Math.PI/2;g.add(d);
+    const pl=mesh(new THREE.PlaneGeometry(.96,.54),new THREE.MeshBasicMaterial({map:canvasTex(256,144,(c,W,H)=>{c.fillStyle='#fffdf2';c.fillRect(0,0,W,H);c.strokeStyle='#222';c.lineWidth=7;c.strokeRect(4,4,W-8,H-8);c.fillStyle='#777';fitText(c,'留置所',W/2,H*.16,W-40,24);c.fillStyle='#222';fitText(c,p.name,W/2,H*.43,W-30,50);c.fillStyle='#c4202a';fitText(c,why,W/2,H*.78,W-30,38)})}),0,.5,.5,g);
+    [-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(.075,8,6),mat(p.skin||0xffd9b3,60),sd*.5,.52,.52,g));                                                   // 札を持つ手
+    return{bg:0x23262f,pos:[0,1.05,3.75],look:[0,1.0,0],fov:30};
   });
 }
 function birthPhoto(p,born){                                   // 赤ちゃん誕生：パパとママと赤ちゃん
@@ -3964,7 +3965,7 @@ function enterGameUI(){
   $('#chatBtn').classList.toggle('hidden',!NET.on);
   if(NET.on)$('#btnSpd').classList.add('hidden');
   $('#btnSave').classList.toggle('hidden',!NET.on);
-  if(NET.on&&NET.isHost&&TestMode.on)initTestPanel();
+  if(NET.on&&TestMode.on)initTestPanel();
   G.players.forEach(p=>makeCar(p));
   layoutAll();G.players.forEach(p=>cars[p.id].g.position.copy(cars[p.id].target));
   V.setCamDefault();Cam.userAz=.6;
@@ -4209,6 +4210,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='test'){if(TestMode.on&&c.pid!==undefined&&!G.over&&m&&typeof m.op==='string')testExec(m.op,m.a,c.pid);return}
   if(m.t==='pause'){doPause(G.players[c.pid]?G.players[c.pid].name:'だれか');return}
   if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
@@ -4314,7 +4316,7 @@ function hostStart(){
     humans.forEach(o=>{const id=act.find(i=>!used.has(i)&&sv.state.players[i].name===o.s.name);if(id!==undefined){map[o.i]=id;used.add(id)}});
     humans.forEach(o=>{if(map[o.i]===undefined){const id=act.find(i=>!used.has(i));map[o.i]=id;used.add(id)}});
     TestMode.on=!!NET.test;NET.started=true;NET.on=true;NET.startList=sv.list;NET.myPid=map[0];
-    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true})}else{c.conn.close()}});
+    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true,test:!!NET.test})}else{c.conn.close()}});
     NET.conns=NET.conns.filter(c=>c.pid!==undefined);
     startGame(sv.list,sv);return;
   }
@@ -4323,7 +4325,7 @@ function hostStart(){
   NET.started=true;NET.on=true;
   const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender,skin:o.s.av.skin,hair:o.s.av.hair,style:o.s.av.style}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
-  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
+  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid,test:!!NET.test})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
   NET.startList=list;clearSave();
   startGame(list);
@@ -4383,7 +4385,7 @@ function clientRecv(m){
     case 'welcome':showLobby();break;
     case 'lobby':NET.lobby={slots:m.slots,me:m.me};renderLobby(m.slots,m.me,false);break;
     case 'start':{
-      NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
+      NET.on=true;NET.started=true;NET.myPid=m.you;TestMode.on=!!m.test;Sound.resume();
       G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
       enterGameUI();if(m.houseLog)rebuildHouses(m.houseLog);V.hud();V.banner(m.resume?'▶ 続きから再開！':'LIFE ROAD スタート！');
       break}
@@ -4448,16 +4450,37 @@ window.addEventListener('load',()=>{
   const m=location.search.match(/[?&]room=(\d{6})/);      // 招待リンク：コードを入力済みにする
   if(m){$ol('olCode').value=m[1];olMsg('招待リンクから、待機ルームに入っています…');Sound.resume();setTimeout(joinRoom,300)}   // 招待リンク：そのまま待機ルームへ（アバターは待機ルームで変えられる）
 });
-// ===== テストモード：確認用パネル（ホストが待機ルームでオンにしたときだけ・ホスト自身のプレイヤーだけに作用） =====
+// ===== テストモード：確認用パネル（ホストが待機ルームでオンにしたときだけ。全員が使え、押した本人のプレイヤーに作用する） =====
 let testBusy=false;
 const TEST_JUMPS=[['15','🐾 ペット'],['102','🐾 ペット赤ちゃん'],['31','💗 恋人'],['51','💍 結婚'],['54','👶 出産'],['61','👶 双子'],['70','🏠 家を買う'],
   ['20','🎓 進路(分岐)'],['U12','🎓 卒業→合流'],['W1','💼 就職'],['80','🚀 生き方(分岐)'],['R1','🚀 起業'],['34','📈 株'],['5','🎁 アイテム'],['41','🔄 転職'],
   ['110','🏖 早期退職'],['123','🌍 世界一周'],['136','🌴 退職'],['145','🎰 賭け'],['149','📸 記念写真'],['150','🏁 ゴール'],['26','🎟 宝くじ売り場'],['44','🎊 宝くじ抽選会'],['36','📰 景気ニュース'],['93','📈 株価の変動'],['29','✨ 昇進(ランクアップ)'],['32','🚗 マイカー'],['47','🤝 連帯保証人'],['49','📈 あやしい投資'],['59','🎰 カジノ'],['75','👜 ブランド'],['98','🚀 ベンチャー出資'],['122','🪙 暗号資産'],['U1','🎓 大学の学費'],['86','🔀 コースの分かれ道'],['D1','💎 トレジャー'],['C1','📈 キャリア'],['120','🎰 ギャンブル入口'],['G1','🐎 競馬'],['G8','💥 最後の一発'],['66','💘 婚活'],['142','🧓 80歳の乗り物'],['136','🌴 退職']];
-const myTestPlayer=()=>G.players[NET.myPid];
+let testPid=null;
+const myTestPlayer=()=>G.players[testPid!==null?testPid:NET.myPid];
+function testRun(op,a){                                        // 参加者の操作は、ホストに頼んで実行してもらう
+  if(NET.on&&!NET.isHost){NET.send({t:'test',op,a});return}
+  testExec(op,a,NET.myPid);
+}
+function testExec(op,a,pid){                                   // ホスト：pid のプレイヤーに対して実行
+  if(!TestMode.on||!G.players[pid])return;
+  const prev=testPid;testPid=pid;
+  try{
+    const p=G.players[pid];
+    if(op==='jump'&&typeof a==='string'&&a.length<8)testJump(a);
+    else if(op==='life'&&typeof a==='string')testLife(a);
+    else if(op==='fam'&&typeof a==='string'){testFamily(a);V.hud()}
+    else if(op==='roll'&&Number.isInteger(a)&&a>=0&&a<=10){TestMode.roll=a;TestMode.rollPid=a?pid:undefined;V.toast(a?`${p.name}：次の出目を ${a} に固定`:'出目はランダム')}
+    else if(op==='money'&&typeof a==='number'&&Math.abs(a)<=1e7){p.cash=Math.max(0,p.cash+a);V.hud()}
+    else if(op==='moneyReset'){p.cash=0;V.hud()}
+    else if(op==='job'&&typeof a==='string'){returnJob(p.job);const j=JOBS.find(x=>x.n===a);p.job=j?{...j}:null;p.retired=false;V.hud();V.pins(p)}
+    else if(op==='item'&&ITEM_BY_CODE[a]){p.items.push({...ITEM_BY_CODE[a]});V.hud()}
+    else if(op==='all'&&['col','ins','use'].includes(a)){ITEMS.filter(i=>i.ty===a).forEach(i=>{if(!has(p,i.c))p.items.push({...i})});V.hud()}
+  }finally{testPid=prev}
+}
 function initTestPanel(){
   $('#btnTest').classList.remove('hidden');
   const P=$('#testPanel');
-  P.innerHTML=`<div class="th"><span>🧪 テストパネル（ホストだけ）</span><button id="tpClose" class="alt">×</button></div>
+  P.innerHTML=`<div class="th"><span>🧪 テストパネル</span><button id="tpClose" class="alt">×</button></div>
    <div class="tn">ジャンプ・職業・アイテムは「自分の番のルーレット前」に使えます</div>
    <div class="tsec">マスへジャンプ（そのマスの内容をすぐ実行）</div><div id="tpJump" class="tgrid"></div>
    <div class="trow" style="margin-top:4px"><input id="tpKey" type="text" placeholder="マス番号 例: 95 / U3 / R5"><button id="tpGo" class="gold">行く</button></div>
@@ -4469,22 +4492,22 @@ function initTestPanel(){
    <div class="tsec">アイテム</div><div class="trow"><select id="tpItem"></select><button id="tpItemBtn" class="gold">追加</button></div>
    <div class="tgrid" style="margin-top:4px"><button id="tpAllCol" class="green">お宝を全部</button><button id="tpAllIns" class="green">保険を全部</button><button id="tpAllUse" class="green">使い切りを全部</button></div>`;
   $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
-  $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testJump(b.dataset.k));
-  $('#tpGo').onclick=()=>testJump($('#tpKey').value.trim().toUpperCase());
+  $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('jump',b.dataset.k));
+  $('#tpGo').onclick=()=>testRun('jump',$('#tpKey').value.trim().toUpperCase());
   const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
   $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
-  $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testLife(b.dataset.k));
+  $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('life',b.dataset.k));
   $('#tpFam').innerHTML='<button data-f="notes">🕶手形3枚(取り立て屋)</button><button data-f="pay">手形を全部返す</button><button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
-  $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>{testFamily(b.dataset.f);V.hud()});
+  $('#tpFam').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('fam',b.dataset.f));
   $('#tpRoll').innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>`<button data-n="${n}">${n}</button>`).join('')+'<button data-n="0" class="alt">ランダム</button>';
-  $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>{TestMode.roll=+b.dataset.n;V.toast(TestMode.roll?`次の出目を ${TestMode.roll} に固定`:'出目はランダム')});
+  $('#tpRoll').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('roll',+b.dataset.n));
   $('#tpMoney').innerHTML=[[100000,'+10万円'],[1000000,'+100万円'],[-100000,'−10万円']].map(m=>`<button data-m="${m[0]}">${m[1]}</button>`).join('')+'<button data-m="reset" class="alt">財布を空に</button>';
-  $('#tpMoney').querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=myTestPlayer();p.cash=b.dataset.m==='reset'?0:Math.max(0,p.cash+(+b.dataset.m));V.hud()});
+  $('#tpMoney').querySelectorAll('button').forEach(b=>b.onclick=()=>b.dataset.m==='reset'?testRun('moneyReset'):testRun('money',+b.dataset.m));
   $('#tpJob').innerHTML='<option value="">（なし＝学生）</option>'+JOBS.map(j=>`<option value="${j.n}">${j.n}（${j.deck==='s'?'専門':'一般'}）</option>`).join('');
-  $('#tpJobBtn').onclick=()=>{const p=myTestPlayer(),n=$('#tpJob').value;returnJob(p.job);p.job=n?{...JOBS.find(j=>j.n===n)}:null;p.retired=false;V.hud();V.pins(p)};
+  $('#tpJobBtn').onclick=()=>testRun('job',$('#tpJob').value);
   $('#tpItem').innerHTML=ITEMS.map(i=>`<option value="${i.c}">${i.n}</option>`).join('');
-  $('#tpItemBtn').onclick=()=>{const p=myTestPlayer();p.items.push({...ITEM_BY_CODE[$('#tpItem').value]});V.hud()};
-  const all=ty=>()=>{const p=myTestPlayer();ITEMS.filter(i=>i.ty===ty).forEach(i=>{if(!has(p,i.c))p.items.push({...i})});V.hud()};
+  $('#tpItemBtn').onclick=()=>testRun('item',$('#tpItem').value);
+  const all=ty=>()=>testRun('all',ty);
   $('#tpAllCol').onclick=all('col');$('#tpAllIns').onclick=all('ins');$('#tpAllUse').onclick=all('use');
   $('#tpClose').onclick=()=>P.classList.add('hidden');
   $('#btnTest').onclick=()=>P.classList.toggle('hidden');

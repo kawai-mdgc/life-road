@@ -783,7 +783,7 @@ async function lotteryShop(p,passing=false){
 }
 async function garagara(p,sqId,want,grade){                 // ガラガラを回す → 出た玉で決まる（ほしい玉のときは確定演出）
   await V.waitSpin(p,'gara','start');
-  const r=TestMode.on&&TestMode.roll?TestMode.roll:1+rnd(10);TestMode.roll=0;
+  const r=TestMode.on&&TestMode.roll&&(TestMode.rollPid===undefined||TestMode.rollPid===p.id)?TestMode.roll:1+rnd(10);TestMode.roll=0;
   await V.garagara(p,sqId,r,!!want(r),!!grade);
   return r;
 }

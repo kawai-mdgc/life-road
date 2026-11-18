@@ -116,6 +116,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='test'){if(TestMode.on&&c.pid!==undefined&&!G.over&&m&&typeof m.op==='string')testExec(m.op,m.a,c.pid);return}
   if(m.t==='pause'){doPause(G.players[c.pid]?G.players[c.pid].name:'だれか');return}
   if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
@@ -221,7 +222,7 @@ function hostStart(){
     humans.forEach(o=>{const id=act.find(i=>!used.has(i)&&sv.state.players[i].name===o.s.name);if(id!==undefined){map[o.i]=id;used.add(id)}});
     humans.forEach(o=>{if(map[o.i]===undefined){const id=act.find(i=>!used.has(i));map[o.i]=id;used.add(id)}});
     TestMode.on=!!NET.test;NET.started=true;NET.on=true;NET.startList=sv.list;NET.myPid=map[0];
-    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true})}else{c.conn.close()}});
+    NET.conns.forEach(c=>{if(map[c.slot]!==undefined&&c.slot){c.pid=map[c.slot];sendTo(c,{t:'start',list:sv.list,you:c.pid,houseLog:sv.houseLog,resume:true,test:!!NET.test})}else{c.conn.close()}});
     NET.conns=NET.conns.filter(c=>c.pid!==undefined);
     startGame(sv.list,sv);return;
   }
@@ -230,7 +231,7 @@ function hostStart(){
   NET.started=true;NET.on=true;
   const list=humans.map(o=>({name:o.s.name,cpu:false,color:o.s.av.car,cloth:o.s.av.cloth,gender:o.s.av.gender,skin:o.s.av.skin,hair:o.s.av.hair,style:o.s.av.style}));
   const byslot={};humans.forEach((o,k)=>byslot[o.i]=k);
-  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid})}else{c.conn.close()}});
+  NET.conns.forEach(c=>{if(byslot[c.slot]!==undefined&&c.slot){c.pid=byslot[c.slot];sendTo(c,{t:'start',list,you:c.pid,test:!!NET.test})}else{c.conn.close()}});
   NET.conns=NET.conns.filter(c=>c.pid!==undefined);
   NET.startList=list;clearSave();
   startGame(list);
@@ -290,7 +291,7 @@ function clientRecv(m){
     case 'welcome':showLobby();break;
     case 'lobby':NET.lobby={slots:m.slots,me:m.me};renderLobby(m.slots,m.me,false);break;
     case 'start':{
-      NET.on=true;NET.started=true;NET.myPid=m.you;Sound.resume();
+      NET.on=true;NET.started=true;NET.myPid=m.you;TestMode.on=!!m.test;Sound.resume();
       G.players=m.list.map((o,i)=>newPlayer(i,o.name,o.cpu,o.color,o.cloth,o.gender,o));G.cur=0;G.over=false;
       enterGameUI();if(m.houseLog)rebuildHouses(m.houseLog);V.hud();V.banner(m.resume?'▶ 続きから再開！':'LIFE ROAD スタート！');
       break}

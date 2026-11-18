@@ -3675,6 +3675,10 @@ async function resultImage(d){                                // 結果カード
   c.textAlign='center';c.fillStyle='#887';c.font=`700 20px ${FONT}`;c.fillText('みんなで遊ぶ、オンライン人生すごろく',400,548);
   return cv;
 }
+async function copySiteLink(){
+  try{await navigator.clipboard.writeText(SITE_URL)}catch(e){const ta=document.createElement('textarea');ta.value=SITE_URL;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}
+  V.toast('リンクをコピーしました');
+}
 async function shareResults(r){
   const d=resultData(r),url=shareURL(d),cv=await resultImage(d),img=cv.toDataURL('image/png');
   let pod='';try{if(typeof podium!=='undefined'&&podium)pod=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`)}catch(e){console.warn(e)}      // 表彰台の写真（静止ポーズ）も一緒に
@@ -4034,9 +4038,10 @@ V.results=async()=>{
   V.banner(`🏆 優勝：${r[0].name}！`);
   const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
   const bar=$('#podiumBar');bar.classList.remove('hidden');
-  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdShare" class="green">🔗 結果をシェア</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdImg" class="alt">🖼 結果画像</button><button id="pdShare" class="green">🔗 リンクをコピー</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
   $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
-  $('#pdShare').onclick=()=>{if(!cardOpen)shareResults(r)};
+  $('#pdShare').onclick=copySiteLink;                         // 押したら、すぐリンクをコピー（開くとトップページ。Xなどでは表彰台の画像つき）
+  $('#pdImg').onclick=async()=>{dlURL((await resultImage(resultData(r))).toDataURL('image/png'),'life-road-result.png');V.toast('🖼 結果の画像を保存しました')};
   if(canPhoto)$('#pdPhoto').onclick=async()=>{
     Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
     const url=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`);

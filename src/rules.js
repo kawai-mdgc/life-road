@@ -6,6 +6,14 @@ const V={};                         // 表示層（world.js / ui.js が中身を
  ['薬剤師',34000,'nurse','病気・ケガの赤マスが無効','白衣、薬のバッジ','s'],['声優',30000,'stream','給料日に9か10を出すと給料3倍','ヘッドホン','s'],
  ['公認会計士',42000,'void_scam','詐欺マスが無効','スーツ、書類カバン','s'],['漫画家',28000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','ベレー帽、Gペン','s']]
  .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
+[['デザイナー',24000,'patent','特許マス（109）の金額が2倍','黒い服、メガネ、ベレー帽','g'],['花屋',18000,'wed5','結婚マス（51）で＋5,000','緑のエプロン、花束','g'],
+ ['パティシエ',21000,'family3','家族イベントのマスで＋3,000','白いコック帽、ピンクのエプロン','g'],['カメラマン',22000,'travel','旅行・出張マスで＋10,000','カメラ、カーキの上着','g'],
+ ['介護士',20000,'nurse','病気・ケガの赤マスが無効','水色の制服、白いエプロン','g'],['郵便配達員',19000,'void_car','交通事故マスが無効','赤い制服、配達かばん','g'],
+ ['飼育員',19000,'vet','ペット関連マスで＋5,000','緑の作業着、帽子','g'],['電気工事士',23000,'carp','家の購入・リフォーム代が20%引き','黄色いヘルメット、工具ベルト','g'],
+ ['ミュージシャン',26000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','黒い服、ギター','s'],['作家',29000,'research','アイテムを2枚引いて1枚選べる','メガネ、ベレー帽、ペン','s'],
+ ['税理士',40000,'void_scam','詐欺マスが無効','スーツ、メガネ、電卓','s'],['映画監督',36000,'gamer','ルーレット勝負マスの出目に＋1できる','黒い服、メガホン','s'],
+ ['通訳',33000,'travel','旅行・出張マスで＋10,000','白いシャツ、ヘッドセット','s']]
+ .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
 const BR={U:[12,'20','21'],W:[8,'20','21'],S:[10,'80','81'],R:[10,'80','81'],D:[8,'86','90'],C:[8,'86','90'],G:[8,'120','124']};
 ['D','C','G'].forEach(r=>{for(let n=1;n<=BR[r][0];n++)SQDATA.push({id:r+n,r,n,c:'blue',k:'event',t:'',m:'0',a:null,x:null})});
 const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
@@ -130,6 +138,8 @@ const RANK_UP={'看護師':['看護師長',1.3],'漁師':['船団の網元',1.35
  '農家':['大地主',1.3],'警察官':['警部',1.3],'消防士':['消防隊長',1.3],'保育士':['園長先生',1.3],'動画配信者':['登録者100万人の配信者',1.5],
  '医者':['院長',1.35],'弁護士':['敏腕パートナー弁護士',1.35],'パイロット':['機長',1.3],'エンジニア':['CTO',1.4],'教師':['校長先生',1.3],'研究者':['教授',1.3],
  '建築家':['巨匠建築家',1.4],'獣医':['動物病院の院長',1.35],'ゲームクリエイター':['ゲームディレクター',1.4],'プロスポーツ選手':['日本代表のスター選手',1.4],'宇宙飛行士':['船長（コマンダー）',1.3]};
+Object.assign(RANK_UP,{'デザイナー':['アートディレクター',1.4],'花屋':['フラワーショップ店長',1.3],'パティシエ':['シェフ・パティシエ',1.4],'カメラマン':['人気フォトグラファー',1.4],'介護士':['介護施設の施設長',1.3],'郵便配達員':['郵便局長',1.3],
+ '飼育員':['動物園の園長',1.3],'電気工事士':['電気工事会社の社長',1.35],'ミュージシャン':['ヒットメーカー',1.5],'作家':['ベストセラー作家',1.5],'税理士':['税理士法人の代表',1.35],'映画監督':['巨匠監督',1.45],'通訳':['国際会議の同時通訳',1.3]});
 const rankMult=p=>p.jobRank&&p.job&&RANK_UP[p.job.n]?RANK_UP[p.job.n][1]:1;
 const rankName=p=>p.job?(p.jobRank&&RANK_UP[p.job.n]?RANK_UP[p.job.n][0]:p.job.n):'';
 JOBS.forEach(j=>j.sal=Math.round(j.sal*SAL_MULT/500)*500);                     // 難易度：職業カードの給料そのものを下げる（表示と実際が一致）
@@ -295,14 +305,24 @@ function jobProfileHtml(j,p){                           // 職業カード（結
 }
 async function chooseJob(p,deck,count,title,mayKeep=false){
   const n=count+(p.abroad&&deck==='s'?1:0);if(p.abroad&&deck==='s'){say(p,'留学経験で1枚多く引けます')}
-  const pool=[];for(let i=0;i<n;i++){const j=drawJob(p,deck);if(j)pool.push(j)}
-  if(!pool.length){say(p,'職業カードの山札が空です');return}
+  const cur=mayKeep&&p.job?Math.round(p.job.sal*rankMult(p)):0;      // 転職・ヘッドハンティング：いまの給料（ランクアップ後ならその給料）より高い求人だけが来る
+  const pool=[],rej=[];
+  for(const dk of (cur?(deck==='g'?['g','s']:['s','g']):[deck])){
+    if(pool.length)break;                                       // 同じ山で見つかれば、そのまま。なければ、もう一方の山からも探す
+    for(let t=0;t<80&&pool.length<n;t++){const j=drawJob(p,dk);if(!j)break;if(!cur||j.sal>cur)pool.push(j);else rej.push(j)}
+  }
+  rej.forEach(returnJob);
+  if(!pool.length){
+    if(cur){say(p,`いまの給料（${fmt(cur)}円）より高い求人はなかった`);await ask(p,{head:title,color:'#8e6bff',title:'いい求人は来なかった…',text:`いまの給料 <b>${fmt(cur)}円</b>${p.jobRank?'（ランクアップ後）':''}より高い求人がありませんでした。今の仕事を続けます`,btns:['OK'],pick:0})}
+    else say(p,'職業カードの山札が空です');
+    return;
+  }
   const val=j=>j.sal+(j.ab==='athlete'?-8000:0)+(j.ab==='stream'?4000:0);
   let best=0;pool.forEach((j,i)=>{if(val(j)>val(pool[best]))best=i});
   const btns=pool.map(j=>jobProfileHtml(j,p));
   if(mayKeep)btns.push('↩ 転職するのをやめる');
-  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
-    pick:mayKeep&&pool[best].sal<=(p.job?p.job.sal:0)?pool.length:best,col:true});
+  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:cur?`<small>いまの給料 ${fmt(cur)}円${p.jobRank?'（ランクアップ後）':''}より高い求人だけが届きます。タップして決定</small>`:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
+    pick:best,col:true});
   if(i>=pool.length){pool.forEach(returnJob);return}
   const chosen=pool[i];pool.forEach((j,k)=>{if(k!==i)returnJob(j)});
   returnJob(p.job);p.job=chosen;p.jobRank=0;V.hud();V.pins(p);
@@ -383,7 +403,7 @@ async function betSquare(p,max,winMsg){
 /* ---------- 結婚相手・ペットのプロフィールカード ---------- */
 const pickOf=a=>a[rnd(a.length)];
 const GN={m:'男性',f:'女性',n:'どちらでも'};
-const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カイト','リョウ','ダイスケ'],f:['ミサキ','ユイ','サクラ','アヤカ','ナナ','ヒナタ','リコ','マイ'],n:['アキ','ユウ','ミナト','ハル','ソラ','リン']};
+const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カイト','リョウ','ダイスケ','ケンタ','ショウ','ナオト','アツシ','マサキ','シュン','トモヤ','ハヤト','コウキ','ユウマ'],f:['ミサキ','ユイ','サクラ','アヤカ','ナナ','ヒナタ','リコ','マイ','ユキ','アオイ','ミホ','チカ','エミ','カナ','レイ','モモカ','サヤカ','ノゾミ'],n:['アキ','ユウ','ミナト','ハル','カイ','ナギ','ヒカル','アサヒ','ルイ','ツバサ']};
 const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社員','先生','農家','カメラマン','消防士','薬剤師','公務員','美容師','エンジニア','パティシエ'];
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
@@ -394,9 +414,12 @@ const picHtml=(p,c,kind,cap)=>keepsake(pic2(p,c,kind),cap);
 const photoOf=(n,...a)=>{try{const f=globalThis[n];return typeof f==='function'?f(...a):''}catch(e){console.warn(e);return ''}};      // 写真づくり（画面側にしかない関数は、なければ何もしない）
 async function photoCard(p,head,color,title,url,cap,more=''){if(!url)return;await ask(p,{head,color,title,text:keepsake(url,cap)+more,btns:['OK'],pick:0,wide:true})}
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
-function genPerson(g,p,role='spouse'){
-  const inc=1+rnd(3),base=ageOfKey(p.pos);
-  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+function usedNames(p){                                        // すでに使われている名前（プレイヤー・配偶者・恋人・愛人・子ども）
+  const s=new Set(G.players.map(q=>q.name));[p.spouseInfo,p.loverInfo,p.affairInfo].forEach(c=>c&&s.add(c.name));(p.kidList||[]).forEach(k=>s.add(k.name));return s;
+}
+function genPerson(g,p,role='spouse',avoid){
+  const inc=1+rnd(3),base=ageOfKey(p.pos),pool=SP_NAMES[g].filter(n=>!(avoid&&avoid.has(n))),nm=pickOf(pool.length?pool:SP_NAMES[g]);if(avoid)avoid.add(nm);
+  return{gender:g,name:nm,age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
     inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],hair:pickOf(NAT_HAIR),skin:pickOf(NAT_SKIN),style:pickOf(STYLE_BY[g]||STYLE_BY.n),role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
 const genSpouse=(g,p)=>genPerson(g,p,'spouse');
@@ -412,7 +435,8 @@ async function choosePerson(p,o){
     g=['m','f','n'][gi];
   }
   const cand=[];if(o.include)cand.push(o.include);
-  while(cand.length<3)cand.push(genPerson(g,p,o.role));
+  const avoid=usedNames(p);if(o.include)avoid.add(o.include.name);
+  while(cand.length<3)cand.push(genPerson(g,p,o.role,avoid));         // 3人の名前は、ほかの人や家族と被らない
   let best=o.include?0:rnd(3);if(o.role==='spouse'&&!o.include){best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i})}
   const ci=await ask(p,{head:o.head,color:o.color,title:o.title2,text:o.include?'<small>今の恋人＋新しい出会い。タップして決定</small>':'<small>タップして決定</small>',btns:cand.map(c=>spouseHtml(c,c===o.include?'💗 今の恋人':'')),pick:best,col:true,profile:true,wide:true});
   return cand[ci];

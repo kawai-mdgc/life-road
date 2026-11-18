@@ -652,6 +652,10 @@ const LOOK={
  '保育士':{body:0xffffff,acc:['apron:0xff9ec4']},'動画配信者':{body:0x7a5cff,acc:['phones']},'医者':{body:0xffffff,acc:['stetho']},
  '弁護士':{body:0x333344,acc:['badge','bag']},'パイロット':{body:0x1d2f58,hat:'peaked:0x1d2f58',acc:['epaulet']},'エンジニア':{body:0x4a8f5a,acc:['laptop']},
  '教師':{body:0xb9926b,acc:['pointer']},'研究者':{body:0xffffff,acc:['glasses']},'建築家':{body:0x222222,acc:['roll']},'獣医':{body:0x5cb85c,acc:['badge']},
+ 'デザイナー':{body:0x2b2b3a,hat:'beret:0x4a6fd0',acc:['glasses','roll']},'花屋':{body:0xffffff,acc:['apron:0x4cd68a','flower']},'パティシエ':{body:0xffffff,hat:'toque',acc:['apron:0xff9ec4']},
+ 'カメラマン':{body:0x4a5a3a,acc:['camera']},'介護士':{body:0x8fd1d9,acc:['apron:0xffffff']},'郵便配達員':{body:0xe8302b,hat:'peaked:0xd6402b',acc:['bag']},'飼育員':{body:0x6a8f3a,hat:'peaked:0x4a6a2a',acc:['apron:0x8b5a2b']},
+ '電気工事士':{body:0x2e4a8a,hat:'helmet:0xffd23f',acc:['belt']},'ミュージシャン':{body:0x1b1b22,acc:['guitar']},'作家':{body:0x6b4a2a,hat:'beret:0x2a6a4a',acc:['pen','glasses']},'税理士':{body:0x333344,acc:['tie','glasses','calc']},
+ '映画監督':{body:0x111116,hat:'beret:0x111116',acc:['megaphone']},'通訳':{body:0xf4f4f4,acc:['phones','badge']},
  '看護師':{body:0xffd6e4,hat:'nursecap',acc:['stetho']},'漁師':{body:0x2f6fa8,hat:'band',acc:['fish']},'配達ドライバー':{body:0x3a8f5a,hat:'peaked:0x2a6a40',acc:['box']},
  'バリスタ':{body:0xffffff,acc:['apron:0x5a3a22','cup']},'薬剤師':{body:0xffffff,acc:['glasses','pill']},'声優':{body:0xff7ab0,acc:['phones','mic']},
  '公認会計士':{body:0x3a3a4a,acc:['tie','glasses','calc']},'漫画家':{body:0xf2c94c,hat:'beret:0x8a2a2a',acc:['pen']},
@@ -739,6 +743,10 @@ function makeDoll(o){
     if(a==='glasses')[-.05,.05].forEach(z=>mesh(new THREE.TorusGeometry(.03,.007,5,10),mat(0x111111),.13,.5,z,g).rotation.y=Math.PI/2);
     if(a==='roll')mesh(new THREE.CylinderGeometry(.03,.03,.2,8),mat(0xf3f0e0),.1,.18,-.15,g).rotation.x=Math.PI/2;
     if(a==='pad')mesh(new THREE.BoxGeometry(.08,.03,.14),mat(0x222222),.12,.14,.15,g);
+    if(a==='flower'){[[.1,.15,.16],[.12,.2,.19],[.09,.2,.13]].forEach(([x,y,z],i)=>mesh(new THREE.SphereGeometry(.035,6,6),mat([0xff6fa5,0xffd23f,0xff9a3d][i],60),x,y,z,g));mesh(new THREE.CylinderGeometry(.008,.008,.12,5),mat(0x3a8f3a),.1,.1,.16,g)}
+    if(a==='camera'){mesh(new THREE.BoxGeometry(.08,.06,.1),mat(0x222222,60),.13,.2,.1,g);mesh(new THREE.CylinderGeometry(.025,.025,.05,8),mat(0x8888a0,120),.18,.2,.1,g).rotation.z=Math.PI/2}
+    if(a==='guitar'){mesh(new THREE.SphereGeometry(.07,8,6),mat(0xb5763a,60),.1,.1,.12,g).scale.set(1,1.2,.5);const n=mesh(new THREE.CylinderGeometry(.01,.01,.2,5),mat(0x5a3a22),.1,.24,.12,g);n.rotation.z=.2}
+    if(a==='megaphone'){const m=mesh(new THREE.ConeGeometry(.06,.14,10),mat(0xffd23f,80),.17,.22,.12,g);m.rotation.z=-Math.PI/2}
     if(a==='fish'){const f=mesh(new THREE.SphereGeometry(.06,8,6),mat(0x7fb8e0,120),.1,.12,.17,g);f.scale.set(1.9,.8,.5);mesh(new THREE.ConeGeometry(.045,.07,4),mat(0x7fb8e0,120),-.02,.12,.17,g).rotation.z=-Math.PI/2}
     if(a==='box')mesh(new THREE.BoxGeometry(.14,.12,.14),mat(0xc9a36a,30),.13,.14,.0,g);
     if(a==='cup'){mesh(new THREE.CylinderGeometry(.035,.028,.08,10),mat(0xffffff,80),.1,.15,.17,g);mesh(new THREE.CylinderGeometry(.03,.03,.01,10),mat(0x5a3a22,40),.1,.19,.17,g)}
@@ -1413,9 +1421,9 @@ function portraitBust(c){                       // プロフィール用：顔�
 let pairR=null,pairScene=null,pairCam=null;
 function portraitTogether(p,c,kind){
   try{
-    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(560,420);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
       pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
-      pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
+      pairCam=new THREE.PerspectiveCamera(30,4/3,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
     const g=new THREE.Group();
     const me=makeDoll({...lookOf(p),pose:'up',job:kind==='spouse'?null:(p.job&&!p.retired?p.job.n:null),scale:1});me.position.set(0,.06,.2);me.rotation.z=-.08;g.add(me);
     let you;if(kind==='pet'){you=makePet(1.5,c.col,c.species);you.position.set(.1,0,-.28);you.rotation.y=.2}
@@ -1479,29 +1487,24 @@ function buildPodium(ranked){
   const n=ranked.length,xmin=n>4?-4.6-(n-5)*1.9-1.05:-3.7,xmax=n>3?5.5:3.7;                 // 全員が画面に入る幅
   return podium={g,base,actors,timer,conf,cx:(xmin+xmax)/2,half:(xmax-xmin)/2};
 }
-function podiumPhoto(title){                                  // 記念撮影：飛び跳ねる動きは止めて、表情だけの静止ポーズで撮る
+function podiumPhoto(title){                                  // 記念撮影：飛び跳ねる動きは止めて、表情だけの静止ポーズで撮る（4:3）
   const acts=podium?podium.actors:[];
   acts.forEach(a=>{if(a.i<3){a.holder.position.y=a.y;a.holder.rotation.set(0,0,0);a.holder.scale.set(1,1,1);if(a.dS){a.d.visible=false;a.dS.visible=true}}else if(a.i===3){a.holder.rotation.z=0;a.holder.position.y=a.y}});
-  renderer.render(scene,camP);
-  const src=renderer.domElement,cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;
-  const c=cv.getContext('2d');c.drawImage(src,0,0);
+  const cv=shot43({});
   acts.forEach(a=>{if(a.dS){a.d.visible=true;a.dS.visible=false}});                      // 動きをもとに戻す
-  const W=cv.width,H=cv.height,u=Math.max(18,Math.round(H*.05));
-  c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
-  c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
-  return cv.toDataURL('image/png');
+  return finishShot(cv,title,'');
 }
 
 /* ---------- 記念写真づくり（共通）：人形やモノを並べて、1枚の写真にする ---------- */
 function ensurePair(){
   if(pairR)return;
-  pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+  pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(560,420);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
   pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
-  pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0);
+  pairCam=new THREE.PerspectiveCamera(30,4/3,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0);
 }
 function photoShot(build){                                    // build(g) が {bg,pos,look,fov} を返す
   try{ensurePair();const g=new THREE.Group(),sp=build(g);pairScene.add(g);
-    const cam=new THREE.PerspectiveCamera(sp.fov||30,1.5,.1,400);cam.position.set(...sp.pos);cam.lookAt(...sp.look);
+    const cam=new THREE.PerspectiveCamera(sp.fov||30,4/3,.1,400);cam.position.set(...sp.pos);cam.lookAt(...sp.look);
     pairR.setClearColor(sp.bg,1);pairR.render(pairScene,cam);pairScene.remove(g);
     return pairR.domElement.toDataURL('image/jpeg',.86);
   }catch(e){console.warn(e);return ''}

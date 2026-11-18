@@ -138,6 +138,7 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 #peekBar button{padding:6px 10px;font-size:.85rem;flex:none;border-radius:12px}#pkName{white-space:nowrap}
 .pl .pk{padding:1px 6px;font-size:.8rem;border-radius:10px;background:#fff;color:#3b2f4a;box-shadow:0 2px 0 #0002;margin-left:4px;flex:none}
 #chatBtn{position:fixed;right:10px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:33;width:52px;height:52px;padding:0;border-radius:50%;font-size:1.5rem;background:linear-gradient(#fff,#f3ead8);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 16px #0004}
+#heavenBtn{position:fixed;right:10px;bottom:calc(204px + env(safe-area-inset-bottom));z-index:33;width:52px;height:52px;padding:0;border-radius:50%;font-size:1.5rem;background:linear-gradient(#ffd6e8,#ff9ec4);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 16px #0004}
 #chatPanel{position:fixed;right:10px;bottom:calc(200px + env(safe-area-inset-bottom));z-index:33;width:min(300px,88vw)}
 #chatEmo{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}#chatEmo button{padding:6px 0;font-size:1.4rem;background:#fff;box-shadow:0 2px 0 #0002;border-radius:12px}
 .chatrow{display:flex;gap:6px;margin-top:6px}.chatrow input{flex:1;min-width:0;font:inherit;font-size:16px;padding:8px;border-radius:10px;border:2px solid #e6d3b0;user-select:text}.chatrow button{padding:8px 12px;flex:none}
@@ -232,6 +233,7 @@ a.dl{display:inline-block;margin-top:8px;padding:8px 16px;border-radius:999px;ba
  #actions{bottom:calc(112px + env(safe-area-inset-bottom))}
  body.m-nohand #hand{display:none}body.m-nohand #actions{bottom:calc(16px + env(safe-area-inset-bottom))}
  #spinBtn{padding:13px 26px;max-width:94vw}
+ #heavenBtn{bottom:calc(244px + env(safe-area-inset-bottom));width:46px;height:46px;font-size:1.3rem}body.m-nohand #heavenBtn{bottom:calc(150px + env(safe-area-inset-bottom))}
  #chatBtn{bottom:calc(190px + env(safe-area-inset-bottom));width:46px;height:46px;font-size:1.3rem}#chatPanel{bottom:calc(244px + env(safe-area-inset-bottom))}#chatFloat{bottom:calc(190px + env(safe-area-inset-bottom));width:calc(100vw - 76px)}
  body.m-nohand #chatBtn{bottom:calc(96px + env(safe-area-inset-bottom))}body.m-nohand #chatPanel{bottom:calc(150px + env(safe-area-inset-bottom))}body.m-nohand #chatFloat{bottom:calc(96px + env(safe-area-inset-bottom))}
  #peekBar{top:calc(56px + env(safe-area-inset-top));gap:4px;padding:5px 8px}#peekBar button{padding:7px 9px}
@@ -306,6 +308,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
  <button id="avIcon" title="アバター設定"><img id="avIconImg" width="54" height="38" alt=""><span id="avIconName"></span><small>⚙ アバター設定</small></button>
 </div>
 
+<button id="heavenBtn" class="hidden" title="天界で記念撮影">📸</button>
 <button id="chatBtn" class="hidden" title="リアクション・コメント">💬</button>
 <div id="chatPanel" class="panel hidden"><div id="chatEmo"></div><div class="chatrow"><input id="chatIn" type="text" maxlength="30" placeholder="ひとこと（30文字まで）" autocomplete="off"><button id="chatSend">送る</button></div></div>
 <div id="chatFloat" class="hidden"></div>

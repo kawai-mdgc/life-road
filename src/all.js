@@ -315,6 +315,14 @@ const V={};                         // 表示層（world.js / ui.js が中身を
  ['薬剤師',34000,'nurse','病気・ケガの赤マスが無効','白衣、薬のバッジ','s'],['声優',30000,'stream','給料日に9か10を出すと給料3倍','ヘッドホン','s'],
  ['公認会計士',42000,'void_scam','詐欺マスが無効','スーツ、書類カバン','s'],['漫画家',28000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','ベレー帽、Gペン','s']]
  .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
+[['デザイナー',24000,'patent','特許マス（109）の金額が2倍','黒い服、メガネ、ベレー帽','g'],['花屋',18000,'wed5','結婚マス（51）で＋5,000','緑のエプロン、花束','g'],
+ ['パティシエ',21000,'family3','家族イベントのマスで＋3,000','白いコック帽、ピンクのエプロン','g'],['カメラマン',22000,'travel','旅行・出張マスで＋10,000','カメラ、カーキの上着','g'],
+ ['介護士',20000,'nurse','病気・ケガの赤マスが無効','水色の制服、白いエプロン','g'],['郵便配達員',19000,'void_car','交通事故マスが無効','赤い制服、配達かばん','g'],
+ ['飼育員',19000,'vet','ペット関連マスで＋5,000','緑の作業着、帽子','g'],['電気工事士',23000,'carp','家の購入・リフォーム代が20%引き','黄色いヘルメット、工具ベルト','g'],
+ ['ミュージシャン',26000,'stream','給料日に9か10を出すと給料3倍（大ヒット）','黒い服、ギター','s'],['作家',29000,'research','アイテムを2枚引いて1枚選べる','メガネ、ベレー帽、ペン','s'],
+ ['税理士',40000,'void_scam','詐欺マスが無効','スーツ、メガネ、電卓','s'],['映画監督',36000,'gamer','ルーレット勝負マスの出目に＋1できる','黒い服、メガホン','s'],
+ ['通訳',33000,'travel','旅行・出張マスで＋10,000','白いシャツ、ヘッドセット','s']]
+ .forEach(([n,sal,ab,abt,look,deck])=>JOBS.push({n,sal,ab,abt,look,deck}));
 const BR={U:[12,'20','21'],W:[8,'20','21'],S:[10,'80','81'],R:[10,'80','81'],D:[8,'86','90'],C:[8,'86','90'],G:[8,'120','124']};
 ['D','C','G'].forEach(r=>{for(let n=1;n<=BR[r][0];n++)SQDATA.push({id:r+n,r,n,c:'blue',k:'event',t:'',m:'0',a:null,x:null})});
 const SQ={};SQDATA.forEach(s=>{s.t=yen(s.t);s.m=yen(s.m);SQ[s.id]=s});
@@ -439,6 +447,8 @@ const RANK_UP={'看護師':['看護師長',1.3],'漁師':['船団の網元',1.35
  '農家':['大地主',1.3],'警察官':['警部',1.3],'消防士':['消防隊長',1.3],'保育士':['園長先生',1.3],'動画配信者':['登録者100万人の配信者',1.5],
  '医者':['院長',1.35],'弁護士':['敏腕パートナー弁護士',1.35],'パイロット':['機長',1.3],'エンジニア':['CTO',1.4],'教師':['校長先生',1.3],'研究者':['教授',1.3],
  '建築家':['巨匠建築家',1.4],'獣医':['動物病院の院長',1.35],'ゲームクリエイター':['ゲームディレクター',1.4],'プロスポーツ選手':['日本代表のスター選手',1.4],'宇宙飛行士':['船長（コマンダー）',1.3]};
+Object.assign(RANK_UP,{'デザイナー':['アートディレクター',1.4],'花屋':['フラワーショップ店長',1.3],'パティシエ':['シェフ・パティシエ',1.4],'カメラマン':['人気フォトグラファー',1.4],'介護士':['介護施設の施設長',1.3],'郵便配達員':['郵便局長',1.3],
+ '飼育員':['動物園の園長',1.3],'電気工事士':['電気工事会社の社長',1.35],'ミュージシャン':['ヒットメーカー',1.5],'作家':['ベストセラー作家',1.5],'税理士':['税理士法人の代表',1.35],'映画監督':['巨匠監督',1.45],'通訳':['国際会議の同時通訳',1.3]});
 const rankMult=p=>p.jobRank&&p.job&&RANK_UP[p.job.n]?RANK_UP[p.job.n][1]:1;
 const rankName=p=>p.job?(p.jobRank&&RANK_UP[p.job.n]?RANK_UP[p.job.n][0]:p.job.n):'';
 JOBS.forEach(j=>j.sal=Math.round(j.sal*SAL_MULT/500)*500);                     // 難易度：職業カードの給料そのものを下げる（表示と実際が一致）
@@ -604,14 +614,24 @@ function jobProfileHtml(j,p){                           // 職業カード（結
 }
 async function chooseJob(p,deck,count,title,mayKeep=false){
   const n=count+(p.abroad&&deck==='s'?1:0);if(p.abroad&&deck==='s'){say(p,'留学経験で1枚多く引けます')}
-  const pool=[];for(let i=0;i<n;i++){const j=drawJob(p,deck);if(j)pool.push(j)}
-  if(!pool.length){say(p,'職業カードの山札が空です');return}
+  const cur=mayKeep&&p.job?Math.round(p.job.sal*rankMult(p)):0;      // 転職・ヘッドハンティング：いまの給料（ランクアップ後ならその給料）より高い求人だけが来る
+  const pool=[],rej=[];
+  for(const dk of (cur?(deck==='g'?['g','s']:['s','g']):[deck])){
+    if(pool.length)break;                                       // 同じ山で見つかれば、そのまま。なければ、もう一方の山からも探す
+    for(let t=0;t<80&&pool.length<n;t++){const j=drawJob(p,dk);if(!j)break;if(!cur||j.sal>cur)pool.push(j);else rej.push(j)}
+  }
+  rej.forEach(returnJob);
+  if(!pool.length){
+    if(cur){say(p,`いまの給料（${fmt(cur)}円）より高い求人はなかった`);await ask(p,{head:title,color:'#8e6bff',title:'いい求人は来なかった…',text:`いまの給料 <b>${fmt(cur)}円</b>${p.jobRank?'（ランクアップ後）':''}より高い求人がありませんでした。今の仕事を続けます`,btns:['OK'],pick:0})}
+    else say(p,'職業カードの山札が空です');
+    return;
+  }
   const val=j=>j.sal+(j.ab==='athlete'?-8000:0)+(j.ab==='stream'?4000:0);
   let best=0;pool.forEach((j,i)=>{if(val(j)>val(pool[best]))best=i});
   const btns=pool.map(j=>jobProfileHtml(j,p));
   if(mayKeep)btns.push('↩ 転職するのをやめる');
-  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
-    pick:mayKeep&&pool[best].sal<=(p.job?p.job.sal:0)?pool.length:best,col:true});
+  const i=await ask(p,{head:title,color:'#8e6bff',title:'職業カードから選ぼう',text:cur?`<small>いまの給料 ${fmt(cur)}円${p.jobRank?'（ランクアップ後）':''}より高い求人だけが届きます。タップして決定</small>`:'<small>タップして決定</small>',btns,profile:true,profileN:pool.length,wide:true,
+    pick:best,col:true});
   if(i>=pool.length){pool.forEach(returnJob);return}
   const chosen=pool[i];pool.forEach((j,k)=>{if(k!==i)returnJob(j)});
   returnJob(p.job);p.job=chosen;p.jobRank=0;V.hud();V.pins(p);
@@ -692,7 +712,7 @@ async function betSquare(p,max,winMsg){
 /* ---------- 結婚相手・ペットのプロフィールカード ---------- */
 const pickOf=a=>a[rnd(a.length)];
 const GN={m:'男性',f:'女性',n:'どちらでも'};
-const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カイト','リョウ','ダイスケ'],f:['ミサキ','ユイ','サクラ','アヤカ','ナナ','ヒナタ','リコ','マイ'],n:['アキ','ユウ','ミナト','ハル','ソラ','リン']};
+const SP_NAMES={m:['ハルト','ソウタ','レン','ユウキ','タクミ','カイト','リョウ','ダイスケ','ケンタ','ショウ','ナオト','アツシ','マサキ','シュン','トモヤ','ハヤト','コウキ','ユウマ'],f:['ミサキ','ユイ','サクラ','アヤカ','ナナ','ヒナタ','リコ','マイ','ユキ','アオイ','ミホ','チカ','エミ','カナ','レイ','モモカ','サヤカ','ノゾミ'],n:['アキ','ユウ','ミナト','ハル','カイ','ナギ','ヒカル','アサヒ','ルイ','ツバサ']};
 const SP_JOBS=['看護師','パン職人','デザイナー','保育士','会社員','先生','農家','カメラマン','消防士','薬剤師','公務員','美容師','エンジニア','パティシエ'];
 const SP_HOBBY=['料理','キャンプ','映画','ゲーム','ガーデニング','ランニング','読書','旅行','カフェ巡り','釣り'];
 const SP_TRAIT=['やさしい','しっかり者','おもしろい','マイペース','努力家','ロマンチスト','しずか','明るい'];
@@ -703,9 +723,12 @@ const picHtml=(p,c,kind,cap)=>keepsake(pic2(p,c,kind),cap);
 const photoOf=(n,...a)=>{try{const f=globalThis[n];return typeof f==='function'?f(...a):''}catch(e){console.warn(e);return ''}};      // 写真づくり（画面側にしかない関数は、なければ何もしない）
 async function photoCard(p,head,color,title,url,cap,more=''){if(!url)return;await ask(p,{head,color,title,text:keepsake(url,cap)+more,btns:['OK'],pick:0,wide:true})}
 const stars=n=>'★'.repeat(n)+'☆'.repeat(3-n);
-function genPerson(g,p,role='spouse'){
-  const inc=1+rnd(3),base=ageOfKey(p.pos);
-  return{gender:g,name:pickOf(SP_NAMES[g]),age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
+function usedNames(p){                                        // すでに使われている名前（プレイヤー・配偶者・恋人・愛人・子ども）
+  const s=new Set(G.players.map(q=>q.name));[p.spouseInfo,p.loverInfo,p.affairInfo].forEach(c=>c&&s.add(c.name));(p.kidList||[]).forEach(k=>s.add(k.name));return s;
+}
+function genPerson(g,p,role='spouse',avoid){
+  const inc=1+rnd(3),base=ageOfKey(p.pos),pool=SP_NAMES[g].filter(n=>!(avoid&&avoid.has(n))),nm=pickOf(pool.length?pool:SP_NAMES[g]);if(avoid)avoid.add(nm);
+  return{gender:g,name:nm,age:clamp(base+rnd(9)-4,18,90),job:pickOf(SP_JOBS),hobby:pickOf(SP_HOBBY),trait:pickOf(SP_TRAIT),
     inc,hk:1+rnd(3),lv:1+rnd(3),cloth:CLOTH_COLS[rnd(CLOTH_COLS.length)],hair:pickOf(NAT_HAIR),skin:pickOf(NAT_SKIN),style:pickOf(STYLE_BY[g]||STYLE_BY.n),role,bonus:role==='spouse'?[0,1000,3000,5000][inc]:0};
 }
 const genSpouse=(g,p)=>genPerson(g,p,'spouse');
@@ -721,7 +744,8 @@ async function choosePerson(p,o){
     g=['m','f','n'][gi];
   }
   const cand=[];if(o.include)cand.push(o.include);
-  while(cand.length<3)cand.push(genPerson(g,p,o.role));
+  const avoid=usedNames(p);if(o.include)avoid.add(o.include.name);
+  while(cand.length<3)cand.push(genPerson(g,p,o.role,avoid));         // 3人の名前は、ほかの人や家族と被らない
   let best=o.include?0:rnd(3);if(o.role==='spouse'&&!o.include){best=0;cand.forEach((c,i)=>{if(c.bonus>cand[best].bonus)best=i})}
   const ci=await ask(p,{head:o.head,color:o.color,title:o.title2,text:o.include?'<small>今の恋人＋新しい出会い。タップして決定</small>':'<small>タップして決定</small>',btns:cand.map(c=>spouseHtml(c,c===o.include?'💗 今の恋人':'')),pick:best,col:true,profile:true,wide:true});
   return cand[ci];
@@ -2403,6 +2427,10 @@ const LOOK={
  '保育士':{body:0xffffff,acc:['apron:0xff9ec4']},'動画配信者':{body:0x7a5cff,acc:['phones']},'医者':{body:0xffffff,acc:['stetho']},
  '弁護士':{body:0x333344,acc:['badge','bag']},'パイロット':{body:0x1d2f58,hat:'peaked:0x1d2f58',acc:['epaulet']},'エンジニア':{body:0x4a8f5a,acc:['laptop']},
  '教師':{body:0xb9926b,acc:['pointer']},'研究者':{body:0xffffff,acc:['glasses']},'建築家':{body:0x222222,acc:['roll']},'獣医':{body:0x5cb85c,acc:['badge']},
+ 'デザイナー':{body:0x2b2b3a,hat:'beret:0x4a6fd0',acc:['glasses','roll']},'花屋':{body:0xffffff,acc:['apron:0x4cd68a','flower']},'パティシエ':{body:0xffffff,hat:'toque',acc:['apron:0xff9ec4']},
+ 'カメラマン':{body:0x4a5a3a,acc:['camera']},'介護士':{body:0x8fd1d9,acc:['apron:0xffffff']},'郵便配達員':{body:0xe8302b,hat:'peaked:0xd6402b',acc:['bag']},'飼育員':{body:0x6a8f3a,hat:'peaked:0x4a6a2a',acc:['apron:0x8b5a2b']},
+ '電気工事士':{body:0x2e4a8a,hat:'helmet:0xffd23f',acc:['belt']},'ミュージシャン':{body:0x1b1b22,acc:['guitar']},'作家':{body:0x6b4a2a,hat:'beret:0x2a6a4a',acc:['pen','glasses']},'税理士':{body:0x333344,acc:['tie','glasses','calc']},
+ '映画監督':{body:0x111116,hat:'beret:0x111116',acc:['megaphone']},'通訳':{body:0xf4f4f4,acc:['phones','badge']},
  '看護師':{body:0xffd6e4,hat:'nursecap',acc:['stetho']},'漁師':{body:0x2f6fa8,hat:'band',acc:['fish']},'配達ドライバー':{body:0x3a8f5a,hat:'peaked:0x2a6a40',acc:['box']},
  'バリスタ':{body:0xffffff,acc:['apron:0x5a3a22','cup']},'薬剤師':{body:0xffffff,acc:['glasses','pill']},'声優':{body:0xff7ab0,acc:['phones','mic']},
  '公認会計士':{body:0x3a3a4a,acc:['tie','glasses','calc']},'漫画家':{body:0xf2c94c,hat:'beret:0x8a2a2a',acc:['pen']},
@@ -2490,6 +2518,10 @@ function makeDoll(o){
     if(a==='glasses')[-.05,.05].forEach(z=>mesh(new THREE.TorusGeometry(.03,.007,5,10),mat(0x111111),.13,.5,z,g).rotation.y=Math.PI/2);
     if(a==='roll')mesh(new THREE.CylinderGeometry(.03,.03,.2,8),mat(0xf3f0e0),.1,.18,-.15,g).rotation.x=Math.PI/2;
     if(a==='pad')mesh(new THREE.BoxGeometry(.08,.03,.14),mat(0x222222),.12,.14,.15,g);
+    if(a==='flower'){[[.1,.15,.16],[.12,.2,.19],[.09,.2,.13]].forEach(([x,y,z],i)=>mesh(new THREE.SphereGeometry(.035,6,6),mat([0xff6fa5,0xffd23f,0xff9a3d][i],60),x,y,z,g));mesh(new THREE.CylinderGeometry(.008,.008,.12,5),mat(0x3a8f3a),.1,.1,.16,g)}
+    if(a==='camera'){mesh(new THREE.BoxGeometry(.08,.06,.1),mat(0x222222,60),.13,.2,.1,g);mesh(new THREE.CylinderGeometry(.025,.025,.05,8),mat(0x8888a0,120),.18,.2,.1,g).rotation.z=Math.PI/2}
+    if(a==='guitar'){mesh(new THREE.SphereGeometry(.07,8,6),mat(0xb5763a,60),.1,.1,.12,g).scale.set(1,1.2,.5);const n=mesh(new THREE.CylinderGeometry(.01,.01,.2,5),mat(0x5a3a22),.1,.24,.12,g);n.rotation.z=.2}
+    if(a==='megaphone'){const m=mesh(new THREE.ConeGeometry(.06,.14,10),mat(0xffd23f,80),.17,.22,.12,g);m.rotation.z=-Math.PI/2}
     if(a==='fish'){const f=mesh(new THREE.SphereGeometry(.06,8,6),mat(0x7fb8e0,120),.1,.12,.17,g);f.scale.set(1.9,.8,.5);mesh(new THREE.ConeGeometry(.045,.07,4),mat(0x7fb8e0,120),-.02,.12,.17,g).rotation.z=-Math.PI/2}
     if(a==='box')mesh(new THREE.BoxGeometry(.14,.12,.14),mat(0xc9a36a,30),.13,.14,.0,g);
     if(a==='cup'){mesh(new THREE.CylinderGeometry(.035,.028,.08,10),mat(0xffffff,80),.1,.15,.17,g);mesh(new THREE.CylinderGeometry(.03,.03,.01,10),mat(0x5a3a22,40),.1,.19,.17,g)}
@@ -3164,9 +3196,9 @@ function portraitBust(c){                       // プロフィール用：顔�
 let pairR=null,pairScene=null,pairCam=null;
 function portraitTogether(p,c,kind){
   try{
-    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+    if(!pairR){pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(560,420);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
       pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
-      pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
+      pairCam=new THREE.PerspectiveCamera(30,4/3,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0)}
     const g=new THREE.Group();
     const me=makeDoll({...lookOf(p),pose:'up',job:kind==='spouse'?null:(p.job&&!p.retired?p.job.n:null),scale:1});me.position.set(0,.06,.2);me.rotation.z=-.08;g.add(me);
     let you;if(kind==='pet'){you=makePet(1.5,c.col,c.species);you.position.set(.1,0,-.28);you.rotation.y=.2}
@@ -3230,29 +3262,24 @@ function buildPodium(ranked){
   const n=ranked.length,xmin=n>4?-4.6-(n-5)*1.9-1.05:-3.7,xmax=n>3?5.5:3.7;                 // 全員が画面に入る幅
   return podium={g,base,actors,timer,conf,cx:(xmin+xmax)/2,half:(xmax-xmin)/2};
 }
-function podiumPhoto(title){                                  // 記念撮影：飛び跳ねる動きは止めて、表情だけの静止ポーズで撮る
+function podiumPhoto(title){                                  // 記念撮影：飛び跳ねる動きは止めて、表情だけの静止ポーズで撮る（4:3）
   const acts=podium?podium.actors:[];
   acts.forEach(a=>{if(a.i<3){a.holder.position.y=a.y;a.holder.rotation.set(0,0,0);a.holder.scale.set(1,1,1);if(a.dS){a.d.visible=false;a.dS.visible=true}}else if(a.i===3){a.holder.rotation.z=0;a.holder.position.y=a.y}});
-  renderer.render(scene,camP);
-  const src=renderer.domElement,cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;
-  const c=cv.getContext('2d');c.drawImage(src,0,0);
+  const cv=shot43({});
   acts.forEach(a=>{if(a.dS){a.d.visible=true;a.dS.visible=false}});                      // 動きをもとに戻す
-  const W=cv.width,H=cv.height,u=Math.max(18,Math.round(H*.05));
-  c.fillStyle='rgba(255,255,255,.82)';rr(c,u*.5,H-u*2.6,W-u,u*2.1,u*.5);c.fill();
-  c.fillStyle='#ff4f86';fitText(c,title,W/2,H-u*1.55,W-u*2,u*1.1);
-  return cv.toDataURL('image/png');
+  return finishShot(cv,title,'');
 }
 
 /* ---------- 記念写真づくり（共通）：人形やモノを並べて、1枚の写真にする ---------- */
 function ensurePair(){
   if(pairR)return;
-  pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(480,320);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
+  pairR=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});pairR.setPixelRatio(1);pairR.setSize(560,420);pairR.outputEncoding=THREE.sRGBEncoding;pairScene=new THREE.Scene();
   pairScene.add(new THREE.HemisphereLight(0xffffff,0x99aabb,1.1));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(2,3,4);pairScene.add(dl);
-  pairCam=new THREE.PerspectiveCamera(30,300/200,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0);
+  pairCam=new THREE.PerspectiveCamera(30,4/3,.1,50);pairCam.position.set(2.5,.75,0);pairCam.lookAt(0,.42,0);
 }
 function photoShot(build){                                    // build(g) が {bg,pos,look,fov} を返す
   try{ensurePair();const g=new THREE.Group(),sp=build(g);pairScene.add(g);
-    const cam=new THREE.PerspectiveCamera(sp.fov||30,1.5,.1,400);cam.position.set(...sp.pos);cam.lookAt(...sp.look);
+    const cam=new THREE.PerspectiveCamera(sp.fov||30,4/3,.1,400);cam.position.set(...sp.pos);cam.lookAt(...sp.look);
     pairR.setClearColor(sp.bg,1);pairR.render(pairScene,cam);pairScene.remove(g);
     return pairR.domElement.toDataURL('image/jpeg',.86);
   }catch(e){console.warn(e);return ''}
@@ -3483,6 +3510,23 @@ function updateCamera(dt,cur){
   sun.color.lerp(new THREE.Color(ch===5&&heavenK<.4?0xffb27a:ch===4?0xffe2b8:0xffffff),dt*1.2);
   updateHeaven(dt,cur);
 }
+/* ---------- いまの場面を、4:3の写真にする（画面の形に関係なく同じ比率）。cam=撮影位置、heaven=天界（真っ白）で撮る ---------- */
+function shot43(o){
+  const sz=renderer.getSize(new THREE.Vector2()),pr=renderer.getPixelRatio();
+  const keep={fn:scene.fog.near,ff:scene.fog.far,fc:scene.fog.color.clone(),bg:scene.background.clone(),sd:skyDome?skyDome.material.opacity:1,pos:camP.position.clone(),q:camP.quaternion.clone(),asp:camP.aspect};
+  try{
+    renderer.setPixelRatio(1);renderer.setSize(800,600,false);camP.aspect=4/3;
+    if(o.heaven){scene.background.set(0xffffff);scene.fog.color.copy(scene.background);scene.fog.near=16;scene.fog.far=58;if(skyDome)skyDome.material.opacity=0}
+    if(o.cam){camP.position.set(...o.cam.pos);camP.lookAt(...o.cam.look)}
+    camP.updateProjectionMatrix();renderer.render(scene,camP);
+    const cv=document.createElement('canvas');cv.width=800;cv.height=600;cv.getContext('2d').drawImage(renderer.domElement,0,0);
+    return cv;
+  }finally{
+    scene.fog.near=keep.fn;scene.fog.far=keep.ff;scene.fog.color.copy(keep.fc);scene.background.copy(keep.bg);if(skyDome)skyDome.material.opacity=keep.sd;
+    camP.position.copy(keep.pos);camP.quaternion.copy(keep.q);camP.aspect=keep.asp;camP.updateProjectionMatrix();
+    renderer.setPixelRatio(pr);renderer.setSize(sz.x,sz.y,false);
+  }
+}
 let heavenK=0,sunBall;
 function heavenOf(p){                                      // 最後の宝くじ抽選会(132)から霧が出はじめ、GOAL(150)で真っ白
   if(Cam.heaven!=null)return Cam.heaven;
@@ -3588,16 +3632,82 @@ function cardLocal(o,p){
 V.card=cardLocal;
 
 /* ---------- 記念の絵を保存：絵の下に ひとこと と LIFE ROAD のロゴを入れて1枚の画像にする ---------- */
-document.addEventListener('click',e=>{
+function finishShot(cv,title,sub){                            // 写真の下に ひとこと と LIFE ROAD を重ねて、そのまま画像にする（比率は変えない）
+  const c=cv.getContext('2d'),W=cv.width,H=cv.height,bh=Math.round(H*.15);
+  c.fillStyle='rgba(255,250,240,.88)';c.fillRect(0,H-bh,W,bh);
+  c.fillStyle='#3b2f4a';fitText(c,title||'',W/2,H-bh*.64,W-30,Math.round(bh*.42));
+  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD'+(sub?'　'+sub:''),W/2,H-bh*.24,W-30,Math.round(bh*.26));
+  return cv.toDataURL('image/jpeg',.9);
+}
+function dlURL(url,name){const l=document.createElement('a');l.href=url;l.download=name;document.body.appendChild(l);l.click();l.remove()}
+document.addEventListener('click',e=>{                        // 記念の絵を保存：絵の下に ひとこと と LIFE ROAD を重ねて、4:3のまま1枚の画像にする
   const a=e.target.closest&&e.target.closest('.savepic');if(!a)return;
   const img=a.parentElement.querySelector('img.keepsake');if(!img)return;
-  const W=img.naturalWidth||480,H=img.naturalHeight||320,bar=Math.round(H*.24),cv=document.createElement('canvas');cv.width=W;cv.height=H+bar;
-  const c=cv.getContext('2d');c.fillStyle='#fffaf0';c.fillRect(0,0,W,H+bar);c.drawImage(img,0,0,W,H);
-  c.fillStyle='#3b2f4a';fitText(c,img.dataset.cap||'',W/2,H+bar*.38,W-28,Math.round(bar*.36));
-  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD',W/2,H+bar*.78,W-28,Math.round(bar*.26));
-  const l=document.createElement('a');l.href=cv.toDataURL('image/png');l.download='life-road-'+Date.now()+'.png';document.body.appendChild(l);l.click();l.remove();
+  const W=img.naturalWidth||560,H=img.naturalHeight||420,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  cv.getContext('2d').drawImage(img,0,0,W,H);
+  dlURL(img.dataset.nocap?cv.toDataURL('image/png'):finishShot(cv,img.dataset.cap||''),'life-road-'+Date.now()+'.jpg');
   a.textContent='✅ 保存しました';setTimeout(()=>a.textContent='⬇ 画像を保存',1800);Sound.click();
 });
+/* ---------- 結果のシェア：画像（4:3）・リンク・共有 ---------- */
+const lastHap=p=>{const h=G.hist&&G.hist[p.id];return h&&h.length?h[h.length-1].h:0};
+const man=v=>(Math.round(v/1000)/10).toLocaleString('en-US');
+const b64u=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u=s=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+const resultData=r=>({v:1,t:Date.now(),p:r.map(p=>[String(p.name).slice(0,8),p.color,p.cloth,p.gender,p.skin||0,p.hair||0,p.style||'',Math.round(p.final||0),Math.round(lastHap(p)),p.left?1:0])});
+const shareURL=d=>location.href.split(/[?#]/)[0]+'#r='+b64u(JSON.stringify(d));
+function loadImg(u){return new Promise(res=>{if(!u)return res(null);const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=u})}
+async function resultImage(d){                                // 結果カード（4:3）
+  const cv=document.createElement('canvas');cv.width=800;cv.height=600;const c=cv.getContext('2d');
+  const g=c.createLinearGradient(0,0,0,600);g.addColorStop(0,'#9fd8ff');g.addColorStop(1,'#fff6dc');c.fillStyle=g;c.fillRect(0,0,800,600);
+  c.fillStyle='#fffaf0';rr(c,24,24,752,552,28);c.fill();c.strokeStyle='#d2a56a';c.lineWidth=6;rr(c,24,24,752,552,28);c.stroke();
+  c.textBaseline='middle';c.fillStyle='#ff5c93';c.textAlign='center';c.font=`900 44px ${FONT}`;c.fillText('🏆 LIFE ROAD 結果',400,72);
+  const n=Math.min(6,d.p.length),rh=Math.min(74,Math.floor(400/Math.max(1,n)));
+  const imgs=await Promise.all(d.p.slice(0,n).map(x=>loadImg(renderAvatar(cleanAv({gender:x[3],cloth:x[2],car:x[1],skin:x[4],hair:x[5],style:x[6]})))));
+  d.p.slice(0,n).forEach((x,i)=>{
+    const y=120+i*rh;c.fillStyle=i===0?'#fff0b8':'#f6efe2';rr(c,48,y,704,rh-8,18);c.fill();
+    c.textAlign='left';c.fillStyle='#3b2f4a';c.font=`900 ${Math.round(rh*.5)}px ${FONT}`;c.fillText(['🥇','🥈','🥉'][i]||`${i+1}位`,62,y+rh/2-4);
+    if(imgs[i])c.drawImage(imgs[i],128,y-2,Math.round((rh+6)*1.41),rh+6);
+    c.fillStyle='#3b2f4a';c.font=`900 ${Math.round(rh*.42)}px ${FONT}`;c.fillText(String(x[0])+(x[9]?'（退出）':''),128+Math.round((rh+6)*1.41)+12,y+rh/2-4);
+    c.textAlign='right';c.fillStyle=x[7]<0?'#e02d3a':'#3b2f4a';c.font=`900 ${Math.round(rh*.46)}px ${FONT}`;c.fillText(`${man(x[7])}万円`,676,y+rh/2-4);
+    c.fillStyle='#c4571f';c.font=`800 ${Math.round(rh*.3)}px ${FONT}`;c.fillText(`😊${x[8]}`,738,y+rh/2-4);
+  });
+  c.textAlign='center';c.fillStyle='#887';c.font=`700 20px ${FONT}`;c.fillText('みんなで遊ぶ、オンライン人生すごろく',400,548);
+  return cv;
+}
+async function shareResults(r){
+  const d=resultData(r),url=shareURL(d),cv=await resultImage(d),img=cv.toDataURL('image/png');
+  const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
+  for(;;){
+    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>リンクを開くと、この結果が見られます</small>`,btns:['🔗 リンクをコピー','📤 共有する','閉じる'],col:true,cpu:false},null);
+    if(i===0){try{await navigator.clipboard.writeText(url)}catch(e){const ta=document.createElement('textarea');ta.value=url;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}V.toast('結果のリンクをコピーしました')}
+    else if(i===1){
+      try{
+        if(navigator.share){const blob=await new Promise(r2=>cv.toBlob(r2,'image/png')),f=new File([blob],'life-road-result.png',{type:'image/png'}),data={title:'LIFE ROAD',text,url};
+          if(navigator.canShare&&navigator.canShare({files:[f]}))data.files=[f];await navigator.share(data)}
+        else{await navigator.clipboard.writeText(text+'\n'+url);V.toast('共有用の文章とリンクをコピーしました')}
+      }catch(e){}
+    }else break;
+  }
+}
+async function showSharedResult(){                            // 結果リンクから開いたとき：その結果を見せる
+  let d;try{d=JSON.parse(unb64u(location.hash.slice(3)))}catch(e){return}
+  if(!d||d.v!==1||!Array.isArray(d.p)||!d.p.length||d.p.length>8)return;
+  d.p=d.p.map(x=>[String(x[0]||'').slice(0,8),+x[1]||0,+x[2]||0,String(x[3]||'n'),+x[4]||0,+x[5]||0,String(x[6]||''),+x[7]||0,+x[8]||0,x[9]?1:0]);
+  $('#titleScr').classList.add('hidden');
+  const img=(await resultImage(d)).toDataURL('image/png');
+  await cardLocal({head:'🏆 LIFE ROAD の結果',color:'#c98a00',wide:true,title:`${esc(d.p[0][0])} の優勝！`,text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>みんなで遊ぶ、オンライン人生すごろく</small>`,btns:['自分も遊んでみる'],cpu:false},null);
+  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+  $('#titleScr').classList.remove('hidden');
+}
+/* ---------- ゴール後の写真：天界の自分を撮る（保存・共有） ---------- */
+async function heavenPhoto(){
+  const p=G.players[NET.myPid],c=p&&cars[p.id];if(!p||!c||cardOpen)return;
+  const ry=c.g.rotation.y,fx=Math.cos(ry),fz=-Math.sin(ry),az=Math.atan2(fx,fz)+.3,el=.18,dist=4.6,t=c.g.position.clone().add(new V3(0,1.2,0));
+  const pos=[t.x+Math.sin(az)*Math.cos(el)*dist,t.y+Math.sin(el)*dist,t.z+Math.cos(az)*Math.cos(el)*dist];
+  Sound.stamp();
+  const cv=shot43({heaven:true,cam:{pos,look:[t.x,t.y,t.z]}}),cap=`${p.name}、${p.rank||''}着でゴール！`,url=finishShot(cv,cap,'');
+  await cardLocal({head:'📸 天界の記念写真',color:'#ff4f86',wide:true,title:'ゴールおめでとう！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
+}
 /* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
 const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
 function showChat(pid,x){
@@ -3747,6 +3857,7 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
+  {const me=G.players[NET.myPid];$('#heavenBtn').classList.toggle('hidden',!(NET.on&&me&&me.finished&&!G.over))}
   setFav(!!(NET.on&&!G.over&&turnP&&turnP.id===NET.myPid));       // 自分の番だけ、赤ポチ
   $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
   $('#mbMoney').textContent=fmt(cur.cash)+'円';
@@ -3921,13 +4032,14 @@ V.results=async()=>{
   V.banner(`🏆 優勝：${r[0].name}！`);
   const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
   const bar=$('#podiumBar');bar.classList.remove('hidden');
-  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdShare" class="green">🔗 結果をシェア</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
   $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
+  $('#pdShare').onclick=()=>{if(!cardOpen)shareResults(r)};
   if(canPhoto)$('#pdPhoto').onclick=async()=>{
     Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
-    const url=podiumPhoto(`LIFE ROAD　🏆 ${r.slice(0,3).map((p,i)=>`${i+1}位 ${p.name}`).join('　')}`);
+    const url=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`);
     setTimeout(()=>fl.classList.add('hidden'),500);
-    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<img src="${url}" style="width:100%;border-radius:12px;border:6px solid #fff;box-shadow:0 4px 14px #0004" alt="記念写真"><br><a href="${url}" download="life-road-podium.png" class="dl">⬇ 画像を保存する</a><br><small>（スマホは画像を長押しでも保存できます）</small>`,btns:['閉じる'],cpu:false},null);
+    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
   };
   await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();
@@ -3937,6 +4049,7 @@ V.results=async()=>{
 $('#btn2d').onclick=()=>{Cam.set2D(!Cam.is2D);$('#btn2d').textContent=Cam.is2D?'🎥 3D表示':'🗺 2D表示';Sound.click()};
 $('#btnSnd').onclick=()=>{Sound.resume();$('#btnSnd').textContent=Sound.toggle()?'🔊':'🔇'};
 $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textContent=`⏩ ×${SPD}`;Sound.click()};
+$('#heavenBtn').onclick=heavenPhoto;
 $('#btnSave').onclick=()=>{if(typeof pauseGame==='function')pauseGame()};
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
@@ -4003,6 +4116,7 @@ window.addEventListener('load',()=>{
     $('#sub').innerHTML='⚠ このブラウザでは3D(WebGL)を使えません。別のブラウザでお試しください。<br><small>'+esc(e.message)+'</small>';
     console.error(e);return;
   }
+  if(/^#r=/.test(location.hash)&&!AUTO)showSharedResult();
   if(AUTO){
     const n=+((location.search.match(/n=(\d)/)||[])[1]||4);
     startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:CAR_COLS[i],cloth:defAv(i).cloth,gender:defAv(i).gender})));

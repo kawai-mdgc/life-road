@@ -50,16 +50,82 @@ function cardLocal(o,p){
 V.card=cardLocal;
 
 /* ---------- 記念の絵を保存：絵の下に ひとこと と LIFE ROAD のロゴを入れて1枚の画像にする ---------- */
-document.addEventListener('click',e=>{
+function finishShot(cv,title,sub){                            // 写真の下に ひとこと と LIFE ROAD を重ねて、そのまま画像にする（比率は変えない）
+  const c=cv.getContext('2d'),W=cv.width,H=cv.height,bh=Math.round(H*.15);
+  c.fillStyle='rgba(255,250,240,.88)';c.fillRect(0,H-bh,W,bh);
+  c.fillStyle='#3b2f4a';fitText(c,title||'',W/2,H-bh*.64,W-30,Math.round(bh*.42));
+  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD'+(sub?'　'+sub:''),W/2,H-bh*.24,W-30,Math.round(bh*.26));
+  return cv.toDataURL('image/jpeg',.9);
+}
+function dlURL(url,name){const l=document.createElement('a');l.href=url;l.download=name;document.body.appendChild(l);l.click();l.remove()}
+document.addEventListener('click',e=>{                        // 記念の絵を保存：絵の下に ひとこと と LIFE ROAD を重ねて、4:3のまま1枚の画像にする
   const a=e.target.closest&&e.target.closest('.savepic');if(!a)return;
   const img=a.parentElement.querySelector('img.keepsake');if(!img)return;
-  const W=img.naturalWidth||480,H=img.naturalHeight||320,bar=Math.round(H*.24),cv=document.createElement('canvas');cv.width=W;cv.height=H+bar;
-  const c=cv.getContext('2d');c.fillStyle='#fffaf0';c.fillRect(0,0,W,H+bar);c.drawImage(img,0,0,W,H);
-  c.fillStyle='#3b2f4a';fitText(c,img.dataset.cap||'',W/2,H+bar*.38,W-28,Math.round(bar*.36));
-  c.fillStyle='#ff5c93';fitText(c,'LIFE ROAD',W/2,H+bar*.78,W-28,Math.round(bar*.26));
-  const l=document.createElement('a');l.href=cv.toDataURL('image/png');l.download='life-road-'+Date.now()+'.png';document.body.appendChild(l);l.click();l.remove();
+  const W=img.naturalWidth||560,H=img.naturalHeight||420,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  cv.getContext('2d').drawImage(img,0,0,W,H);
+  dlURL(img.dataset.nocap?cv.toDataURL('image/png'):finishShot(cv,img.dataset.cap||''),'life-road-'+Date.now()+'.jpg');
   a.textContent='✅ 保存しました';setTimeout(()=>a.textContent='⬇ 画像を保存',1800);Sound.click();
 });
+/* ---------- 結果のシェア：画像（4:3）・リンク・共有 ---------- */
+const lastHap=p=>{const h=G.hist&&G.hist[p.id];return h&&h.length?h[h.length-1].h:0};
+const man=v=>(Math.round(v/1000)/10).toLocaleString('en-US');
+const b64u=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u=s=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+const resultData=r=>({v:1,t:Date.now(),p:r.map(p=>[String(p.name).slice(0,8),p.color,p.cloth,p.gender,p.skin||0,p.hair||0,p.style||'',Math.round(p.final||0),Math.round(lastHap(p)),p.left?1:0])});
+const shareURL=d=>location.href.split(/[?#]/)[0]+'#r='+b64u(JSON.stringify(d));
+function loadImg(u){return new Promise(res=>{if(!u)return res(null);const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=u})}
+async function resultImage(d){                                // 結果カード（4:3）
+  const cv=document.createElement('canvas');cv.width=800;cv.height=600;const c=cv.getContext('2d');
+  const g=c.createLinearGradient(0,0,0,600);g.addColorStop(0,'#9fd8ff');g.addColorStop(1,'#fff6dc');c.fillStyle=g;c.fillRect(0,0,800,600);
+  c.fillStyle='#fffaf0';rr(c,24,24,752,552,28);c.fill();c.strokeStyle='#d2a56a';c.lineWidth=6;rr(c,24,24,752,552,28);c.stroke();
+  c.textBaseline='middle';c.fillStyle='#ff5c93';c.textAlign='center';c.font=`900 44px ${FONT}`;c.fillText('🏆 LIFE ROAD 結果',400,72);
+  const n=Math.min(6,d.p.length),rh=Math.min(74,Math.floor(400/Math.max(1,n)));
+  const imgs=await Promise.all(d.p.slice(0,n).map(x=>loadImg(renderAvatar(cleanAv({gender:x[3],cloth:x[2],car:x[1],skin:x[4],hair:x[5],style:x[6]})))));
+  d.p.slice(0,n).forEach((x,i)=>{
+    const y=120+i*rh;c.fillStyle=i===0?'#fff0b8':'#f6efe2';rr(c,48,y,704,rh-8,18);c.fill();
+    c.textAlign='left';c.fillStyle='#3b2f4a';c.font=`900 ${Math.round(rh*.5)}px ${FONT}`;c.fillText(['🥇','🥈','🥉'][i]||`${i+1}位`,62,y+rh/2-4);
+    if(imgs[i])c.drawImage(imgs[i],128,y-2,Math.round((rh+6)*1.41),rh+6);
+    c.fillStyle='#3b2f4a';c.font=`900 ${Math.round(rh*.42)}px ${FONT}`;c.fillText(String(x[0])+(x[9]?'（退出）':''),128+Math.round((rh+6)*1.41)+12,y+rh/2-4);
+    c.textAlign='right';c.fillStyle=x[7]<0?'#e02d3a':'#3b2f4a';c.font=`900 ${Math.round(rh*.46)}px ${FONT}`;c.fillText(`${man(x[7])}万円`,676,y+rh/2-4);
+    c.fillStyle='#c4571f';c.font=`800 ${Math.round(rh*.3)}px ${FONT}`;c.fillText(`😊${x[8]}`,738,y+rh/2-4);
+  });
+  c.textAlign='center';c.fillStyle='#887';c.font=`700 20px ${FONT}`;c.fillText('みんなで遊ぶ、オンライン人生すごろく',400,548);
+  return cv;
+}
+async function shareResults(r){
+  const d=resultData(r),url=shareURL(d),cv=await resultImage(d),img=cv.toDataURL('image/png');
+  const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
+  for(;;){
+    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>リンクを開くと、この結果が見られます</small>`,btns:['🔗 リンクをコピー','📤 共有する','閉じる'],col:true,cpu:false},null);
+    if(i===0){try{await navigator.clipboard.writeText(url)}catch(e){const ta=document.createElement('textarea');ta.value=url;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}V.toast('結果のリンクをコピーしました')}
+    else if(i===1){
+      try{
+        if(navigator.share){const blob=await new Promise(r2=>cv.toBlob(r2,'image/png')),f=new File([blob],'life-road-result.png',{type:'image/png'}),data={title:'LIFE ROAD',text,url};
+          if(navigator.canShare&&navigator.canShare({files:[f]}))data.files=[f];await navigator.share(data)}
+        else{await navigator.clipboard.writeText(text+'\n'+url);V.toast('共有用の文章とリンクをコピーしました')}
+      }catch(e){}
+    }else break;
+  }
+}
+async function showSharedResult(){                            // 結果リンクから開いたとき：その結果を見せる
+  let d;try{d=JSON.parse(unb64u(location.hash.slice(3)))}catch(e){return}
+  if(!d||d.v!==1||!Array.isArray(d.p)||!d.p.length||d.p.length>8)return;
+  d.p=d.p.map(x=>[String(x[0]||'').slice(0,8),+x[1]||0,+x[2]||0,String(x[3]||'n'),+x[4]||0,+x[5]||0,String(x[6]||''),+x[7]||0,+x[8]||0,x[9]?1:0]);
+  $('#titleScr').classList.add('hidden');
+  const img=(await resultImage(d)).toDataURL('image/png');
+  await cardLocal({head:'🏆 LIFE ROAD の結果',color:'#c98a00',wide:true,title:`${esc(d.p[0][0])} の優勝！`,text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>みんなで遊ぶ、オンライン人生すごろく</small>`,btns:['自分も遊んでみる'],cpu:false},null);
+  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+  $('#titleScr').classList.remove('hidden');
+}
+/* ---------- ゴール後の写真：天界の自分を撮る（保存・共有） ---------- */
+async function heavenPhoto(){
+  const p=G.players[NET.myPid],c=p&&cars[p.id];if(!p||!c||cardOpen)return;
+  const ry=c.g.rotation.y,fx=Math.cos(ry),fz=-Math.sin(ry),az=Math.atan2(fx,fz)+.3,el=.18,dist=4.6,t=c.g.position.clone().add(new V3(0,1.2,0));
+  const pos=[t.x+Math.sin(az)*Math.cos(el)*dist,t.y+Math.sin(el)*dist,t.z+Math.cos(az)*Math.cos(el)*dist];
+  Sound.stamp();
+  const cv=shot43({heaven:true,cam:{pos,look:[t.x,t.y,t.z]}}),cap=`${p.name}、${p.rank||''}着でゴール！`,url=finishShot(cv,cap,'');
+  await cardLocal({head:'📸 天界の記念写真',color:'#ff4f86',wide:true,title:'ゴールおめでとう！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
+}
 /* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
 const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
 function showChat(pid,x){
@@ -209,6 +275,7 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
+  {const me=G.players[NET.myPid];$('#heavenBtn').classList.toggle('hidden',!(NET.on&&me&&me.finished&&!G.over))}
   setFav(!!(NET.on&&!G.over&&turnP&&turnP.id===NET.myPid));       // 自分の番だけ、赤ポチ
   $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
   $('#mbMoney').textContent=fmt(cur.cash)+'円';
@@ -383,13 +450,14 @@ V.results=async()=>{
   V.banner(`🏆 優勝：${r[0].name}！`);
   const myRank=NET.on?r.findIndex(p=>p.id===NET.myPid):0,canPhoto=myRank>=0&&myRank<3;
   const bar=$('#podiumBar');bar.classList.remove('hidden');
-  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！${NET.on&&myRank>=0?`　あなたは ${myRank+1}位`:''}</div><div class="pdb">${canPhoto?'<button id="pdPhoto" class="pink">📸 記念撮影</button>':''}<button id="pdDetail">📊 くわしい結果</button><button id="pdShare" class="green">🔗 結果をシェア</button><button id="pdAgain" class="alt">もう一度遊ぶ</button></div>`;
   $('#pdDetail').onclick=()=>{if(!cardOpen)detail()};
+  $('#pdShare').onclick=()=>{if(!cardOpen)shareResults(r)};
   if(canPhoto)$('#pdPhoto').onclick=async()=>{
     Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
-    const url=podiumPhoto(`LIFE ROAD　🏆 ${r.slice(0,3).map((p,i)=>`${i+1}位 ${p.name}`).join('　')}`);
+    const url=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`);
     setTimeout(()=>fl.classList.add('hidden'),500);
-    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<img src="${url}" style="width:100%;border-radius:12px;border:6px solid #fff;box-shadow:0 4px 14px #0004" alt="記念写真"><br><a href="${url}" download="life-road-podium.png" class="dl">⬇ 画像を保存する</a><br><small>（スマホは画像を長押しでも保存できます）</small>`,btns:['閉じる'],cpu:false},null);
+    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
   };
   await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();
@@ -399,6 +467,7 @@ V.results=async()=>{
 $('#btn2d').onclick=()=>{Cam.set2D(!Cam.is2D);$('#btn2d').textContent=Cam.is2D?'🎥 3D表示':'🗺 2D表示';Sound.click()};
 $('#btnSnd').onclick=()=>{Sound.resume();$('#btnSnd').textContent=Sound.toggle()?'🔊':'🔇'};
 $('#btnSpd').onclick=()=>{if(AUTO)return;SPD=SPD>=4?1:SPD*2;$('#btnSpd').textContent=`⏩ ×${SPD}`;Sound.click()};
+$('#heavenBtn').onclick=heavenPhoto;
 $('#btnSave').onclick=()=>{if(typeof pauseGame==='function')pauseGame()};
 $('#btnLog').onclick=()=>{logOn=!logOn;$('#logBox').classList.toggle('hidden',!logOn)};
 
@@ -465,6 +534,7 @@ window.addEventListener('load',()=>{
     $('#sub').innerHTML='⚠ このブラウザでは3D(WebGL)を使えません。別のブラウザでお試しください。<br><small>'+esc(e.message)+'</small>';
     console.error(e);return;
   }
+  if(/^#r=/.test(location.hash)&&!AUTO)showSharedResult();
   if(AUTO){
     const n=+((location.search.match(/n=(\d)/)||[])[1]||4);
     startGame(Array.from({length:n},(_,i)=>({name:'CPU'+(i+1),cpu:true,color:CAR_COLS[i],cloth:defAv(i).cloth,gender:defAv(i).gender})));

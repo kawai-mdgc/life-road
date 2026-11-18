@@ -3622,7 +3622,6 @@ let favNow=null;
 function setFav(dot){
   if(favNow===dot)return;favNow=dot;
   const l=$('#fav');if(l)l.href=favURL(dot?1:0);
-  if(!G.over&&!/結果/.test(document.title))document.title=dot?'🔴 あなたの番！ LIFE ROAD':'LIFE ROAD';
 }
 window.addEventListener('load',()=>setFav(false));
 /* ---------- トースト・ログ・数字・バナー ---------- */

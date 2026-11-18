@@ -78,10 +78,18 @@ function autoSave(){
 }
 function readSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.v===1&&s.state&&s.list?s:null}catch(e){return null}}
 function clearSave(){try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
-function pauseGame(){
-  if(!(NET.on&&NET.isHost))return;
-  if(!confirm('ゲームをセーブして中断しますか？\n（この番のはじめから再開できます。最初の画面の「続きから」で、もう一度ルームを作ってください）'))return;
-  bc({t:'paused'});setTimeout(()=>location.reload(),400);
+function pauseGame(){                                        // 💾中断：だれが押しても、全員に反映される（セーブはホストの端末）
+  if(!NET.on)return;
+  const msg=NET.isHost?'ゲームをセーブして中断しますか？\n全員の画面が中断されます。\n（この番のはじめから再開できます。最初の画面の「続きから」で、もう一度ルームを作ってください）':'ゲームを中断しますか？\n全員の画面が中断され、ホストがセーブします。';
+  if(!confirm(msg))return;
+  if(NET.isHost)doPause(G.players[NET.myPid]?G.players[NET.myPid].name:'ホスト');else NET.send({t:'pause'});
+}
+function doPause(by){                                         // ホスト：セーブして、全員に知らせる
+  if(!(NET.on&&NET.isHost)||NET.pausing)return;NET.pausing=true;
+  autoSave();bc({t:'paused',by});
+  const mine=G.players[NET.myPid]&&G.players[NET.myPid].name;
+  if(by===mine)setTimeout(()=>location.reload(),400);
+  else cardLocal({head:'💾 中断',color:'#3f8cff',title:`${by} がゲームを中断しました`,text:'セーブしました。続きは最初の画面の「続きから」で再開できます。',btns:['最初に戻る']},null).then(()=>location.reload());
 }
 const saveMembers=sv=>sv.state.players.filter(p=>!p.left).map(p=>p.name);
 function refreshResumeBtn(){
@@ -108,6 +116,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='pause'){doPause(G.players[c.pid]?G.players[c.pid].name:'だれか');return}
   if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
   if(m.t==='cardAns'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='card')resolvePend(m.rid,+m.i||0)}
   else if(m.t==='spinGo'){const q=NET.pend[m.rid];if(q&&q.pid===c.pid&&q.kind==='spin')resolvePend(m.rid)}
@@ -317,7 +326,7 @@ function clientRecv(m){
     case 'spinWait':{
       const p=G.players[NET.myPid];V.waitSpin(p,m.pur,m.phase).then(()=>NET.send({t:'spinGo',rid:m.rid}));break}
     case 'results':G.hist=m.hist||{};V.results();break;
-    case 'paused':G.over=true;cardLocal({head:'💾 中断',color:'#3f8cff',title:'ホストがゲームをセーブして中断しました',text:'続きは、ホストが最初の画面の「続きから」でルームを作ると再開できます。<br><small>同じ名前で入ると、自分の続きを引きつげます</small>',btns:['最初に戻る']},null).then(()=>location.reload());break;
+    case 'paused':G.over=true;cardLocal({head:'💾 中断',color:'#3f8cff',title:`${m.by||'ホスト'} がゲームを中断しました`,text:'ホストがセーブしました。続きは、ホストが最初の画面の「続きから」でルームを作ると再開できます。<br><small>同じ名前で入ると、自分の続きを引きつげます</small>',btns:['最初に戻る']},null).then(()=>location.reload());break;
   }
 }
 

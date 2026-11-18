@@ -1228,12 +1228,6 @@ async function partyOrAnniv(p){
   await tryMarry(p,true);
 }
 ['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日でお祝い金','?');SP[id]=partyOrAnniv});
-async function lateChance(p){                               // 後半の出会いのマス：独身なら恋人 → プロポーズ、結婚していたら結婚記念日
-  if(p.spouse)return anniversary(p);
-  if(!p.lover){await ask(p,{head:'💗 出会いのチャンス',color:'#ff6fa5',title:'すてきな出会いがあった！',text:'おつきあいするなら、3人の中から選べます',btns:['OK'],pick:0});await newLover(p)}
-  else{await ask(p,{head:'💍 結婚のチャンス',color:'#ff6fa5',title:'プロポーズのタイミング！',text:'おつきあいしている人に、思いを伝えよう',btns:['OK'],pick:0});await tryMarry(p,true)}
-}
-['118','130'].forEach(id=>{setSq(id,'blue','family','出会いのチャンス：独身なら恋人ができる／恋人がいればプロポーズ。結婚していたら結婚記念日','?');SP[id]=lateChance});
 
 /* ---------- ハプニング（人生のできごと）を増やす。後半は大きな出費も ---------- */
 ['28','112','137','138','143','144','148','S9','W7'].forEach(id=>{setSq(id,'blue','event','人生のできごと（何が起こるかはお楽しみ）','?');SP[id]=async p=>lifeEvent(p)});

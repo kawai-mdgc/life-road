@@ -84,6 +84,27 @@ function sendChat(x){
   $('#chatSend').onclick=go;$('#chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go()}});
   $('#stage').addEventListener('pointerdown',()=>$('#chatPanel').classList.add('hidden'));
 })();
+/* ---------- ファビコン：自分の番が来たら、赤ポチがつく（別のタブを見ていても気づける） ---------- */
+const favCache={};
+function favURL(dot){
+  if(favCache[dot])return favCache[dot];
+  const cv=document.createElement('canvas');cv.width=cv.height=64;const c=cv.getContext('2d');
+  const g=c.createLinearGradient(0,0,0,64);g.addColorStop(0,'#9fd8ff');g.addColorStop(1,'#c9f0a8');
+  c.fillStyle=g;rr(c,2,2,60,60,16);c.fill();
+  c.fillStyle='#e8d8b0';c.fillRect(2,44,60,18);c.fillStyle='#fff';for(let i=0;i<4;i++)c.fillRect(6+i*15,52,8,3);   // 道とセンターライン
+  c.fillStyle='#ff4f86';rr(c,10,28,38,16,6);c.fill();rr(c,17,19,24,14,6);c.fill();                                       // 車体
+  c.fillStyle='#dff3ff';rr(c,21,22,7,8,2);c.fill();rr(c,30,22,7,8,2);c.fill();
+  c.fillStyle='#2a2236';[19,40].forEach(x=>{c.beginPath();c.arc(x,45,6,0,7);c.fill()});c.fillStyle='#ddd';[19,40].forEach(x=>{c.beginPath();c.arc(x,45,2.3,0,7);c.fill()});
+  if(dot){c.fillStyle='#fff';c.beginPath();c.arc(48,16,14,0,7);c.fill();c.fillStyle='#ff2a2a';c.beginPath();c.arc(48,16,11,0,7);c.fill()}   // 赤ポチ
+  return favCache[dot]=cv.toDataURL('image/png');
+}
+let favNow=null;
+function setFav(dot){
+  if(favNow===dot)return;favNow=dot;
+  const l=$('#fav');if(l)l.href=favURL(dot?1:0);
+  if(!G.over&&!/結果/.test(document.title))document.title=dot?'🔴 あなたの番！ LIFE ROAD':'LIFE ROAD';
+}
+window.addEventListener('load',()=>setFav(false));
 /* ---------- トースト・ログ・数字・バナー ---------- */
 let toastT=0;
 V.toast=m=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,3200)};
@@ -170,6 +191,7 @@ V.hud=()=>{
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');
   $('#hudFam').innerHTML=fam||'👤ひとり';
   renderHand(cur);
+  setFav(!!(NET.on&&!G.over&&turnP&&turnP.id===NET.myPid));       // 自分の番だけ、赤ポチ
   $('#mbName').innerHTML=`<span style="color:${hex(cur.color)}">●</span> ${esc(cur.name)} <span class="age">🎂${ageOfKey(cur.pos)}歳</span> <span class="hp">😊${happinessOf(cur)}</span>`;
   $('#mbMoney').textContent=fmt(cur.cash)+'円';
   $('#mbSub').innerHTML=`${turnP===cur?'▶ あなたの番':'▶ '+esc(turnP.name)+' の番'}${cur.notes?` ・📜手形${cur.notes}枚`:''} ・💼${cur.retired?'退職':cur.job?esc(rankName(cur)):'学生'}`;

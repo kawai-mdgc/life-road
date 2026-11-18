@@ -3653,9 +3653,17 @@ document.addEventListener('click',e=>{                        // 記念の絵を
   dlURL(img.dataset.nocap?cv.toDataURL('image/png'):finishShot(cv,img.dataset.cap||''),'life-road-'+Date.now()+'.jpg');
   a.textContent='✅ 保存しました';setTimeout(()=>a.textContent='⬇ 画像を保存',1800);Sound.click();
 });
-document.addEventListener('click',e=>{                        // リンクのコピー：カードは閉じずに、その場で「コピーしました」にする
-  const a=e.target.closest&&e.target.closest('.copylink');if(!a)return;
-  copySiteLink(true);a.textContent='✅ コピーしました';setTimeout(()=>a.textContent='🔗 リンクをコピー',1800);
+document.addEventListener('click',async e=>{                // リンクのコピー（この結果のリンク）／画像2枚つきの共有。どちらもカードは閉じない
+  const a=e.target.closest&&e.target.closest('.copylink,.sharepics');if(!a||!shareCtx)return;
+  if(a.classList.contains('copylink')){
+    const u=shareCtx.url;try{await navigator.clipboard.writeText(u)}catch(_){const ta=document.createElement('textarea');ta.value=u;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(__){}ta.remove()}
+    a.textContent='✅ コピーしました';setTimeout(()=>a.textContent='🔗 リンクをコピー',1800);return;
+  }
+  try{
+    const files=[];if(shareCtx.pod)files.push(new File([await (await fetch(shareCtx.pod)).blob()],'life-road-podium.jpg',{type:'image/jpeg'}));
+    files.push(new File([await (await fetch(shareCtx.img)).blob()],'life-road-result.png',{type:'image/png'}));
+    await navigator.share({title:'LIFE ROAD',text:shareCtx.text,url:shareCtx.url,files});
+  }catch(err){}
 });
 /* ---------- 結果のシェア：画像（4:3）・リンク・共有 ---------- */
 const lastHap=p=>{const h=G.hist&&G.hist[p.id];return h&&h.length?h[h.length-1].h:0};
@@ -3688,11 +3696,15 @@ async function copySiteLink(quiet){
   try{await navigator.clipboard.writeText(SITE_URL)}catch(e){const ta=document.createElement('textarea');ta.value=SITE_URL;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}
   if(!quiet)V.toast('リンクをコピーしました');
 }
+let shareCtx=null;
 async function shareResults(r){
   const d=resultData(r),url=shareURL(d),cv=await resultImage(d),img=cv.toDataURL('image/png');
   let pod='';try{if(typeof podium!=='undefined'&&podium)pod=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`)}catch(e){console.warn(e)}      // 表彰台の写真（静止ポーズ）も一緒に
   const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
-  await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><div><a class="copylink">🔗 リンクをコピー</a></div><small>リンクをXなどに貼ると、表彰台の画像つきで表示されます。リンクを開くと、トップページが開きます</small>`,btns:['閉じる'],cpu:false},null);
+  shareCtx={url,text,pod,img};
+  let canFiles=false;try{canFiles=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([''],'a.png',{type:'image/png'})]}))}catch(e){}
+  await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><div class="sharebtns"><a class="copylink">🔗 リンクをコピー</a>${canFiles?'<a class="sharepics">📤 画像2枚つきで共有</a>':''}</div><small>リンクを開くと、この結果の表彰台が見られて、「自分も遊んでみる」から遊べます${canFiles?'<br>「画像2枚つきで共有」は、表彰台と結果の画像・リンクをまとめて送れます':''}</small>`,btns:['閉じる'],cpu:false},null);
+  shareCtx=null;
 }
 async function showSharedResult(){                            // 結果リンクから開いたとき：表彰台のシーンで、その結果を見せる
   let d;try{d=JSON.parse(unb64u(location.hash.slice(3)))}catch(e){return}

@@ -42,7 +42,7 @@ function initTestPanel(){
   $('#tpJump').innerHTML=TEST_JUMPS.map(j=>`<button data-k="${j[0]}">${j[1]}<small> ${j[0]}</small></button>`).join('');
   $('#tpJump').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('jump',b.dataset.k));
   $('#tpGo').onclick=()=>testRun('jump',$('#tpKey').value.trim().toUpperCase());
-  const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる']];
+  const LIFE_BTNS=[['arrest','🚨逮捕'],['arrestDash','🏃ダッシュ逮捕'],['jobless','失業'],['mateJobless','配偶者失業'],['cheated','浮気された'],['affair','愛人チャンス'],['exposed','愛人バレる'],['divorce','離婚の危機'],['delinquent','子がグレる'],['suspicion','🕵不倫の疑い'],['loverChance','💗恋人チャンス'],['meet','💍結婚チャンス'],['lateLove','🌸熟年の出会い']];
   $('#tpLife').innerHTML=LIFE_BTNS.map(b=>`<button data-k="${b[0]}">${b[1]}</button>`).join('');
   $('#tpLife').querySelectorAll('button').forEach(b=>b.onclick=()=>testRun('life',b.dataset.k));
   $('#tpFam').innerHTML='<button data-f="notes">🕶手形3枚(取り立て屋)</button><button data-f="pay">手形を全部返す</button><button data-f="mate">配偶者を付ける</button><button data-f="kids">子ども2人</button><button data-f="aff">愛人を付ける</button><button data-f="job">職業(医者)</button>';
@@ -88,7 +88,7 @@ async function testLife(k){
   if(G.awaiting!==p){V.toast('自分の番のルーレット前に使ってください');return}
   if(testBusy)return;testBusy=true;
   try{
-    if(['mateJobless','cheated','affair','exposed','divorce'].includes(k))testFamily('mate');
+    if(['mateJobless','cheated','affair','exposed','divorce','suspicion'].includes(k))testFamily('mate');
     if(k==='exposed')testFamily('aff');
     if(k==='delinquent')testFamily('kids');
     if(k==='jobless')testFamily('job');

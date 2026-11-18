@@ -199,7 +199,8 @@ async function payday(p,key,passing){
   if(a==='astro'&&!p.astroUsed){p.astroUsed=true;s+=50000;note='（宇宙旅行ボーナス+50,000）'}
   if(s>0){say(p,`${passing?'給料日を通過！':'給料日！'}${p.retired?'年金':'給料'} +${fmt(s)}円 ${note}`);await income(p,s);Sound.good()}
   else say(p,`給料日… ${note}`);
-  if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false})}
+  if(p.affairInfo){say(p,`愛人（${p.affairInfo.name}）への出費 −3,000円`);await pay(p,3000,{discount:false});
+    if(p.spouse&&p.spouseInfo&&Math.random()<.12){await LIFE.exposed.run(p);joy(p,LIFE_JOY.exposed||0);V.hud()}}      // 給料日ごとに、ばれるかも（不倫発覚）
   if(p.notes>0){                                            // 借金の重み：給料日ごとに利息、取り立て屋がいれば強制返済
     const it=NOTE_INT*p.notes;say(p,`約束手形${p.notes}枚の利息 −${fmt(it)}円`);await pay(p,it,{discount:false});
     if(p.chased&&p.cash>=NOTE_BACK+5000){say(p,'🕶 取り立て屋に、手形1枚ぶんを取り立てられた！');await repayNotes(p,1)}
@@ -492,11 +493,12 @@ SP['20']=async p=>{
   await stepAndLand(p);
 };
 SP['26']=async p=>{const r=await duelRoll(p,x=>x===7);if(r===7){say(p,'当選！ +50,000');await income(p,50000);Sound.good()}else say(p,'はずれ')};
-SP['31']=async p=>{
+async function newLover(p){                                  // 恋人ができる（マス31・人生のできごと・出会いのマスで共通）
   const c=await choosePerson(p,{role:'lover',head:'💗 恋人ができる',color:'#ff6fa5',q:'どんな人とおつきあいする？',title2:'3人の中から、恋人を選ぼう'});
   p.loverInfo=c;p.lover=true;joy(p,5);V.pins(p);say(p,`${p.name} に恋人 ${c.name} さんができた！`);Sound.good();
-  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover',`${p.name} と ${c.name} さん、おつきあいスタート！`)+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});await famBonus(p,'31');
-};
+  await ask(p,{head:'💗 恋人ができた！',color:'#ff6fa5',title:`わ〜い！ ${esc(c.name)} さんとおつきあい！`,text:picHtml(p,c,'lover',`${p.name} と ${c.name} さん、おつきあいスタート！`)+'<small>恋人がいると、プロポーズが成功しやすくなります</small>',btns:['OK'],pick:0,wide:true});
+}
+SP['31']=async p=>{await newLover(p);await famBonus(p,'31')};
 SP['34']=async p=>{
   const r=await spin(p,'duel');
   if(G.stockOwner[r]===null){G.stockOwner[r]=p;p.stocks.push(r);say(p,`株券「${r}」をもらった！（他人が${r}を出すと配当5,000）`);Sound.good()}
@@ -716,18 +718,18 @@ const LIFE={
   mateJobless:{ok:p=>p.spouse&&p.spouseInfo&&p.spouseInfo.bonus>0&&p.spouseJobless===0,w:2,run:async p=>{
     await ask(p,{head:'💼 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんが失業した！`,text:'次の3回の給料日は、共働き収入がなくなります。励ましに 5,000円',btns:['OK'],pick:0});
     p.spouseJobless=3;say(p,`${p.spouseInfo.name}さんが失業… 共働きが3回おやすみ`);await pay(p,5000)}},
-  cheated:{ok:p=>p.spouse&&p.spouseInfo,w:1,run:async p=>{
+  cheated:{ok:p=>p.spouse&&p.spouseInfo,w:3,run:async p=>{
     Sound.bad();
     const i=await ask(p,{head:'💔 人生のできごと',color:'#e8454c',title:`${p.spouseInfo.name}さんの浮気が発覚！`,text:'許してやり直す？ それとも離婚する？<br><small>離婚すると慰謝料 +30,000円がもらえます</small>',btns:['許してやり直す','離婚する'],pick:p.spouseInfo.bonus>=3000?0:1,col:true});
     if(i===0){p.spouseInfo.bonus=Math.floor(p.spouseInfo.bonus/2);say(p,'許したけれど、信頼がゆらいで共働きの助けが減った…')}
     else{say(p,`${p.name} は離婚。慰謝料 +30,000円`);doDivorce(p);await income(p,30000)}}},
-  affair:{ok:p=>(p.spouse||p.lover)&&!p.affairInfo,w:1,run:async p=>{
+  affair:{ok:p=>(p.spouse||p.lover)&&!p.affairInfo&&ageOfKey(p.pos)>=24,w:4,run:async p=>{
     const i=await ask(p,{head:'🖤 人生のできごと',color:'#6a4fd0',title:'魅力的な人に出会ってしまった…',text:'愛人をつくる？ それとも断る？<br><small>愛人は給料日ごとに −3,000円。バレると大変なことに…</small>',btns:['愛人をつくる','きっぱり断る（+3,000円）'],pick:Math.random()<.3?0:1,col:true});
     if(i===0){
       const c=await choosePerson(p,{role:'affair',head:'🖤 愛人のプロフィール',color:'#6a4fd0',q:'どんな人？',title2:'3人の中から、愛人を選ぼう'});
       p.affairInfo=c;say(p,`${p.name} に愛人 ${c.name} さんができた…（秘密）`);
     }else{say(p,'きっぱり断った。誠実さが評価されて +3,000円');await income(p,3000)}}},
-  exposed:{ok:p=>p.spouse&&p.affairInfo,w:3,run:async p=>{
+  exposed:{ok:p=>p.spouse&&p.affairInfo,w:6,run:async p=>{
     Sound.bad();
     await ask(p,{head:'🔥 修羅場！',color:'#e8454c',title:'愛人のことがバレた！',text:`${p.spouseInfo.name}さんが激怒…離婚、そして慰謝料 <b>50,000円</b> を支払います`,btns:['OK'],pick:0});
     say(p,`${p.name} は愛人がバレて離婚… 慰謝料 −50,000円`);doDivorce(p);p.affairInfo=null;await pay(p,50000,{discount:false})}},
@@ -917,12 +919,18 @@ async function partyOrAnniv(p){
   await tryMarry(p,true);
 }
 ['66','89'].forEach(id=>{setSq(id,'blue','family','婚活パーティー：独身ならプロポーズのチャンス／結婚していたら結婚記念日でお祝い金','?');SP[id]=partyOrAnniv});
+async function lateChance(p){                               // 後半の出会いのマス：独身なら恋人 → プロポーズ、結婚していたら結婚記念日
+  if(p.spouse)return anniversary(p);
+  if(!p.lover){await ask(p,{head:'💗 出会いのチャンス',color:'#ff6fa5',title:'すてきな出会いがあった！',text:'おつきあいするなら、3人の中から選べます',btns:['OK'],pick:0});await newLover(p)}
+  else{await ask(p,{head:'💍 結婚のチャンス',color:'#ff6fa5',title:'プロポーズのタイミング！',text:'おつきあいしている人に、思いを伝えよう',btns:['OK'],pick:0});await tryMarry(p,true)}
+}
+['118','130'].forEach(id=>{setSq(id,'blue','family','出会いのチャンス：独身なら恋人ができる／恋人がいればプロポーズ。結婚していたら結婚記念日','?');SP[id]=lateChance});
 
 /* ---------- ハプニング（人生のできごと）を増やす。後半は大きな出費も ---------- */
 ['28','112','137','138','143','144','148','S9','W7'].forEach(id=>{setSq(id,'blue','event','人生のできごと（何が起こるかはお楽しみ）','?');SP[id]=async p=>lifeEvent(p)});
 const pct=(p,rate,min)=>Math.max(min,Math.round(Math.max(0,p.cash)*rate/1000)*1000);
 Object.assign(LIFE,{
-  meet:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=22,w:2,run:async p=>{await ask(p,{head:'💘 人生のできごと',color:'#ff6fa5',title:'運命の出会い！',text:'プロポーズのチャンスです',btns:['OK'],pick:0});await tryMarry(p,true)}},
+  meet:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=22,w:4,run:async p=>{await ask(p,{head:'💘 人生のできごと',color:'#ff6fa5',title:'運命の出会い！',text:'プロポーズのチャンスです',btns:['OK'],pick:0});await tryMarry(p,true)}},
   nursing:{ok:p=>ageOfKey(p.pos)>=66&&!p.seniorRes,w:4,run:async p=>{const a=pct(p,.45,250000);Sound.bad();
     await ask(p,{head:'🏥 人生のできごと',color:'#e8454c',title:'老人ホームに入ることに',text:`入居一時金 <b class="minus">${fmt(a)}円</b><br><small>現金の45%（最低250,000円）。足りない分は約束手形</small>`,btns:['OK'],pick:0});say(p,`老人ホームの入居一時金 −${fmt(a)}円`);await pay(p,a,{discount:false})}},
   bigscam:{ok:p=>ageOfKey(p.pos)>=60,w:3,run:async p=>{
@@ -942,7 +950,22 @@ Object.assign(LIFE,{
   hobby:{ok:p=>!p.spouse,w:2,run:async p=>{await ask(p,{head:'🎸 人生のできごと',color:'#2fb36f',title:'趣味の仲間ができた！',text:'好きなことに夢中になれる毎日。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：趣味の仲間ができた`)}},
   friend:{ok:()=>true,w:1,run:async p=>{await ask(p,{head:'🍻 人生のできごと',color:'#2fb36f',title:'なつかしい友だちと再会！',text:'昔話に花が咲いた。幸せレベルがアップ',btns:['OK'],pick:0});say(p,`${p.name}：旧友と再会`)}}
 });
-const LIFE_JOY={solo:12,hobby:9,friend:6,jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
+Object.assign(LIFE,{
+  loverChance:{ok:p=>!p.spouse&&!p.lover&&ageOfKey(p.pos)>=18,w:4,run:async p=>{
+    await ask(p,{head:'💗 人生のできごと',color:'#ff6fa5',title:'すてきな出会いがあった！',text:'おつきあいするなら、3人の中から選べます<br><small>断ることもできます</small>',btns:['出会いを大切にする','今は仕事がたのしい'],pick:p.risk>.3?0:1,col:true}).then(async i=>{if(i===0)await newLover(p);else say(p,'今は仕事に集中！')})}},
+  lateLove:{ok:p=>!p.spouse&&ageOfKey(p.pos)>=45,w:4,run:async p=>{
+    const first=!p.lover;
+    await ask(p,{head:'🌸 人生のできごと',color:'#ff6fa5',title:'同窓会で、なつかしい人と再会！',text:first?'あの頃のときめきが、よみがえる…<br>おつきあいが始まります':'おつきあいしている人と、ゆっくりと将来を考えるように…<br>プロポーズのチャンスです',btns:['OK'],pick:0});
+    if(first)await newLover(p);else await tryMarry(p,true)}},
+  suspicion:{ok:p=>p.spouse&&p.spouseInfo&&!p.affairInfo,w:2,run:async p=>{
+    Sound.bad();
+    const i=await ask(p,{head:'🕵 人生のできごと',color:'#6a4fd0',title:`${p.spouseInfo.name}さんの帰りが、最近おそい…`,text:'探偵に調べてもらう？（−10,000円）<br><small>調べると、ルーレットで<b>5以下</b>なら「浮気が発覚」、6以上なら「ただの誤解」でした</small>',btns:['調べる（−10,000円）','信じて、何もしない'],pick:p.risk>.5?0:1,col:true});
+    if(i===0){await pay(p,10000,{discount:false});const r=await duelRoll(p,x=>x<=5);
+      if(r<=5){say(p,'探偵の調査で、浮気が発覚…');await LIFE.cheated.run(p);joy(p,LIFE_JOY.cheated||0)}
+      else{say(p,'ただの残業と同窓会でした。誤解でごめんなさい');joy(p,2)}}
+    else{say(p,'相手を信じることにした');joy(p,2)}}}
+});
+const LIFE_JOY={loverChance:3,lateLove:4,suspicion:0,solo:12,hobby:9,friend:6,jobless:-8,mateJobless:-3,cheated:-8,exposed:-6,divorce:-3,delinquent:-4,arrest:-8,quake:-6,illness:-6,scam:-5,inherit:8,cold:-1,nursing:-5,bigscam:-8,care:-6,crash:-5};
 
 /* ---------- 追加コース（分かれ道で選ぶ） ---------- */
 async function treasure(p,n){const pool=ITEMS.filter(x=>x.ty==='col');for(let i=0;i<n;i++)await handleItem(p,{...pickOf(pool)})}

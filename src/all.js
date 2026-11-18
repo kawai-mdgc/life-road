@@ -3717,7 +3717,7 @@ async function showSharedResult(){                            // 結果リンク
   const fit=()=>{Cam.followDist=Math.max(13.5,pd.half*1.06/(Math.tan(Math.PI/8)*aspect()))};fit();addEventListener('resize',fit);
   document.title=`LIFE ROAD 結果：優勝 ${r[0].name}`;
   const bar=$('#podiumBar');bar.classList.remove('hidden');
-  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！　${man(r[0].final)}万円</div><div class="pdb"><button id="pdDetail">📊 結果カード</button><button id="pdAgain" class="pink">自分も遊んでみる</button></div>`;
+  bar.innerHTML=`<div class="pdt">🏆 ${esc(r[0].name)} の優勝！　${man(r[0].final)}万円</div><div class="pdb"><button id="pdDetail">📊 詳しい結果</button><button id="pdAgain" class="pink">🎮 自分も遊んでみる</button></div>`;
   const card=async(url,cap,head)=>{if(cardOpen)return;await cardLocal({head,color:'#ff4f86',wide:true,title:cap,text:`<div class="keep"><img class="keepsake" src="${url}" alt=""></div>`,btns:['閉じる'],cpu:false},null)};
   $('#pdDetail').onclick=async()=>card((await resultImage(d)).toDataURL('image/png'),'みんなの結果','📊 結果');
   $('#pdAgain').onclick=()=>location.replace(location.pathname+location.search);

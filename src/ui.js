@@ -126,7 +126,7 @@ async function takePhoto(){
   const p=G.players[NET.myPid];if(!p||cardOpen||Cam.title)return;
   Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';setTimeout(()=>fl.classList.add('hidden'),500);
   const cv=shot43({}),url=finishShot(cv,`${p.name}（${ageOfKey(p.pos)}歳）の人生`,'');
-  await cardLocal({head:'📸 写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
+  dlURL(url,'life-road-'+Date.now()+'.jpg');V.toast('📸 写真を保存しました');                 // 押したら、すぐ保存
 }
 /* ---------- リアクション・コメント（待っているあいだも楽しめるように） ---------- */
 const CHAT_EMO=['😂','👏','😭','😱','❤️','🎉','👍','🙏','🔥','💸'];
@@ -459,7 +459,7 @@ V.results=async()=>{
     Sound.stamp();const fl=$('#photoFlash');fl.classList.remove('hidden');fl.style.animation='none';void fl.offsetWidth;fl.style.animation='';
     const url=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`);
     setTimeout(()=>fl.classList.add('hidden'),500);
-    await cardLocal({head:'📸 記念写真',color:'#ff4f86',wide:true,title:'はい、チーズ！',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${url}" alt=""><a class="savepic">⬇ 画像を保存</a></div>`,btns:['閉じる'],cpu:false},null);
+    dlURL(url,'life-road-podium.jpg');V.toast('📸 表彰台の写真を保存しました');
   };
   await new Promise(res=>{$('#pdAgain').onclick=res});
   location.reload();

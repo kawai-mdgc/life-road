@@ -1462,7 +1462,7 @@ function buildPodium(ranked){
     const ts=i<3?1:.74;sp.scale.set(2.5*ts,.98*ts,1);sp.position.set(x,y,z);sp.renderOrder=9;g.add(sp)};
   ranked.forEach((p,i)=>{
     const top=i<3,low=i>=4,pl={...lookOf(p),old:ageOfKey(p.pos)>=75,job:p.job&&!p.retired?p.job.n:null,rank:p.jobRank,joy:top||i===3,sad:low,scale:2.5},d=makeDoll({...pl,pose:top?'up':i===3?'wave':null});
-    const dS=top?makeDoll({...pl,pose:null}):null;                                         // 撮影用：うでを下ろして、表情だけで喜ぶ
+    const dS=top?makeDoll({...pl,pose:'up'}):null;                                         // 撮影用：ばんざいのまま、跳ねずにぴたっと止まる
     const holder=new THREE.Group();d.rotation.y=-Math.PI/2;holder.add(d);if(dS){dS.rotation.y=-Math.PI/2;dS.visible=false;holder.add(dS)}
     let x,y,z;
     if(top){x=blocks[i][0];y=blocks[i][1]-.2;z=0}
@@ -1470,7 +1470,7 @@ function buildPodium(ranked){
     else{const k=i-4;x=-4.6-k*1.9;y=-.2;z=-2.0;d.rotation.x=.34;d.position.z=.1;                 // うつむく
       const gl=mesh(new THREE.SphereGeometry(.34,8,6),new THREE.MeshLambertMaterial({color:0x7f8aa8,transparent:true,opacity:.8}),0,2.15,0,holder);gl.scale.set(1.5,.6,1)}   // どんより雲
     holder.position.set(x,y,z);g.add(holder);
-    if(i===0){const cr=new THREE.Group();mesh(new THREE.CylinderGeometry(.13,.11,.09,8,1,true),mat(0xffd23f,160,{emissive:0x664400,side:THREE.DoubleSide}),0,0,0,cr);for(let k=0;k<5;k++)mesh(new THREE.ConeGeometry(.03,.09,4),mat(0xffd23f,160,{emissive:0x664400}),Math.cos(k*1.257)*.115,.08,Math.sin(k*1.257)*.115,cr);cr.position.set(0,.66,0);d.add(cr)}
+    if(i===0)[d,dS].forEach(dd=>{const cr=new THREE.Group();mesh(new THREE.CylinderGeometry(.13,.11,.09,8,1,true),mat(0xffd23f,160,{emissive:0x664400,side:THREE.DoubleSide}),0,0,0,cr);for(let k=0;k<5;k++)mesh(new THREE.ConeGeometry(.03,.09,4),mat(0xffd23f,160,{emissive:0x664400}),Math.cos(k*1.257)*.115,.08,Math.sin(k*1.257)*.115,cr);cr.position.set(0,.66,0);dd.add(cr)});
     tag(p,i,x,y+(low?2.85:i===3?2.3:2.45),z+.05);
     actors.push({holder,d,dS,i,y,ph:i*1.3});
   });

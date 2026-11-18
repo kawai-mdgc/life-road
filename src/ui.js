@@ -94,14 +94,16 @@ async function resultImage(d){                                // 結果カード
 }
 async function shareResults(r){
   const d=resultData(r),url=shareURL(d),cv=await resultImage(d),img=cv.toDataURL('image/png');
+  let pod='';try{if(typeof podium!=='undefined'&&podium)pod=podiumPhoto(`🏆 ${r.slice(0,3).map((p,k)=>`${k+1}位 ${p.name}`).join('　')}`)}catch(e){console.warn(e)}      // 表彰台の写真（静止ポーズ）も一緒に
   const text=`LIFE ROAD の結果！ 🏆 ${r[0].name} が優勝（${man(r[0].final)}万円）`;
   for(;;){
-    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 画像を保存</a></div><small>リンクを開くと、この結果が見られます</small>`,btns:['🔗 リンクをコピー','📤 共有する','閉じる'],col:true,cpu:false},null);
+    const i=await cardLocal({head:'🔗 結果をシェア',color:'#3f8cff',wide:true,title:'みんなの結果',text:`<div class="keeprow">${pod?`<div class="keep"><img class="keepsake" data-nocap="1" src="${pod}" alt=""><a class="savepic">⬇ 表彰台を保存</a></div>`:''}<div class="keep"><img class="keepsake" data-nocap="1" src="${img}" alt=""><a class="savepic">⬇ 結果を保存</a></div></div><small>表彰台と結果の2枚をシェアできます。リンクを開くと結果が見られます</small>`,btns:['🔗 リンクをコピー','📤 共有する','閉じる'],col:true,cpu:false},null);
     if(i===0){try{await navigator.clipboard.writeText(url)}catch(e){const ta=document.createElement('textarea');ta.value=url;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}V.toast('結果のリンクをコピーしました')}
     else if(i===1){
       try{
-        if(navigator.share){const blob=await new Promise(r2=>cv.toBlob(r2,'image/png')),f=new File([blob],'life-road-result.png',{type:'image/png'}),data={title:'LIFE ROAD',text,url};
-          if(navigator.canShare&&navigator.canShare({files:[f]}))data.files=[f];await navigator.share(data)}
+        if(navigator.share){const blob=await new Promise(r2=>cv.toBlob(r2,'image/png')),files=[];
+          if(pod)files.push(new File([await (await fetch(pod)).blob()],'life-road-podium.jpg',{type:'image/jpeg'}));files.push(new File([blob],'life-road-result.png',{type:'image/png'}));
+          const data={title:'LIFE ROAD',text,url};if(navigator.canShare&&navigator.canShare({files}))data.files=files;await navigator.share(data)}
         else{await navigator.clipboard.writeText(text+'\n'+url);V.toast('共有用の文章とリンクをコピーしました')}
       }catch(e){}
     }else break;

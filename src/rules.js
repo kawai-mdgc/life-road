@@ -374,8 +374,11 @@ async function buyHouse(p){
   G.houseTaken[o.i]=true;p.houses.push(o.h);joy(p,6);V.hud();
   say(p,`${p.name}：${o.h.n}を購入！`);
   await V.buildHouse(p,o.h);                       // 家にズーム → ボン！！と立つ → 約5秒しっかり見せる
-  await photoCard(p,'🏠 マイホーム！','#c98a00',`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,photoOf('housePhoto',p,o.h,false),`${p.name} の ${o.h.n} が建ちました！`,/マンション/.test(o.h.n)?'<small>買った部屋に、明かりがともりました</small>':'');
-  if(p.spouse||p.lover||p.kidList.length||p.pets)await photoCard(p,'📸 家族写真','#ff9a3d',`${esc(p.name)} の家族、そろって記念写真！`,photoOf('housePhoto',p,o.h,true),`${p.name} 一家、新しい家の前で`);
+  {                                                           // 家の写真と家族写真を、いちどに2枚。それぞれの下の「保存」で選んで保存できる
+    const u1=photoOf('housePhoto',p,o.h,false),u2=(p.spouse||p.lover||p.kidList.length||p.pets)?photoOf('housePhoto',p,o.h,true):'';
+    if(u1)await ask(p,{head:'🏠 マイホーム！',color:'#c98a00',title:`わ〜い！ ${esc(p.name)} の ${esc(o.h.n)} が建ったよ！`,
+      text:`<div class="keeprow">${keepsake(u1,`${p.name} の ${o.h.n} が建ちました！`).replace('画像を保存','家の写真を保存')}${u2?keepsake(u2,`${p.name} 一家、新しい家の前で`).replace('画像を保存','家族写真を保存'):''}</div>${/マンション/.test(o.h.n)?'<small>買った部屋に、明かりがともりました</small>':''}`,btns:['OK'],pick:0,wide:true});
+  }
 }
 
 /* ---------- 勝負・賭け ---------- */
@@ -572,6 +575,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse',`${p.name} と ${c.name} さんが結婚しました！`)+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
   if(V.weddingScene)await V.weddingScene(p,p.spouseInfo,wi);      // 選んだ式の動画（結婚した本人だけスキップできる。押さなければみんなの画面に流れる）
+  await photoCard(p,'💒 結婚式の記念写真','#ff6fa5',`わ〜い！ ${esc(p.name)} と ${esc(p.spouseInfo.name)} さんの${['豪華な','ふつうの','地味な'][wi]}結婚式！`,photoOf('weddingPhoto',p,p.spouseInfo,wi),`${p.name} と ${p.spouseInfo.name} さん、${['豪華婚','結婚式','地味婚（役所で）'][wi]}！`);
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
   if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}

@@ -24,6 +24,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
+  ev('weddingScene',(p,sp,g)=>[p.id,sp?{name:sp.name,gender:sp.gender,cloth:sp.cloth,hair:sp.hair,skin:sp.skin,style:sp.style}:null,g]);ev('weddingSkip');
   ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('garagara',(p,sq,r,hit,gr)=>[p.id,sq,r,hit,gr]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);ev('thugsArrive',p=>[p.id]);ev('thugsLeave',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
@@ -116,6 +117,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='weddingSkip'){if(c.pid===Wed.owner)V.weddingSkip();return}
   if(m.t==='test'){if(TestMode.on&&c.pid!==undefined&&!G.over&&m&&typeof m.op==='string')testExec(m.op,m.a,c.pid);return}
   if(m.t==='pause'){doPause(G.players[c.pid]?G.players[c.pid].name:'だれか');return}
   if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
@@ -302,6 +304,7 @@ function clientRecv(m){
         case 'step':{const p=G.players[a[0]];if(p){p.pos=a[1];V.step(p,a[1]);V.hud()}break}
         case 'bills':V.bills(unPid(a[0]),unPid(a[1]),a[2]);break;
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
+        case 'weddingScene':V.weddingScene(G.players[a[0]],a[1],a[2]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
         case 'turnIntro':V.turnIntro(G.players[a[0]],a[1]);break;

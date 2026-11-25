@@ -148,6 +148,8 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#skipBtn{position:fixed;right:14px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:40;padding:12px 22px;font-size:1rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 18px #0005}
+body.cine #left,body.cine #hudR,body.cine #hand,body.cine #actions,body.cine #mbar,body.cine #tools,body.cine #chatBtn,body.cine #heavenBtn,body.cine #chatFloat,body.cine #peekBar{display:none!important}
 #peekBar{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:31;display:flex;gap:6px;align-items:center;padding:6px 10px;border-radius:22px;background:#fffaf0f5;border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 10px 20px #0004;font-weight:900;font-size:.9rem;max-width:96vw}
 #peekBar button{padding:6px 10px;font-size:.85rem;flex:none;border-radius:12px}#pkName{white-space:nowrap}
 .pl .pk{padding:1px 6px;font-size:.8rem;border-radius:10px;background:#fff;color:#3b2f4a;box-shadow:0 2px 0 #0002;margin-left:4px;flex:none}
@@ -327,6 +329,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
 <button id="chatBtn" class="hidden" title="リアクション・コメント">💬</button>
 <div id="chatPanel" class="panel hidden"><div id="chatEmo"></div><div class="chatrow"><input id="chatIn" type="text" maxlength="30" placeholder="ひとこと（30文字まで）" autocomplete="off"><button id="chatSend">送る</button></div></div>
 <div id="chatFloat" class="hidden"></div>
+<button id="skipBtn" class="hidden">⏭ スキップ</button>
 <div id="peekBar" class="hidden"><button id="pkPrev">◀</button><span id="pkName"></span><button id="pkNext">▶</button><button id="pkMode" class="alt">📍 現在地</button><button id="pkClose" class="pink">✕</button></div>
 <div id="podiumBar" class="hidden"></div><div id="photoFlash" class="hidden"></div>
 <div id="avModal" class="hidden">
@@ -1268,6 +1271,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
   await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse',`${p.name} と ${c.name} さんが結婚しました！`)+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
+  if(V.weddingScene)await V.weddingScene(p,p.spouseInfo,wi);      // 選んだ式の動画（結婚した本人だけスキップできる。押さなければみんなの画面に流れる）
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
   if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}
@@ -3673,7 +3677,7 @@ function photoShot(build){                                    // build(g) が {b
   }catch(e){console.warn(e);return ''}
 }
 const FACE=-1.25;                                             // 斜め前のカメラに、顔を向ける
-function heartAt(g,x,y,z,r,c=0xff5a8a,ry=0){const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(c,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(c,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);h.rotation.y=ry;g.add(h)}
+function heartAt(g,x,y,z,r,c=0xff5a8a,ry=0){const h=new THREE.Group();[-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(r,10,8),mat(c,90),0,r*.35,sd*r*.62,h));const t=mesh(new THREE.ConeGeometry(r*1.25,r*1.7,4),mat(c,90),0,-r*.72,0,h);t.rotation.set(Math.PI,Math.PI/4,0);t.scale.x=.55;h.position.set(x,y,z);h.rotation.y=ry;h.userData.heart=1;g.add(h)}
 function bitsAt(g,n,cx,cy,cz,sx,sy,sz){const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff];for(let i=0;i<n;i++){const m=mesh(new THREE.BoxGeometry(.05,.05,.012),mat(cs[i%5],60),cx+(((i*37)%100)/100-.5)*sx,cy+(((i*53)%100)/100)*sy,cz+(((i*71)%100)/100-.5)*sz,g);m.rotation.set(i,i*2,i*3)}}
 function labelSprite(txt,col,w=1.5,h=.42,y=1){const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false,fog:false,map:canvasTex(384,Math.round(384*h/w),(c,W,H)=>{c.fillStyle='#fffdf2';rr(c,5,5,W-10,H-10,H*.4);c.fill();c.strokeStyle=hex(col);c.lineWidth=10;rr(c,9,9,W-18,H-18,H*.36);c.stroke();c.fillStyle='#3b2f4a';fitText(c,txt,W/2,H/2+3,W-60,Math.round(H*.5))})}));sp.scale.set(w,h,1);sp.position.y=y;sp.renderOrder=9;return sp}
 function riderList(p){                                        // 同じ車に乗っている全員
@@ -3768,6 +3772,130 @@ function carPhoto(p,title){                                    // 新車：リ�
     return{bg:0xd9f0ff,pos:[3.1,1.55,3.8],look:[0,.7,.2]};
   });
 }
+
+/* ---------- 結婚式の動画：豪華婚／ふつうの式／地味婚。空の上のステージで流れる（結婚した本人だけスキップできる） ---------- */
+const Wed={active:false,dead:false,stop:null,owner:-1};
+V.weddingSkip=()=>{if(!Wed.active||Wed.dead)return;Wed.dead=true;if(Wed.stop)Wed.stop()};
+V.weddingScene=async(p,sp,grade)=>{
+  if(AUTO||Wed.active||!p||!sp)return;
+  Wed.active=true;Wed.dead=false;Wed.owner=p.id;
+  const mine=!!(NET.on&&p.id===NET.myPid),sk=$('#skipBtn'),was2D=Cam.is2D,az0=Cam.userAz;
+  if(typeof V.peekEnd==='function')V.peekEnd();
+  if(was2D)Cam.set2D(false);
+  sk.classList.toggle('hidden',!mine);
+  sk.onclick=()=>{V.weddingSkip();if(NET.on&&!NET.isHost)NET.send({t:'weddingSkip'})};
+  document.body.classList.add('cine');
+  const B=new V3(300,150,-320),g=new THREE.Group();g.position.copy(B);worldG.add(g);
+  const E=x=>x<=0?0:x>=1?1:x*x*(3-2*x),L=(a,b,k)=>a+(b-a)*k,clamp01=x=>Math.max(0,Math.min(1,x));
+  try{
+    const cl=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x9a9aa8});
+    const puff=(x,y,z,r)=>{const m=mesh(G_('wpuff',()=>new THREE.SphereGeometry(1,10,8)),cl,x,y,z,g);m.scale.set(r,r*.5,r)};
+    mesh(new THREE.CylinderGeometry(10,11,.7,36),cl,0,-.35,0,g);
+    for(let i=0;i<24;i++){const a=i/24*6.283,r=10+(i%3)*.8;puff(Math.cos(a)*r,-.5-(i%2)*.2,Math.sin(a)*r,2+(i%3)*.5)}
+    const archZ=-.6;
+    // チャペル（豪華・ふつう）
+    if(grade<2){
+      const ch=new THREE.Group();ch.position.set(0,0,-9);g.add(ch);
+      mesh(new THREE.BoxGeometry(7,5,6),mat(0xfff4ee,60),0,2.5,0,ch);
+      const roof=mesh(new THREE.ConeGeometry(5.3,2.8,4),mat(grade===0?0xff8fb5:0x8fc4ee,80),0,6.4,0,ch);roof.rotation.y=Math.PI/4;
+      mesh(new THREE.BoxGeometry(1.5,2.6,1.5),mat(0xfff4ee,60),0,8.2,0,ch);mesh(new THREE.ConeGeometry(1.2,1.5,4),mat(0xffd23f,100),0,10.2,0,ch).rotation.y=Math.PI/4;
+      const door=mat(0x6a4328,40);mesh(new THREE.BoxGeometry(1.8,3,.2),door,0,1.5,3.05,ch);mesh(new THREE.SphereGeometry(.9,12,8),door,0,3,3.05,ch).scale.set(1,1,.12);
+      mesh(new THREE.CircleGeometry(.85,20),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(c,w,h)=>{const cs=['#ff6b9d','#ffd23f','#4aa3ff','#4cd68a','#b98cff','#ff9a3d'];for(let i=0;i<6;i++){c.fillStyle=cs[i];c.beginPath();c.moveTo(w/2,h/2);c.arc(w/2,h/2,w/2,i*1.047,(i+1)*1.047);c.fill()}c.strokeStyle='#fff';c.lineWidth=6;c.beginPath();c.arc(w/2,h/2,w/2-3,0,7);c.stroke()})}),0,4.3,3.03,ch);
+      [-2.3,2.3].forEach(x=>mesh(new THREE.PlaneGeometry(.9,1.7),new THREE.MeshBasicMaterial({color:0xbfe6ff}),x,2.8,3.03,ch));
+      mesh(new THREE.BoxGeometry(3,.2,1.2),mat(0xe8dcc8,40),0,.1,3.6,ch);
+    }
+    // 赤いじゅうたんと花のアーチ（地味婚は、小さな机と婚姻届）
+    if(grade<2){
+      const carp=mesh(new THREE.PlaneGeometry(1.7,15),new THREE.MeshLambertMaterial({color:0xd8344f}),0,.03,.6,g);carp.rotation.x=-Math.PI/2;
+      [-.9,.9].forEach(x=>{const e=mesh(new THREE.PlaneGeometry(.09,15),new THREE.MeshBasicMaterial({color:0xffd23f}),x,.035,.6,g);e.rotation.x=-Math.PI/2});
+    }
+    const scaleA=grade===2?.8:1;
+    [-1.15,1.15].forEach(x=>mesh(new THREE.CylinderGeometry(.11,.11,3.3*scaleA,8),mat(0xffffff,80),x*scaleA,1.65*scaleA,archZ,g));
+    mesh(new THREE.TorusGeometry(1.15*scaleA,.09,8,24,Math.PI),mat(0xffffff,80),0,3.3*scaleA,archZ,g);
+    const fl=[0xff6b9d,0xffffff,0xffd23f,0xff9ec4];
+    for(let i=0;i<16;i++){const a=i/15*Math.PI;mesh(new THREE.SphereGeometry(.17,6,6),mat(fl[i%4],50),Math.cos(a)*1.15*scaleA,(3.3+Math.sin(a)*1.15)*scaleA,archZ,g)}
+    [-1.15,1.15].forEach((x,j)=>{for(let i=0;i<5;i++)mesh(new THREE.SphereGeometry(.17,6,6),mat(fl[(i+j)%4],50),x*scaleA,(.5+i*.62)*scaleA,archZ+.05,g)});
+    let table=null,stamp=null;
+    if(grade===2){
+      table=new THREE.Group();table.position.set(0,0,archZ+1.7);g.add(table);
+      mesh(new THREE.BoxGeometry(2,.8,.9),mat(0xb98550,40),0,.4,0,table);
+      mesh(new THREE.BoxGeometry(.8,.02,.55),mat(0xffffff,20),0,.81,0,table);
+      mesh(new THREE.BoxGeometry(.5,.005,.12),mat(0xd8344f,20),.05,.825,.12,table);
+      stamp=mesh(new THREE.CylinderGeometry(.06,.06,.22,10),mat(0xd8344f,60),.3,1.4,0,table);
+      const lb=labelSprite('婚姻届',0xe6a800,1.2,.36,3.3);lb.position.set(0,3.3,archZ+1.7);g.add(lb);
+    }
+    // ゲスト：ほかのプレイヤー＋おなじみの人たち
+    const nG=grade===0?12:grade===1?6:2,others=G.players.filter(q=>q.id!==p.id),guests=[];
+    const rl=()=>{const gd=pickOf(['m','f','m','f','n']);return{color:CLOTH_COLS[rnd(CLOTH_COLS.length)],gender:gd,skin:pickOf(NAT_SKIN),hair:pickOf(NAT_HAIR),style:pickOf(STYLE_BY[gd])}};
+    for(let i=0;i<nG;i++){
+      const q=others[i];const o=q?{...lookOf(q),old:ageOfKey(q.pos)>=75}:rl();
+      const d=makeDoll({...o,pose:'up',joy:true,scale:1.1});
+      let x,z;if(grade===2){x=(i?1:-1)*2.0;z=archZ+1.9}else{const row=Math.floor(i/2);x=(i%2?1:-1)*(2.3+(row%2)*.55);z=6-row*1.45}
+      d.position.set(x,0,z);d.rotation.y=x<0?0:Math.PI;g.add(d);guests.push({d,i});
+    }
+    // ふたり
+    const sf=sp.gender==='f',pf=p.gender==='f';
+    let pDress=pf||(!sf&&p.gender==='n');let sDress=!pDress&&(sf||sp.gender==='n');if(!pDress&&!sDress)sDress=true;
+    const wedOld=ageOfKey(p.pos)>=75;
+    const mk=(who,look,dress,suit)=>{
+      const o={...lookOf(look),old:wedOld,joy:true,scale:1.3};
+      if(grade<2){if(dress)o.color=0xffffff;else if(suit)o.color=0x1b1b2a}
+      const d=makeDoll(o);
+      if(grade<2&&dress){mesh(new THREE.ConeGeometry(.2,.34,12,1,true),new THREE.MeshPhongMaterial({color:0xffffff,transparent:true,opacity:.7,side:THREE.DoubleSide}),-.06,.5,0,d);[[.12,.2,.17],[.15,.24,.2],[.1,.24,.14]].forEach(([x,y,z],i)=>mesh(new THREE.SphereGeometry(.04,6,6),mat([0xff6fa5,0xffd23f,0xffffff][i],60),x,y,z,d))}
+      else if(grade<2){mesh(new THREE.BoxGeometry(.04,.05,.12),mat(0xe8454c,60),.13,.3,0,d)}
+      else if(who==='p'||who==='s'){[[.12,.18,.17],[.14,.2,.19]].forEach(([x,y,z],i)=>mesh(new THREE.SphereGeometry(.035,6,6),mat([0xff6fa5,0xffd23f][i],60),x,y,z,d))}
+      return d;
+    };
+    const dp=mk('p',p,pDress,!pDress),ds=mk('s',sp,sDress,!sDress);g.add(dp);g.add(ds);
+    // ふんいき：花びら・風船・鳩・花火
+    const petals=[];if(grade<2)for(let i=0;i<40;i++){const m=mesh(new THREE.SphereGeometry(.09,5,4),mat(i%3?0xff9ec4:0xffffff,30),0,-9,0,g);m.scale.set(1,.3,1);petals.push({m,ph:i*.37,x:(Math.random()-.5)*9,z:(Math.random()-.5)*10+1})}
+    const balloons=[];if(grade<2)for(let i=0;i<(grade===0?12:6);i++){const sd=i%2?1:-1,m=mesh(new THREE.SphereGeometry(.38,10,8),mat([0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff,0xffffff][i%6],100),sd*(6+Math.random()*2.5),1.2,-1+Math.random()*7,g);m.scale.y=1.2;balloons.push({m,y0:1.2+Math.random()*.6,sp:2.2+Math.random()*1.4})}
+    const doves=[];if(grade===0)for(let i=0;i<6;i++){const d=new THREE.Group();mesh(new THREE.SphereGeometry(.16,8,6),mat(0xffffff,40),0,0,0,d).scale.set(1.5,.8,.9);const w1=mesh(new THREE.BoxGeometry(.22,.02,.3),mat(0xffffff,40),0,.04,.2,d),w2=mesh(new THREE.BoxGeometry(.22,.02,.3),mat(0xffffff,40),0,.04,-.2,d);d.visible=false;d.position.set(0,2.5,archZ);g.add(d);doves.push({d,w1,w2,a:i/6*6.283})}
+    const fire=[];if(grade===0)for(let b=0;b<5;b++){const cs=[0xff6b9d,0xffd23f,0x4aa3ff,0x4cd68a,0xb98cff][b],c0=new V3((b-2)*5.5,14+(b%2)*3,-14),ps=[];for(let i=0;i<26;i++){const a=i/26*6.283,e=(i%2?1:.6),m=mesh(new THREE.SphereGeometry(.14,5,4),new THREE.MeshBasicMaterial({color:cs,transparent:true,opacity:0,fog:false}),c0.x,c0.y,c0.z,g);ps.push({m,vx:Math.cos(a)*4.5*e,vy:Math.sin(a)*4.5*e})}fire.push({c0,ps,at:b*.35})}
+    // 進行
+    const T=grade===0?[2.4,5,3.4,3.2]:grade===1?[1.6,3.6,2.8,1.8]:[1,2.4,3.2,1.4],tA=T[0],tB=tA+T[1],tC=tB+T[2],tD=tC+T[3],dur=tD*1000;
+    V.banner(grade===0?'💒 豪華な結婚式！':grade===1?'💐 ふつうの結婚式':'🏠 地味婚：ふたりだけの結婚式');Sound.fanfare();
+    const f={walk:false,kiss:false,end:false,stamp:false};
+    const focus={position:B.clone()};Cam.followObj=focus;Cam.followDist=24;Cam.followEl=.3;Cam.userAz=-.5;
+    const z0=grade===2?archZ+5.5:8.5,z1=grade===2?archZ+3.1:.6;
+    const run=anim(dur,k=>{
+      if(Wed.dead)return;const t=k*tD;
+      // ゲスト・花びら
+      guests.forEach(o=>{o.d.position.y=Math.abs(Math.sin(t*3.2+o.i))*(t>tB?.22:.1)});
+      petals.forEach(o=>{if(t<tA){o.m.position.y=-9;return}const y=7-((t-tA)*1.1+o.ph)%7;o.m.position.set(o.x+Math.sin(t*1.3+o.ph)*.5,y,o.z)});
+      // ふたりの歩き・ふりむき・キス
+      const wk=E(clamp01((t-tA)/T[1])),zc=L(z0,z1,wk),bob=(t>tA&&t<tB)?Math.abs(Math.sin(t*7))*.07:0;
+      const turn=E(clamp01((t-tB)/.6)),rot=L(Math.PI/2,-Math.PI/2,turn),kiss=E(clamp01((t-tB-.9)/.7));
+      const gap=L(.45,.28,kiss);
+      dp.position.set(-gap,bob,zc);ds.position.set(gap,bob,zc);
+      dp.rotation.y=rot+.7*kiss*(rot<0?1:0);ds.rotation.y=rot-.7*kiss*(rot<0?1:0);dp.rotation.z=.1*kiss;ds.rotation.z=-.1*kiss;
+      if(t>tA&&!f.walk){f.walk=true;Sound.good()}
+      if(grade===2&&t>tB+.8&&!f.stamp){f.stamp=true;Sound.stamp();V.confetti(B.clone().add(new V3(0,2.5,archZ+1.7)))}
+      if(grade===2&&stamp)stamp.position.y=1.4-.5*Math.max(0,Math.sin(clamp01((t-tB-.6)/.5)*Math.PI));
+      if(t>tB+1.5&&!f.kiss){f.kiss=true;Sound.fanfare();V.confetti(B.clone().add(new V3(0,2.4,.6)));V.confetti(B.clone().add(new V3(1.5,3.2,.2)));
+        for(let i=0;i<7;i++)heartAt(g,(Math.random()-.5)*1.6,2.2+Math.random()*.6,zc+.2,.12+Math.random()*.08,0xff5a8a,Math.PI/2)}
+      g.children.forEach(o=>{if(o.userData&&o.userData.heart)o.position.y+=.012});
+      if(t>tC&&!f.end){f.end=true;Sound.good();V.confetti(B.clone().add(new V3(-2,3,2)));V.confetti(B.clone().add(new V3(2,3,2)))}
+      // 風船・鳩・花火
+      if(t>tC-.4)balloons.forEach(o=>{o.m.position.y=o.y0+(t-tC+.4)*o.sp*1.6});
+      doves.forEach((o,i)=>{if(t<tC){return}const u=t-tC;o.d.visible=true;const a=o.a+u*.4;o.d.position.set(Math.cos(a)*u*2.2,2.5+u*(2+i*.3),archZ-u*1.2+Math.sin(a)*u);o.d.rotation.y=-a;const fl=Math.sin(u*14+i)*.7;o.w1.rotation.x=fl;o.w2.rotation.x=-fl});
+      fire.forEach(o=>{const u=t-(tC-.3)-o.at;o.ps.forEach(q=>{if(u<0){q.m.material.opacity=0;return}q.m.position.set(o.c0.x+q.vx*u,o.c0.y+q.vy*u-1.6*u*u,o.c0.z);q.m.material.opacity=Math.max(0,1-u/1.6)})});
+      // カメラ
+      let fx=B.x,fy=B.y+3,fz=B.z-3,dist,el,az;
+      if(t<tA){const u=E(t/tA);dist=L(27,21,u);el=L(.36,.26,u);az=L(-.7,-.2,u);fy=B.y+2.8;fz=B.z-2}
+      else if(t<tB){const u=E((t-tA)/T[1]);fx=B.x;fy=B.y+1.5;fz=B.z+zc;dist=L(10.5,8.5,u);el=.2;az=L(.7,.25,u)}
+      else if(t<tC){const u=E((t-tB)/T[2]);fx=B.x;fy=B.y+1.55;fz=B.z+z1;dist=L(8.5,5.2,u);el=L(.2,.1,u);az=L(.25,0,u)}
+      else{const u=E((t-tC)/T[3]);fx=B.x;fy=B.y+L(1.6,5,u);fz=B.z+L(z1,-2,u);dist=L(5.2,22,u);el=L(.1,.34,u);az=L(0,-.35,u)}
+      focus.position.set(fx,fy,fz);Cam.followDist=dist;Cam.followEl=el;Cam.userAz=az;
+    });
+    await Promise.race([run,new Promise(r=>{Wed.stop=r})]);
+  }catch(e){console.warn('wedding scene',e)}                    // 動画で失敗しても、ゲームは止めない
+  finally{
+    worldG.remove(g);Cam.followObj=null;Cam.followDist=null;Cam.followEl=null;Cam.userAz=az0;
+    if(was2D)Cam.set2D(true);
+    document.body.classList.remove('cine');sk.classList.add('hidden');sk.onclick=null;Wed.active=false;Wed.stop=null;Wed.owner=-1;
+  }
+};
 // ===== 3D ワールド（仕上げ）：カメラ・操作・描画ループ =====
 const Cam={az:.6,el:.95,dist:130,tgt:new V3(),userAz:.6,userEl:.95,userDist:24,rouletteView:false,introUntil:0,followObj:null,followDist:null,followEl:null,shake:0,is2D:false,H:80,zoom2:1,pan:new V3(),title:true,focus:null};
 const QLOW=Math.min(innerWidth,innerHeight)<700||(navigator.hardwareConcurrency||8)<=4;   // スマホなど：品質を落とす
@@ -4658,6 +4786,7 @@ const unPid=x=>x==='bank'?'bank':G.players[x];
   ev('flash');ev('bubble');ev('bubbleOff');
   ev('confetti',at=>[typeof at==='string'?at:null]);
   ev('buildHouse',(p,h)=>[p.id,h]);
+  ev('weddingScene',(p,sp,g)=>[p.id,sp?{name:sp.name,gender:sp.gender,cloth:sp.cloth,hair:sp.hair,skin:sp.skin,style:sp.style}:null,g]);ev('weddingSkip');
   ev('upgradeCar',p=>[p.id]);ev('finishCar',p=>[p.id]);ev('turnIntro',(p,l)=>[p.id,l]);ev('garagara',(p,sq,r,hit,gr)=>[p.id,sq,r,hit,gr]);ev('policeDispatch',(p,d)=>[p.id,d]);ev('policeLeave',(p,d)=>[p.id,d]);ev('policeTake',(p,d)=>[p.id,d]);ev('release',p=>[p.id]);ev('thugsArrive',p=>[p.id]);ev('thugsLeave',p=>[p.id]);
   // 状態スナップショット（hud が呼ばれるたびに、まとめて1回だけ送る）
   const hud=V.hud;let pending=false;
@@ -4750,6 +4879,7 @@ function hostRecv(c,m){
   if(m.t==='ready'&&!NET.started&&c.slot&&NET.slots[c.slot]){NET.slots[c.slot].ready=!!m.v;lobbyUpdate();return}
   if(m.t==='avatar'&&!NET.started&&c.slot&&NET.slots[c.slot]){const sl=NET.slots[c.slot];sl.name=String(m.name||sl.name).slice(0,8);sl.av=uniqueAv(cleanAv(m.av,c.slot),c.slot);lobbyUpdate();return}
   if(!NET.started||c.pid===undefined)return;
+  if(m.t==='weddingSkip'){if(c.pid===Wed.owner)V.weddingSkip();return}
   if(m.t==='test'){if(TestMode.on&&c.pid!==undefined&&!G.over&&m&&typeof m.op==='string')testExec(m.op,m.a,c.pid);return}
   if(m.t==='pause'){doPause(G.players[c.pid]?G.players[c.pid].name:'だれか');return}
   if(m.t==='chat'){const x=String(m.x||'').trim().slice(0,30);if(x){bc({t:'chat',pid:c.pid,x});showChat(c.pid,x)}return}
@@ -4936,6 +5066,7 @@ function clientRecv(m){
         case 'step':{const p=G.players[a[0]];if(p){p.pos=a[1];V.step(p,a[1]);V.hud()}break}
         case 'bills':V.bills(unPid(a[0]),unPid(a[1]),a[2]);break;
         case 'buildHouse':V.buildHouse(G.players[a[0]],a[1]);break;
+        case 'weddingScene':V.weddingScene(G.players[a[0]],a[1],a[2]);break;
         case 'upgradeCar':V.upgradeCar(G.players[a[0]]);break;
         case 'finishCar':V.finishCar(G.players[a[0]]);break;
         case 'turnIntro':V.turnIntro(G.players[a[0]],a[1]);break;

@@ -571,6 +571,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   p.spouse=true;p.lover=false;p.loverInfo=null;joy(p,8);V.pins(p);Sound.good();V.confetti(p.pos);
   await ask(p,{head:'💒 結婚しました！',color:'#ff6fa5',title:`わ〜い！ ${esc(p.name)} と ${esc(c.name)} さんが結婚したよ〜！`,text:picHtml(p,c,'spouse',`${p.name} と ${c.name} さんが結婚しました！`)+'<small>末ながくお幸せに！</small>',btns:['OK'],pick:0,wide:true});
   const wi=await ask(p,{head:'💒 結婚式',color:'#ff6fa5',title:'どんな結婚式にする？',text:'<small>足りない分は約束手形で用意できます。ご祝儀は全員からもらえます</small>',btns:['✨ 豪華婚（−80,000円／ご祝儀 1人10,000円）','💐 ふつうの式（−40,000円／ご祝儀 1人5,000円）','🏠 地味婚（−10,000円／ご祝儀 1人2,000円）'],pick:p.risk>.65?0:p.risk>.25?1:2,col:true});
+  if(V.weddingScene)await V.weddingScene(p,p.spouseInfo,wi);      // 選んだ式の動画（結婚した本人だけスキップできる。押さなければみんなの画面に流れる）
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
   await gifts(p,[10000,5000,2000][wi],'結婚');
   if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}

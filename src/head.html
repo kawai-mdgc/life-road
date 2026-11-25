@@ -148,6 +148,8 @@ button.big{width:100%;font-size:1.15rem;padding:14px;margin:6px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}.tbl td,.tbl th{white-space:nowrap}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid #eee;text-align:right}.tbl td:first-child,.tbl th:first-child{text-align:left}
 #cardWrap.spec{background:transparent;pointer-events:none;align-items:flex-start;padding-top:70px}
 #cardWrap.spec #card{transform:scale(.82);transform-origin:top center;opacity:.95}
+#skipBtn{position:fixed;right:14px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:40;padding:12px 22px;font-size:1rem;background:linear-gradient(#fff,#f3ead8);color:var(--ink);border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 8px 18px #0005}
+body.cine #left,body.cine #hudR,body.cine #hand,body.cine #actions,body.cine #mbar,body.cine #tools,body.cine #chatBtn,body.cine #heavenBtn,body.cine #chatFloat,body.cine #peekBar{display:none!important}
 #peekBar{position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:31;display:flex;gap:6px;align-items:center;padding:6px 10px;border-radius:22px;background:#fffaf0f5;border:3px solid #fff;box-shadow:0 4px 0 #d2a56a,0 10px 20px #0004;font-weight:900;font-size:.9rem;max-width:96vw}
 #peekBar button{padding:6px 10px;font-size:.85rem;flex:none;border-radius:12px}#pkName{white-space:nowrap}
 .pl .pk{padding:1px 6px;font-size:.8rem;border-radius:10px;background:#fff;color:#3b2f4a;box-shadow:0 2px 0 #0002;margin-left:4px;flex:none}
@@ -327,6 +329,7 @@ button.alt{background:linear-gradient(#ffffff,#f3ead8)}
 <button id="chatBtn" class="hidden" title="リアクション・コメント">💬</button>
 <div id="chatPanel" class="panel hidden"><div id="chatEmo"></div><div class="chatrow"><input id="chatIn" type="text" maxlength="30" placeholder="ひとこと（30文字まで）" autocomplete="off"><button id="chatSend">送る</button></div></div>
 <div id="chatFloat" class="hidden"></div>
+<button id="skipBtn" class="hidden">⏭ スキップ</button>
 <div id="peekBar" class="hidden"><button id="pkPrev">◀</button><span id="pkName"></span><button id="pkNext">▶</button><button id="pkMode" class="alt">📍 現在地</button><button id="pkClose" class="pink">✕</button></div>
 <div id="podiumBar" class="hidden"></div><div id="photoFlash" class="hidden"></div>
 <div id="avModal" class="hidden">

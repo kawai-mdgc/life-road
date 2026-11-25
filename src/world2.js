@@ -825,6 +825,14 @@ function buildCarModel(color){
   mesh(new THREE.BoxGeometry(1.52,.035,.82),mat(0xffffff,160,{transparent:true,opacity:.35}),0,.455,0,v).userData.flat=1;                           // 車体のつや
   return v;
 }
+function buildWeddingCar(){                    // ウェディングカー：白い車に、赤いリボンとハート、うしろに空き缶
+  const v=buildCarModel(0xffffff),rb=mat(0xff3b5c,80);
+  mesh(new THREE.BoxGeometry(.16,.04,.82),rb,.62,.585,0,v);mesh(new THREE.BoxGeometry(.5,.04,.14),rb,.62,.585,0,v);
+  [-1,1].forEach(sd=>{const lp=mesh(new THREE.SphereGeometry(.09,8,6),rb,.62,.64,sd*.09,v);lp.scale.set(1.3,.8,1)});
+  [[-.92,.16,.1],[-1.02,.12,-.12],[-.98,.1,.25]].forEach(([x,y,z],i)=>{mesh(new THREE.CylinderGeometry(.045,.045,.09,8),mat(0xc8c8d0,120),x,y,z,v).rotation.z=Math.PI/2;mesh(new THREE.CylinderGeometry(.006,.006,.2,4),mat(0xdddddd),x+.07,y+.08,z,v).rotation.z=.9});
+  [-.3,.3].forEach(z=>mesh(new THREE.SphereGeometry(.06,6,6),mat(0xffd9e8,60),-.78,.44,z,v));
+  return v;
+}
 function buildStroller(color){                // ベビーカー（0〜4歳）
   const v=new THREE.Group();v.wheels=[];
   mesh(new THREE.BoxGeometry(.62,.1,.46),mat(color,90),0,.38,0,v);
@@ -889,7 +897,7 @@ const buildOldVeh=(t,color)=>t==='scooter'?buildScooter(color):t==='echair'?buil
 const OLD_SEAT_Y={chair:.4,echair:.44,scooter:.6};
 function makeCar(p){
   const g=new THREE.Group(),car={g,p,wheels:[],styleSig:'',target:new V3(),anim:false,heading:0,vehicles:{}};
-  car.vehicles.car=buildCarModel(p.color);car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);car.vehicles.echair=buildEChair(p.color);car.vehicles.scooter=buildScooter(p.color);
+  car.vehicles.car=buildCarModel(p.color);car.vehicles.wcar=buildWeddingCar();car.vehicles.stroller=buildStroller(p.color);car.vehicles.bike=buildBike(p.color);car.vehicles.chair=buildChair(p.color);car.vehicles.echair=buildEChair(p.color);car.vehicles.scooter=buildScooter(p.color);
   car.mateG=new THREE.Group();car.mateG.position.z=1.05;g.add(car.mateG);      // 老後：配偶者が乗る、となりの乗り物
   Object.values(car.vehicles).forEach(v=>{v.visible=false;g.add(v)});
   car.seatG=new THREE.Group();car.seatG.position.y=.49;g.add(car.seatG);
@@ -943,11 +951,12 @@ function refreshCar(p){
   const st=p.vstage||'car',vint=p.items.some(i=>i.c==='vcar');
   const old=ageOfKey(p.pos)>=75;
   const ex=exprOf(p);
-  const sig=[st,ex,p.inJail,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
+  const sig=[st,ex,p.weddingCar>0,p.inJail,old,p.skin,p.hair,p.style,p.oldVeh,p.jobRank,p.jobless>0,p.cloth,p.gender,p.job&&p.job.n,p.spouse,p.spouseInfo&&p.spouseInfo.inc,p.spouseInfo&&p.spouseInfo.cloth+p.spouseInfo.gender+p.spouseInfo.hair+p.spouseInfo.style,p.loverInfo&&p.loverInfo.cloth+p.loverInfo.gender,
     p.kidList.map(k=>k.gender+k.cloth).join(','),p.petList.map(x=>x.species+x.col).join(','),p.lover,p.kids,p.grand,p.pets,vint,p.carLevel].join('|');
   if(sig===car.styleSig)return;car.styleSig=sig;
-  Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===st);
-  car.wheels=car.vehicles[st].wheels.slice();
+  const vk=(st==='car'&&p.weddingCar>0)?'wcar':st;                                                  // 豪華婚のあとは、しばらくウェディングカー
+  Object.entries(car.vehicles).forEach(([k,v])=>v.visible=k===vk);
+  car.wheels=car.vehicles[vk].wheels.slice();
   while(car.mateG.children.length)car.mateG.remove(car.mateG.children[0]);
   const mateRides=isOldStage(st)&&p.spouse;       // 老後は、配偶者が別の車椅子／シニアカーに乗ってとなりを走る
   while(car.seatG.children.length)car.seatG.remove(car.seatG.children[0]);
@@ -1698,7 +1707,7 @@ function weddingGuests(p,gr,archZ,g){                         // ゲスト（ほ
 function weddingExtras(g,gr){                                 // 豪華：ケーキ・リムジン／ふつう：なし
   if(gr!==0)return;
   const ck=new THREE.Group();ck.position.set(4.6,0,2.2);g.add(ck);mesh(new THREE.CylinderGeometry(.7,.7,1.1,16),mat(0xffd9e8,60),0,.55,0,ck);[[.5,.5,1.1],[.3,.38,1.6]].forEach(([r,r2,y])=>mesh(new THREE.CylinderGeometry(r,r+.12,.5,16),mat(y>1.3?0xffffff:0xffeef5,60),0,y+.15,0,ck));mesh(new THREE.SphereGeometry(.13,8,6),mat(0xe8454c,90),0,2.05,0,ck);
-  const lm=buildCarModel(0xffffff);lm.position.set(-7.6,0,5.6);lm.rotation.y=.5;lm.scale.setScalar(1.5);g.add(lm);mesh(new THREE.BoxGeometry(.15,.04,.8),mat(0xff3b5c,80),.1,.62,0,lm);
+  const lm=buildWeddingCar();lm.position.set(-7.6,0,5.6);lm.rotation.y=.5;lm.scale.setScalar(1.5);g.add(lm);
 }
 function weddingPhoto(p,sp,gr){                               // 結婚式の記念写真：式のスタイルで、会場も人数もちがう
   const archZ=ARCHZ(gr);

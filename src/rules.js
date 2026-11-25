@@ -121,7 +121,7 @@ function newPlayer(id,name,cpu,color,cloth,gender,look){
   return{id,name,cpu,color,skin:look.skin,hair:look.hair,style:look.style,risk:Math.random(),newCar:false,wedding:0,cloth:cloth??color,gender:gender||'n',pos:'1',route:null,route2:null,cash:30000,notes:0,job:null,promo:0,qual:0,items:[],houses:[],stocks:[],
     spouse:false,lover:false,kids:0,pets:0,grand:0,skip:0,again:false,bonus:0,doubleNext:false,redShield:0,retired:false,
     president:false,abroad:false,memory:false,book:false,carLevel:0,coupon:false,booster:false,halfPay:false,astroUsed:false,
-    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,happy:100,bizTitle:'',settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
+    finished:false,rank:0,lastRoll:0,report:[],spouseInfo:null,petList:[],loverInfo:null,affairInfo:null,kidList:[],jobless:0,spouseJobless:0,weddingCar:0,vstage:'stroller',oldVeh:null,route3:null,route4:null,joy:0,happy:100,bizTitle:'',settled:false,inJail:false,bonusTotal:0,chased:false,jobRank:0,tickets:[]};
 }
 const active=()=>G.players.filter(q=>!q.finished);
 const others=p=>G.players.filter(q=>q!==p&&!q.finished);
@@ -577,6 +577,7 @@ async function tryMarry(p,again){                           // プロポーズ �
   if(V.weddingScene)await V.weddingScene(p,p.spouseInfo,wi);      // 選んだ式の動画（結婚した本人だけスキップできる。押さなければみんなの画面に流れる）
   await photoCard(p,'💒 結婚式の記念写真','#ff6fa5',`わ〜い！ ${esc(p.name)} と ${esc(p.spouseInfo.name)} さんの${['豪華な','ふつうの','地味な'][wi]}結婚式！`,photoOf('weddingPhoto',p,p.spouseInfo,wi),`${p.name} と ${p.spouseInfo.name} さん、${['豪華婚','結婚式','地味婚（役所で）'][wi]}！`);
   p.wedding=3-wi;await pay(p,[80000,40000,10000][wi]);
+  if(wi===0){p.weddingCar=5;V.pins(p);V.banner('🚗 ウェディングカーで出発！');say(p,`${p.name}：豪華婚の記念に、白いウェディングカーに乗れる（5ターン）`)}      // 式で見た白い車が、5ターン使える（自動）
   await gifts(p,[10000,5000,2000][wi],'結婚');
   if(had&&c===had){say(p,'恋人からのプロポーズ成功！ 祝い金+10,000円');await income(p,10000,{celebrate:true})}
   if(jobAb(p)==='wed5'){say(p,'美容師の能力で+5,000円');await income(p,5000)}
@@ -1257,6 +1258,7 @@ async function takeTurn(p){
     V.hud();
   }while(p.again&&!p.finished&&++guard<5);
   joy(p,-1.3);                                             // 何もなければ、少しずつ下がっていく
+  if(p.weddingCar>0){p.weddingCar--;if(!p.weddingCar){say(p,`${p.name}：ウェディングカーはここまで。ふだんの車にもどる`);V.pins(p)}}
   recordHist(p);
 }
 

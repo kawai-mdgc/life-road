@@ -290,7 +290,7 @@ V.hud=()=>{
   if(pv!==undefined&&pv!==cur.cash){m.className=cur.cash>pv?'up':'down';setTimeout(()=>m.className='',700)}
   G.players.forEach(p=>prevCash[p.id]=p.cash);
   $('#hudNote').innerHTML=`📜 約束手形 ${cur.notes}枚${cur.notes?`（返済 ${fmt(cur.notes*NOTE_BACK)}円）`:''}`;
-  const marks=[cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?esc(cur.bizTitle||'社長'):'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
+  const marks=[cur.weddingCar>0?`💒ウェディングカーあと${cur.weddingCar}ターン`:'',cur.promo?`昇進×${cur.promo}`:'',cur.qual?`資格×${cur.qual}`:'',cur.president?esc(cur.bizTitle||'社長'):'',cur.abroad?'留学':'',cur.halfPay?'給料半分':'',cur.coupon?'🏷クーポン待機':'',cur.booster?'🎉ブースター待機':'',cur.redShield?'🛡ドック':'',cur.skip?'💤1回休み':'',cur.jobless?'🥲失業中×'+cur.jobless:'',cur.spouseJobless?'🥲相手失業×'+cur.spouseJobless:''].filter(Boolean).join(' ');
   $('#hudJob').innerHTML=`💼 ${cur.retired?'退職（年金）':cur.job?(cur.jobRank?'✨':'')+esc(rankName(cur))+'（'+fmt(salaryOf(cur))+'）':'学生'} ${marks}`;
   const kidIcons=cur.kidList.map(k=>k.gender==='f'?'👧':'👦').join('');
   const fam=[cur.spouse?'💍'+(cur.spouseInfo?esc(cur.spouseInfo.name):'配偶者'):cur.lover?'💗'+(cur.loverInfo?esc(cur.loverInfo.name):'恋人'):'',cur.affairInfo?'🖤'+esc(cur.affairInfo.name):'',kidIcons,cur.grand?'🧒×'+cur.grand:'',cur.pets?cur.petList.map(x=>x.species==='cat'?'🐱':'🐶').join(''):''].filter(Boolean).join(' ');

@@ -2627,18 +2627,22 @@ function findPath(a,b){
 // 地面の高さ：マスの上ならマスの高さ、それ以外は地面（キャラが浮かないように）
 function groundY(x,z){for(const q of allPts)if((q.x-x)**2+(q.z-z)**2<1.15)return .3;return 0}
 async function driveTo(obj,to,speed,o={}){                // 道すじにそって進む（車は走る／人は走ってはずむ）。follow：うしろに連れていく物
+  const tok=obj.userData.dtok=(obj.userData.dtok||0)+1;                  // 新しい移動が始まったら、前の移動は打ち切る
   const pts=findPath(obj.position.clone(),to.clone());let trail=o.follow?o.follow.position.clone():null;
   let total=0;for(let n=1;n<pts.length;n++)total+=pts[n-1].distanceTo(pts[n]);speed=Math.max(speed,total/6);      // 遠回りでも6秒以内に着く速さ
   for(let n=1;n<pts.length;n++){
     const a=pts[n-1],b=pts[n],len=a.distanceTo(b);if(len<.05)continue;
     const want=Math.atan2(-(b.z-a.z),b.x-a.x),ms=len/speed*1000,dir=b.clone().sub(a).normalize();
     await anim(ms,k=>{
+      if(obj.userData.dtok!==tok)return;
       obj.position.lerpVectors(a,b,k);obj.position.y=groundY(obj.position.x,obj.position.z);obj.rotation.y+=angDiff(obj.rotation.y,want)*.25;
       if(o.run){obj.position.y+=Math.abs(Math.sin(k*Math.PI*ms/110))*.18;obj.rotation.z=-.22;const st=Math.floor(k*ms/220);if(st!==obj.userData.stp){obj.userData.stp=st;Sound.step()}}
       else if(obj.wheels)obj.wheels.forEach(w=>w.rotation.z-=.4);
       if(o.follow){trail.lerp(obj.position.clone().addScaledVector(dir,-1.8),.2);o.follow.position.set(trail.x,groundY(trail.x,trail.z),trail.z);o.follow.rotation.y=obj.rotation.y}
     });
+    if(obj.userData.dtok!==tok)return;
   }
+  if(obj.userData.dtok!==tok)return;
   obj.position.copy(to);obj.position.y=groundY(to.x,to.z);if(o.run)obj.rotation.z=0;
 }
 function freeNear(center,dist){                           // その地点から dist ほど離れた、通れる陸の場所（登場・退場の位置）
@@ -2692,11 +2696,14 @@ V.policeDispatch=async(p,dash)=>{                         // 警察署 → 逮�
   await anim(600,k=>{patrol.off.position.y=.46+Math.abs(Math.sin(k*Math.PI*2))*.25});          // 警官：逮捕だ！
   Cam.followObj=null;
 };
-V.policeLeave=async(p,dash)=>{                            // 保釈金：そのまま払って終わり。警察は署へ戻る
+function policeGoHome(dash){                              // 警察は、勝手に署へ帰る。待たない：帰りはじめたら、プレイはすぐ続けられる
   if(!patrol)return;
-  if(dash){const r=ensureRunner();await driveTo(r,PATROL_HOME.clone(),17,{run:true});r.visible=false;return}
-  await driveTo(patrol.g,PATROL_HOME.clone(),14);
-  patrol.siren=false;
+  if(dash){const r=ensureRunner(),p0=driveTo(r,PATROL_HOME.clone(),17,{run:true}),my=r.userData.dtok;p0.then(()=>{if(r.userData.dtok===my)r.visible=false});return}
+  const p0=driveTo(patrol.g,PATROL_HOME.clone(),14),my=patrol.g.userData.dtok;
+  p0.then(()=>{if(patrol.g.userData.dtok===my)patrol.siren=false});
+}
+V.policeLeave=async(p,dash)=>{                            // 保釈金：そのまま払って終わり。警察は署へ戻る（待たずに）
+  policeGoHome(dash);
 };
 V.policeTake=async(p,dash)=>{                             // 連行：署の隣の檻へ
   const c=cars[p.id];if(!c||!patrol)return;
@@ -2706,7 +2713,7 @@ V.policeTake=async(p,dash)=>{                             // 連行：署の隣�
     await driveTo(r,JAIL_GATE.clone(),15,{run:true,follow:c.g});                 // 車を連れて、障害物をよけながら署へ
     r.rotation.z=0;layoutAll();const to=c.target.clone();
     await anim(800,k=>c.g.position.lerpVectors(c.g.position.clone(),to,.25+k*.75));c.g.position.copy(to);
-    c.anim=false;await driveTo(r,PATROL_HOME.clone(),17,{run:true});r.visible=false;Cam.followObj=null;return;
+    c.anim=false;Cam.followObj=null;policeGoHome(true);return;
   }
   Cam.followObj=patrol.g;
   const a=c.g.position.clone(),pp=patrol.g.position.clone();
@@ -2717,8 +2724,7 @@ V.policeTake=async(p,dash)=>{                             // 連行：署の隣�
   const to=c.target.clone();
   await anim(900,k=>c.g.position.lerpVectors(JAIL_GATE,to,ease(k)));                         // 檻の中へ
   c.anim=false;Cam.followObj=null;
-  await driveTo(patrol.g,PATROL_HOME.clone(),14);
-  patrol.siren=false;
+  policeGoHome(false);                                                                          // 警察は勝手に帰る（待たない）
 };
 V.release=async p=>{                                      // 釈放：警察がパトカーで、元いたマスまで送ってくれる
   const c=cars[p.id];if(!c||!patrol)return;
@@ -2730,8 +2736,8 @@ V.release=async p=>{                                      // 釈放：警察が�
   await driveTo(patrol.g,drop,14);                                        // 元のマスへ送り届ける
   c.g.position.copy(to);c.g.visible=true;
   await anim(500,k=>{c.g.position.y=.3+Math.abs(Math.sin(k*Math.PI*2))*.25});
-  Cam.followObj=null;await driveTo(patrol.g,PATROL_HOME.clone(),14);
-  c.anim=false;
+  Cam.followObj=null;c.anim=false;
+  policeGoHome(false);
 };
 /* ---------- 取り立て屋：黒い車にサングラスの男たち。手形が溜まると、真後ろに張り付いてついてくる ---------- */
 function buildThugCar(){
